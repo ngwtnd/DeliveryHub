@@ -30,6 +30,8 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<DeliveryHubWeb.Services.IMapService, DeliveryHubWeb.Services.MapService>();
 builder.Services.AddHttpClient<DeliveryHubWeb.Services.IRouteOptimizationService, DeliveryHubWeb.Services.RouteOptimizationService>();
 
+builder.WebHost.UseUrls("http://0.0.0.0:8080");
+
 var app = builder.Build();
 
 // 4. Seeding Data
@@ -76,5 +78,3 @@ app.MapHub<DeliveryHubWeb.Hubs.OrderHub>("/orderHub");
 app.MapHub<DeliveryHubWeb.Hubs.ChatHub>("/chatHub");
 
 app.Run("http://localhost:8080");
-
-app.Urls.Add("http://0.0.0.0:8080");
