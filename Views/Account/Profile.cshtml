@@ -1,0 +1,219 @@
+@model DeliveryHubWeb.Models.ApplicationUser
+@{
+    bool isAdmin = User.IsInRole("Admin");
+    bool isShipper = User.IsInRole("Shipper");
+    bool isPartner = User.IsInRole("Partner");
+    Layout = isAdmin ? "~/Views/Shared/_AdminLayout.cshtml"
+           : isShipper ? "~/Views/Shared/_ShipperLayout.cshtml"
+           : isPartner ? "~/Views/Shared/_PartnerLayout.cshtml"
+           : "~/Views/Shared/_Layout.cshtml";
+    ViewData["Title"] = "Hồ sơ cá nhân";
+    string dashboardUrl = isAdmin ? "/Admin" : isShipper ? "/Shipper" : isPartner ? "/Partner" : "/";
+    string dashboardName = isAdmin ? "Admin Dashboard" : isShipper ? "Shipper Dashboard" : isPartner ? "Partner Dashboard" : "Trang chủ";
+}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<div class="min-h-[calc(100vh-80px)] @((!isAdmin && !isShipper && !isPartner) ? "mt-28" : "") flex items-center justify-center p-4">
+    <div class="max-w-4xl w-full">
+        <!-- Success Alert -->
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div id="successAlert" class="mb-6 p-4 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center gap-3 text-green-500 font-bold fade-in">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>@TempData["SuccessMessage"]</span>
+            </div>
+            <script>
+                setTimeout(() => {
+                    gsap.to("#successAlert", { opacity: 0, y: -20, duration: 0.5, onComplete: () => document.getElementById("successAlert").remove() });
+                }, 3000);
+            </script>
+        }
+
+        <div class="bg-brand-dark/50 backdrop-blur-2xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl flex flex-col md:flex-row fade-in">
+            <!-- Left Side: Profile Preview -->
+            <div class="md:w-1/3 bg-gradient-to-br from-brand-orange/10 to-transparent p-10 flex flex-col items-center justify-center text-center border-b md:border-b-0 md:border-r border-white/5 relative">
+                <!-- Back Button -->
+                <a href="javascript:void(0)" id="backBtn" class="absolute top-6 left-6 w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 hover:border-white/20 hover:scale-110 active:scale-95 transition-all group/back" title="Quay lại">
+                    <i class="fa-solid fa-arrow-left group-hover/back:-translate-x-1 transition-transform"></i>
+                </a>
+
+                <div class="relative group mb-6">
+                    <div id="avatarContainer" class="w-32 h-32 rounded-[2.5rem] bg-brand-orange/20 border-2 border-brand-orange/50 overflow-hidden shadow-[0_0_50px_rgba(255,107,0,0.2)] group-hover:scale-105 transition-transform duration-500">
+                        @if (!string.IsNullOrEmpty(Model.AvatarUrl))
+                        {
+                            <img id="previewAvatar" src="@Model.AvatarUrl" class="w-full h-full object-cover" alt="Avatar" />
+                        }
+                        else
+                        {
+                            <div id="previewFallback" class="w-full h-full flex items-center justify-center text-4xl font-black text-brand-orange">
+                                @(string.IsNullOrEmpty(Model.FullName) ? "AD" : Model.FullName.Substring(0, 2).ToUpper())
+                            </div>
+                        }
+                    </div>
+                    <label for="avatarFileInput" class="absolute -bottom-2 -right-2 w-10 h-10 bg-brand-orange rounded-2xl flex items-center justify-center text-black shadow-lg cursor-pointer hover:scale-110 active:scale-95 transition-all">
+                        <i class="fa-solid fa-camera text-sm"></i>
+                    </label>
+                </div>
+                
+                <h2 class="text-2xl font-black text-white tracking-tighter mb-1">@Model.FullName</h2>
+                <p class="text-xs font-bold text-brand-orange uppercase tracking-widest bg-brand-orange/10 px-3 py-1 rounded-full border border-brand-orange/20">@Model.Role.ToString()</p>
+                
+                <div class="mt-8 space-y-4 w-full">
+                    <div class="bg-white/5 p-4 rounded-2xl border border-white/5 text-left">
+                        <p class="text-[10px] text-brand-gray font-black uppercase tracking-widest mb-1 opacity-50">Email</p>
+                        <p class="text-xs font-bold text-white truncate">@Model.Email</p>
+                    </div>
+                    <div class="bg-white/5 p-4 rounded-2xl border border-white/5 text-left">
+                        <p class="text-[10px] text-brand-gray font-black uppercase tracking-widest mb-1 opacity-50">Số điện thoại</p>
+                        <p class="text-xs font-bold text-white">@(string.IsNullOrEmpty(Model.PhoneNumber) ? "Chưa cập nhật" : Model.PhoneNumber)</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Form -->
+            <div class="flex-1 p-10 md:p-12">
+                <div class="mb-10">
+                    <h3 class="text-3xl font-black text-white tracking-tighter mb-2">Chỉnh sửa <span class="text-brand-orange">Hồ sơ</span></h3>
+                    <p class="text-brand-gray text-[11px] font-bold uppercase tracking-widest">Cập nhật thông tin tài khoản của bạn</p>
+                </div>
+
+                <form asp-action="Profile" method="post" enctype="multipart/form-data" class="space-y-6">
+                    <input type="file" id="avatarFileInput" name="avatarFile" accept="image/*" class="hidden" />
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="space-y-2">
+                            <label class="text-[10px] text-brand-gray font-black uppercase tracking-widest ml-1">Họ và tên</label>
+                            <div class="relative group">
+                                <i class="fa-solid fa-user absolute left-5 top-1/2 -translate-y-1/2 text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+                                <input type="text" name="FullName" value="@Model.FullName" required
+                                       class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-5 text-sm font-bold text-white focus:border-brand-orange/50 focus:bg-brand-orange/5 outline-none transition-all" />
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-[10px] text-brand-gray font-black uppercase tracking-widest ml-1">Số điện thoại</label>
+                            <div class="relative group">
+                                <i class="fa-solid fa-phone absolute left-5 top-1/2 -translate-y-1/2 text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+                                <input type="text" name="PhoneNumber" value="@Model.PhoneNumber"
+                                       class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-5 text-sm font-bold text-white focus:border-brand-orange/50 focus:bg-brand-orange/5 outline-none transition-all" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] text-brand-gray font-black uppercase tracking-widest ml-1">Địa chỉ Email</label>
+                        <div class="relative group">
+                            <i class="fa-solid fa-envelope absolute left-5 top-1/2 -translate-y-1/2 text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+                            <input type="email" name="Email" value="@Model.Email" required
+                                   class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-5 text-sm font-bold text-white focus:border-brand-orange/50 focus:bg-brand-orange/5 outline-none transition-all" />
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] text-brand-gray font-black uppercase tracking-widest ml-1">URL Ảnh đại diện</label>
+                        <div class="relative group">
+                            <i class="fa-solid fa-link absolute left-5 top-1/2 -translate-y-1/2 text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+                            <input type="text" id="avatarUrlInput" name="AvatarUrl" value="@Model.AvatarUrl"
+                                   placeholder="https://..."
+                                   class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-5 text-sm font-bold text-white focus:border-brand-orange/50 focus:bg-brand-orange/5 outline-none transition-all" />
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="text-[10px] text-brand-gray font-black uppercase tracking-widest ml-1">Mật khẩu mới (Để trống nếu không đổi)</label>
+                        <div class="relative group">
+                            <i class="fa-solid fa-lock absolute left-5 top-1/2 -translate-y-1/2 text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+                            <input type="password" name="NewPassword" placeholder="••••••••"
+                                   class="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-5 text-sm font-bold text-white focus:border-brand-orange/50 focus:bg-brand-orange/5 outline-none transition-all" />
+                        </div>
+                    </div>
+
+                    <div class="pt-6">
+                        <button type="submit" id="submitBtn" class="w-full py-4 rounded-2xl bg-brand-orange text-black font-black uppercase tracking-widest hover:bg-white hover:shadow-[0_0_30px_rgba(255,107,0,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3">
+                            <i class="fa-solid fa-save"></i>
+                            <span>Lưu thay đổi</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle Back Navigation logic
+        const backBtn = document.getElementById('backBtn');
+        let initialReferrer = sessionStorage.getItem('profile_referrer');
+        
+        // If we don't have a stored referrer OR the current referrer is different from profile page
+        if (!initialReferrer || (document.referrer && !document.referrer.includes('/Account/Profile'))) {
+            if (document.referrer && !document.referrer.includes('/Account/Profile')) {
+                initialReferrer = document.referrer;
+                sessionStorage.setItem('profile_referrer', initialReferrer);
+            }
+        }
+
+        backBtn.addEventListener('click', function() {
+            if (initialReferrer) {
+                window.location.href = initialReferrer;
+            } else {
+                window.location.href = '@dashboardUrl';
+            }
+        });
+
+        // Animation
+        gsap.from(".fade-in", {
+            opacity: 0,
+            y: 30,
+            duration: 0.8,
+            stagger: 0.2,
+            ease: "power3.out"
+        });
+
+        // Avatar live preview
+        const avatarInput = document.getElementById('avatarUrlInput');
+        const previewAvatar = document.getElementById('previewAvatar');
+        const previewFallback = document.getElementById('previewFallback');
+
+        avatarInput.addEventListener('input', function() {
+            const url = this.value;
+            if (url) {
+                updateAvatarPreview(url);
+            }
+        });
+
+        const avatarFileInput = document.getElementById('avatarFileInput');
+        avatarFileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    updateAvatarPreview(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function updateAvatarPreview(src) {
+            let img = document.getElementById('previewAvatar');
+            if (!img) {
+                img = document.createElement('img');
+                img.id = 'previewAvatar';
+                img.className = 'w-full h-full object-cover';
+                const container = document.getElementById('avatarContainer');
+                container.innerHTML = '';
+                container.appendChild(img);
+            }
+            img.src = src;
+        }
+
+        // Button loading state
+        const form = document.querySelector('form');
+        const btn = document.getElementById('submitBtn');
+        form.addEventListener('submit', () => {
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang xử lý...</span>';
+            btn.classList.add('pointer-events-none', 'opacity-80');
+        });
+    });
+</script>

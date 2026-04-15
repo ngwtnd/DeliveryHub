@@ -1,0 +1,347 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
+
+@{
+    var user = await UserManager.GetUserAsync(User);
+    var partnerName = user?.FullName ?? "Đối tác";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Partner DeliveryHub</title>
+    
+    <!-- CSS Dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-orange': '#FF6B00',
+                        'brand-dark': '#0f172a',
+                        'brand-black': '#020617',
+                        'brand-gray': '#94a3b8',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #020617; color: white; }
+        .sidebar { transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 80px; overflow: hidden; }
+        .sidebar.expanded { width: 260px; }
+        .sidebar-label { opacity: 0; transition: opacity 0.2s; white-space: nowrap; pointer-events: none; }
+        .sidebar.expanded .sidebar-label { opacity: 1; pointer-events: auto; }
+        .nav-item { transition: all 0.2s; position: relative; }
+        .nav-item:hover { background: rgba(255, 107, 0, 0.1); color: #FF6B00; }
+        
+        /* Dashboard Active Style */
+        .nav-item.active-dashboard { background: #FF6B00; color: black; font-weight: 700; box-shadow: 0 4px 15px rgba(255,107,0,0.3); }
+        .nav-item.active-dashboard i { color: black; }
+        
+        /* General Active Style (White/Orange) */
+        .nav-item.active-general { background: white; color: #FF6B00; font-weight: 800; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .nav-item.active-general i { color: #FF6B00; }
+
+        .main-content { transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin-left: 80px; }
+        .sidebar.expanded + .main-content { margin-left: 260px; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+        /* Animation */
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+    @RenderSection("Styles", required: false)
+</head>
+<body class="overflow-x-hidden">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar fixed top-0 left-0 h-screen bg-brand-dark border-r border-white/5 z-50 flex flex-col pt-4 overflow-y-auto no-scrollbar shadow-2xl">
+        <!-- Logo / Sidebar Toggle -->
+        <div class="flex items-center px-6 mb-10 h-10 w-full overflow-hidden">
+            <button id="sidebar-toggle" class="text-2xl text-brand-orange hover:scale-110 transition-transform focus:outline-none min-w-[32px]">
+                <i class="fa-solid fa-bars-staggered"></i>
+            </button>
+            <div class="sidebar-label ml-4 flex items-center gap-1">
+                <span class="text-xl font-extrabold text-white">Delivery</span>
+                <span class="bg-brand-orange text-black px-1.5 py-0.5 rounded-lg text-sm font-bold">hub</span>
+            </div>
+        </div>
+
+        <!-- Navigation Links -->
+        <nav class="flex-1 px-3 space-y-2">
+            @{
+                var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "Index";
+            }
+            <a href="/Partner" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Index" ? "active-dashboard" : "")">
+                <i class="fa-solid fa-chart-pie text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Dashboard</span>
+            </a>
+            
+            <div class="sidebar-label px-4 text-[10px] font-bold text-brand-gray uppercase tracking-[2px] mt-6 mb-2">Quản lý</div>
+            <a href="/Partner/Branches" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Branches" || currentAction == "StoreDetail" ? "active-general" : "")">
+                <i class="fa-solid fa-store text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Chi nhánh</span>
+            </a>
+            <a href="/Partner/Orders" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Orders" ? "active-general" : "")">
+                <i class="fa-solid fa-receipt text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Đơn hàng</span>
+            </a>
+
+            <div class="sidebar-label px-4 text-[10px] font-bold text-brand-gray uppercase tracking-[2px] mt-6 mb-2">Khuyến mãi</div>
+            <a href="/Partner/Vouchers" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Vouchers" ? "active-general" : "")">
+                <i class="fa-solid fa-ticket text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Voucher</span>
+            </a>
+        </nav>
+
+        <!-- User Logout Placeholder (Bottom) -->
+        <div class="px-3 pb-6 mt-auto">
+            <form asp-controller="Account" asp-action="Logout" method="post">
+                <button type="submit" class="nav-item flex items-center h-12 w-full rounded-xl px-4 text-red-500 hover:bg-red-500/10 transition-all">
+                    <i class="fa-solid fa-right-from-bracket text-xl min-w-[24px]"></i>
+                    <span class="sidebar-label ml-4 font-bold">Đăng xuất</span>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content min-h-screen">
+        <!-- Top Navbar -->
+        <header class="h-20 bg-brand-black/50 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 px-8 flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-bold">@ViewData["Title"]</h1>
+                <nav class="flex text-[10px] uppercase font-bold text-brand-gray gap-2 tracking-widest mt-1">
+                    <a href="/" class="hover:text-brand-orange">Home</a>
+                    <span>/</span>
+                    <span class="text-white">Partner Dashboard</span>
+                </nav>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <!-- Search Button -->
+                <button class="w-10 h-10 rounded-full bg-brand-dark flex items-center justify-center hover:text-brand-orange transition-colors">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+                
+                <!-- Notification -->
+                <div class="relative">
+                    <button id="notificationBtn" class="relative w-10 h-10 rounded-full bg-brand-dark flex items-center justify-center hover:text-brand-orange transition-all duration-300">
+                        <i class="fa-solid fa-bell"></i>
+                        <span id="notificationBadge" class="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 bg-brand-orange rounded-full border-2 border-brand-dark text-[9px] font-black text-black flex items-center justify-center hidden">0</span>
+                    </button>
+
+                    <!-- Notification Dropdown -->
+                    <div id="notificationDropdown" class="absolute top-14 right-0 w-80 bg-brand-dark/95 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden hidden z-50 origin-top-right">
+                        <div class="p-5 border-b border-white/5 flex items-center justify-between">
+                            <h3 class="text-sm font-black text-white uppercase tracking-widest">Thông báo</h3>
+                            <button onclick="markAllAsRead()" class="text-[10px] font-bold text-brand-orange hover:text-white transition-colors">Dọn dẹp</button>
+                        </div>
+                        <div id="notificationList" class="max-h-[400px] overflow-y-auto custom-scrollbar p-2 space-y-1">
+                            <!-- Loaded via JS -->
+                            <div class="py-10 text-center opacity-40">
+                                <i class="fa-solid fa-bell-slash text-2xl mb-2"></i>
+                                <p class="text-[10px] font-bold uppercase tracking-widest">Không có thông báo mới</p>
+                            </div>
+                        </div>
+                        <div class="p-4 border-t border-white/5 text-center">
+                            <a href="#" class="text-[10px] font-black text-brand-gray hover:text-brand-orange uppercase tracking-widest transition-colors">Xem tất cả</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile Dropdown -->
+                @{
+                    var avatar = string.IsNullOrEmpty(user?.AvatarUrl) ? "DT" : "";
+                }
+                <a href="/Account/Profile" class="flex items-center gap-3 pl-6 border-l border-white/10 group cursor-pointer hover:bg-white/5 py-1.5 px-3 rounded-2xl transition-all">
+                    <div class="text-right">
+                        <p class="text-sm font-extrabold leading-none mb-1 group-hover:text-brand-orange transition-colors">@partnerName</p>
+                        <p class="text-[10px] text-brand-gray uppercase font-bold tracking-tighter">Đối tác</p>
+                    </div>
+                    @if(!string.IsNullOrEmpty(user?.AvatarUrl)) {
+                        <img src="@user.AvatarUrl" class="w-10 h-10 rounded-xl object-cover shadow-[0_0_15px_rgba(255,107,0,0.3)] group-hover:scale-110 transition-transform" />
+                    } else {
+                        <div class="w-10 h-10 rounded-xl bg-brand-orange flex items-center justify-center text-black font-extrabold shadow-[0_0_15px_rgba(255,107,0,0.3)] group-hover:scale-110 transition-transform">
+                            DT
+                        </div>
+                    }
+                </a>
+            </div>
+        </header>
+
+        <!-- Content Payload -->
+        <div class="p-8">
+            @RenderBody()
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('sidebar-toggle');
+        
+        // Check local storage for sidebar state
+        if (localStorage.getItem('partner-sidebar-expanded') === 'true') {
+            sidebar.classList.add('expanded');
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('expanded');
+            localStorage.setItem('partner-sidebar-expanded', sidebar.classList.contains('expanded'));
+        });
+
+        // --- NOTIFICATION LOGIC ---
+        const notificationBtn = document.getElementById('notificationBtn');
+        const notificationDropdown = document.getElementById('notificationDropdown');
+        const notificationBadge = document.getElementById('notificationBadge');
+        const notificationList = document.getElementById('notificationList');
+
+        function toggleNotificationDropdown(e) {
+            if (e) e.stopPropagation();
+            const isHidden = notificationDropdown.classList.contains('hidden');
+            
+            if (isHidden) {
+                notificationDropdown.classList.remove('hidden');
+                gsap.fromTo(notificationDropdown, 
+                    { opacity: 0, scale: 0.95, y: -20 },
+                    { opacity: 1, scale: 1, y: 0, duration: 0.3, ease: "back.out(1.7)" }
+                );
+                loadNotifications();
+            } else {
+                closeNotificationDropdown();
+            }
+        }
+
+        function closeNotificationDropdown() {
+            gsap.to(notificationDropdown, { 
+                opacity: 0, scale: 0.95, y: -20, duration: 0.2, 
+                onComplete: () => notificationDropdown.classList.add('hidden') 
+            });
+        }
+
+        async function loadNotifications() {
+            try {
+                const response = await fetch('/Partner/GetNotifications');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateBadge(data.unreadCount);
+                    renderNotifications(data.notifications);
+                }
+            } catch (error) {
+                console.error('Failed to load notifications:', error);
+            }
+        }
+
+        function updateBadge(count) {
+            if (count > 0) {
+                notificationBadge.classList.remove('hidden');
+                notificationBadge.innerText = count > 99 ? '99+' : count;
+            } else {
+                notificationBadge.classList.add('hidden');
+            }
+        }
+
+        function renderNotifications(notifications) {
+            if (!notifications || notifications.length === 0) {
+                notificationList.innerHTML = `
+                    <div class="py-10 text-center opacity-40">
+                        <i class="fa-solid fa-bell-slash text-2xl mb-2"></i>
+                        <p class="text-[10px] font-bold uppercase tracking-widest">Không có thông báo mới</p>
+                    </div>`;
+                return;
+            }
+
+            notificationList.innerHTML = notifications.map(n => {
+                const icon = getNotificationIcon(n.type);
+                const timeStr = formatTime(n.createdAt);
+                const unreadClass = n.isRead ? "" : "bg-white/5 border-l-2 border-brand-orange shadow-lg";
+                
+                return `
+                    <div onclick="markAsRead(${n.id}, '${n.targetUrl}')" class="p-4 rounded-2xl hover:bg-white/10 transition-all cursor-pointer group ${unreadClass}">
+                        <div class="flex gap-4">
+                            <div class="w-10 h-10 shrink-0 rounded-xl bg-brand-black flex items-center justify-center text-brand-orange border border-white/5 group-hover:scale-110 transition-transform">
+                                <i class="fa-solid ${icon}"></i>
+                            </div>
+                            <div class="space-y-1 overflow-hidden">
+                                <h4 class="text-xs font-black text-white truncate">${n.title}</h4>
+                                <p class="text-[10px] text-brand-gray leading-relaxed line-clamp-2">${n.message}</p>
+                                <p class="text-[9px] font-bold text-brand-orange/50 uppercase tracking-tighter">${timeStr}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                2: "fa-utensils",        // MenuItemApproval
+                4: "fa-star",            // CustomerReview
+                5: "fa-star-half-stroke",// ShipperReview
+                6: "fa-clock",           // VoucherExpiring
+                7: "fa-calendar-xmark",  // VoucherExpired
+                8: "fa-battery-quarter", // VoucherLimitSoon
+                9: "fa-battery-empty"    // VoucherLimitReached
+            };
+            return icons[type] || "fa-bell";
+        }
+
+        function formatTime(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffInSeconds = Math.floor((now - date) / 1000);
+
+            if (diffInSeconds < 60) return "Vừa mới đây";
+            if (diffInSeconds < 3600) return Math.floor(diffInSeconds / 60) + " phút trước";
+            if (diffInSeconds < 86400) return Math.floor(diffInSeconds / 3600) + " giờ trước";
+            return date.toLocaleDateString('vi-VN');
+        }
+
+        async function markAsRead(id, targetUrl) {
+            await fetch(`/Partner/MarkNotificationAsRead/${id}`, { method: 'POST' });
+            if (targetUrl && targetUrl !== 'null') {
+                window.location.href = targetUrl;
+            } else {
+                loadNotifications();
+            }
+        }
+
+        async function markAllAsRead() {
+            await fetch('/Partner/MarkAllNotificationsAsRead', { method: 'POST' });
+            loadNotifications();
+        }
+
+        notificationBtn.addEventListener('click', toggleNotificationDropdown);
+        document.addEventListener('click', (e) => {
+            if (!notificationBtn.contains(e.target) && !notificationDropdown.contains(e.target)) {
+                closeNotificationDropdown();
+            }
+        });
+
+        // Loop polling every 30 seconds
+        setInterval(loadNotifications, 30000);
+        // Initial load
+        loadNotifications();
+    </script>
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

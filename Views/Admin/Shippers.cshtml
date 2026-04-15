@@ -1,0 +1,618 @@
+@model IEnumerable<DeliveryHubWeb.Models.ShipperViewModel>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý Shipper";
+
+    string GetStatusClass(bool isActive, bool isDelivering) {
+        if (isDelivering) return "bg-brand-orange/10 text-brand-orange border border-brand-orange/20";
+        if (!isActive) return "bg-brand-gray/10 text-brand-gray border border-brand-gray/20";
+        return "bg-green-500/10 text-green-500 border border-green-500/20";
+    }
+        
+    string GetStatusLabel(bool isActive, bool isDelivering) {
+        if (isDelivering) return "Đang giao";
+        if (!isActive) return "Offline";
+        return "Online";
+    }
+
+    string GetStatusDot(bool isActive, bool isDelivering) {
+        if (isDelivering) return "bg-brand-orange";
+        if (!isActive) return "bg-brand-gray";
+        return "bg-green-500";
+    }
+}
+
+<!-- GSAP for animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex justify-between items-center fade-in relative z-10 backdrop-blur-xl shadow-2xl flex-wrap gap-4">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Quản lý <span class="text-brand-orange">Shipper</span></h2>
+        <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[10px] font-bold text-brand-orange uppercase tracking-wider">Dashboard</span>
+            <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1 flex gap-2">
+                <span>Tổng cộng <span class="text-white font-black">@ViewBag.TotalCount</span> shipper</span>
+                <span>&bull;</span>
+                <span><span class="text-green-500 font-black">@ViewBag.ActiveCount</span> Online</span>
+                <span>&bull;</span>
+                <span><span class="text-red-500 font-black">@ViewBag.PendingCount</span> Offline</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form id="filterForm" method="get" class="flex flex-wrap items-center gap-4">
+        <input type="hidden" name="filter" id="currentFilter" value="@(ViewBag.CurrentFilter as string ?? "all")" />
+        <input type="hidden" name="page" id="currentPage" value="@ViewBag.CurrentPage" />
+
+        <!-- Filter Tabs -->
+        <div class="relative flex items-center bg-white/5 p-1.5 rounded-2xl border border-white/10">
+            <!-- Sliding Pill -->
+            <div id="filterPill" class="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0"></div>
+
+            <button id="btn-filter-all" type="button" onclick="setFilter('all')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Tất cả</button>
+            <button id="btn-filter-active" type="button" onclick="setFilter('active')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Online</button>
+            <button id="btn-filter-pending" type="button" onclick="setFilter('pending')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Offline</button>
+        </div>
+
+        <div class="relative group">
+            <input type="text" name="search" id="searchInput" value="@ViewBag.SearchTerm" placeholder="Tìm tên, mã, SĐT..." 
+                   class="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-72 outline-none transition-all pl-12 group-focus-within:w-80" />
+            <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+        </div>
+
+        <button type="button" onclick="openIncomeConfigModal()" class="h-12 px-6 bg-white/5 text-white font-black text-xs rounded-2xl hover:bg-green-500 hover:text-white border border-white/10 hover:border-green-500/50 hover:scale-105 active:scale-95 transition-all shadow-lg">
+            <i class="fa-solid fa-money-bill-trend-up mr-2 text-green-500 group-hover:text-white"></i>CÁCH TÍNH THU NHẬP
+        </button>
+    </form>
+</div>
+
+<div id="shippersTableContainer">
+<!-- Shipper Table -->
+<div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.3)]">
+    <div class="overflow-x-auto lg:overflow-visible"> 
+        <table class="w-full text-left merchant-table border-collapse">
+            <thead>
+                <tr class="bg-white/[0.02] text-[10px] font-extrabold text-brand-gray uppercase tracking-[2px]">
+                    <th class="py-5 px-6 whitespace-nowrap">Mã Shipper</th>
+                    <th class="py-5 px-4">Tên Shipper</th>
+                    <th class="py-5 px-4">Số điện thoại</th>
+                    <th class="py-5 px-4">Phương tiện</th>
+                    <th class="py-5 px-4">Đánh giá</th>
+                    <th class="py-5 px-4 text-center">Đơn giao</th>
+                    <th class="py-5 px-4 text-right">Thu nhập</th>
+                    <th class="py-5 px-4 text-center">Trạng thái</th>
+                    <th class="py-5 px-6 text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @foreach (var shipper in Model)
+                {
+                    <tr class="merchant-row group transition-all duration-300 hover:bg-white/[0.03]">
+                        <td class="py-5 px-6">
+                            <span class="text-[10px] font-bold text-brand-orange bg-brand-orange/10 px-2.5 py-1.5 rounded-lg border border-brand-orange/20 whitespace-nowrap">
+                                @shipper.ShipperCode
+                            </span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-xs font-extrabold text-white">@shipper.FullName</span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-[11px] font-bold text-brand-gray">@shipper.PhoneNumber</span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-[11px] font-bold text-white">@shipper.Vehicle</span>
+                        </td>
+                        <td class="py-5 px-4 whitespace-nowrap">
+                            <div class="flex items-center gap-1.5">
+                                <i class="fa-solid fa-star text-yellow-400 text-[10px]"></i>
+                                <span class="text-xs font-black text-white">@shipper.Rating.ToString("0.0")</span>
+                            </div>
+                        </td>
+                        <td class="py-5 px-4 text-center">
+                            <span class="text-xs font-extrabold text-white">@shipper.DeliveredOrders</span>
+                        </td>
+                        <td class="py-5 px-4 text-right whitespace-nowrap">
+                            <span class="text-xs font-black text-brand-orange">@shipper.Income.ToString("N0") <span class="text-[9px] opacity-60 text-white">VNĐ</span></span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="flex items-center justify-center gap-2 px-3 py-1.5 rounded-full w-fit mx-auto @GetStatusClass(shipper.IsActive, shipper.IsDelivering)">
+                                <span class="w-1.5 h-1.5 rounded-full @GetStatusDot(shipper.IsActive, shipper.IsDelivering)"></span>
+                                <span class="text-[10px] font-black uppercase tracking-tighter">@GetStatusLabel(shipper.IsActive, shipper.IsDelivering)</span>
+                                @if (shipper.IsDelivering && shipper.ActiveOrderId != null) {
+                                    <button onclick="showOrderDetail(@shipper.ActiveOrderId)" class="ml-2 text-white hover:scale-125 transition-all animate-pulse flex items-center justify-center h-full" title="Xem đơn đang giao">
+                                        <i class="fa-regular fa-clock text-[18px]"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                        <td class="py-5 px-6 text-center">
+                            <div class="flex items-center justify-center gap-3">
+                                <a href="@Url.Action("ShipperDetail", "Admin", new { id = shipper.Id })" class="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all hover:scale-110 shadow-lg" title="Xem chi tiết">
+                                    <i class="fa-solid fa-eye text-xs"></i>
+                                </a>
+                                <button class="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover/alert:bg-red-500 group-hover/alert:text-white hover:bg-red-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Cảnh báo">
+                                    <i class="fa-solid fa-triangle-exclamation text-xs text-red-500 hover:text-white transition-colors"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    @if (ViewBag.TotalPages > 1) {
+        <div id="paginationContainer" class="flex flex-col items-center gap-3 py-6 border-t border-white/5 bg-white/[0.02]">
+            <!-- Pagination Buttons -->
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="changePage(@(ViewBag.CurrentPage - 1))" 
+                   class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all @(ViewBag.CurrentPage <= 1 ? "opacity-30 pointer-events-none" : "")">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                
+                @for (int i = 1; i <= ViewBag.TotalPages; i++) {
+                    <button type="button" onclick="changePage(@i)" 
+                       class="w-10 h-10 rounded-xl border flex items-center justify-center text-xs font-bold transition-all @(i == ViewBag.CurrentPage ? "bg-brand-orange border-brand-orange text-black font-extrabold shadow-lg shadow-brand-orange/20" : "bg-white/5 border-white/5 text-white hover:border-brand-orange/50")">
+                        @i
+                    </button>
+                }
+
+                <button type="button" onclick="changePage(@(ViewBag.CurrentPage + 1))" 
+                   class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all @(ViewBag.CurrentPage >= ViewBag.TotalPages ? "opacity-30 pointer-events-none" : "")">
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Page Info -->
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-[0.2em]">
+                Trang <span class="text-white">@ViewBag.CurrentPage</span> / @ViewBag.TotalPages
+            </p>
+        </div>
+    }
+</div>
+</div>
+
+@await Html.PartialAsync("_OrderDetailModal")
+
+<!-- Shipper Registration Modal -->
+<div id="shipperRegistrationModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeRegistrationModal()"></div>
+    <div id="regModalBody" class="relative bg-brand-dark border border-white/10 rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
+        <div class="sticky top-0 z-10 bg-brand-dark/95 backdrop-blur-md px-8 py-6 border-b border-white/5 flex justify-between items-center">
+            <div>
+                <h3 class="text-2xl font-black text-white">Hồ Sơ Đăng Ký Shipper</h3>
+                <p id="shipperModalStatus" class="text-xs font-bold text-brand-orange uppercase tracking-widest mt-1">Chờ Xét Duyệt</p>
+            </div>
+            <button onclick="closeRegistrationModal()" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                <i class="fa-solid fa-xmark text-white"></i>
+            </button>
+        </div>
+        <div id="regModalContent" class="p-8">
+            <!-- Dynamic Content -->
+            <div class="flex flex-col items-center justify-center py-20 gap-4">
+                <div class="w-12 h-12 border-4 border-brand-orange/20 border-t-brand-orange rounded-full animate-spin"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Shipper Income Config Modal -->
+<div id="shipperIncomeModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeIncomeConfigModal()"></div>
+    <div id="incomeModalBody" class="relative bg-brand-dark border border-white/10 rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden scale-95 opacity-0 transition-all duration-300">
+        <div class="bg-brand-dark px-8 py-6 border-b border-white/5 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center border border-green-500/30">
+                    <i class="fa-solid fa-money-bill-trend-up"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-black text-white">Cấu hình Thu Nhập Shipper</h3>
+                    <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mt-1">Cách hệ thống tính lương</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeIncomeConfigModal()" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                <i class="fa-solid fa-xmark text-white text-xs"></i>
+            </button>
+        </div>
+        <div class="p-8">
+            <div class="bg-brand-orange/10 border border-brand-orange/20 rounded-2xl p-4 mb-6">
+                <p class="text-brand-orange text-xs font-bold mb-2 uppercase tracking-wide"><i class="fa-solid fa-circle-info mr-2"></i>Hướng dẫn tính lương</p>
+                <p class="text-[11px] text-white/80 leading-relaxed font-semibold">
+                    Thu nhập của Shipper được tính bằng <b>Phí khởi điểm</b> cộng thêm <b>Phí phụ trội</b> cho mỗi km nếu khoảng cách giao hàng vượt quá <b>Số KM cơ bản</b>.
+                    Phần lẻ KM phụ trội sẽ được làm tròn LÊN.
+                </p>
+            </div>
+
+            <form id="formShipperIncome" class="space-y-5" onsubmit="saveIncomeConfig(event)">
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-brand-gray uppercase tracking-wider">Phí khởi điểm (VNĐ)</label>
+                    <input type="number" id="cfgBaseIncome" required class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-brand-orange/50 outline-none" min="0" step="1000" />
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="text-xs font-bold text-brand-gray uppercase tracking-wider">Số KM Cơ bản</label>
+                        <input type="number" id="cfgBaseDistance" required class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-brand-orange/50 outline-none" min="0" step="0.1" />
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-xs font-bold text-brand-gray uppercase tracking-wider">Phí vượt / 1 km (VNĐ)</label>
+                        <input type="number" id="cfgExtraFee" required class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white focus:border-brand-orange/50 outline-none" min="0" step="1000" />
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t border-white/5 flex gap-3">
+                    <button type="button" onclick="closeIncomeConfigModal()" class="flex-1 py-3 bg-white/5 border border-white/10 rounded-xl text-xs font-bold text-brand-gray hover:text-white hover:bg-white/10 transition-all">
+                        ĐÓNG
+                    </button>
+                    <button type="submit" id="btnSaveConfig" class="flex-1 py-3 bg-green-500 rounded-xl text-black text-xs font-black hover:bg-green-400 hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(34,197,94,0.3)]">
+                        THAY ĐỔI
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const searchInput = document.getElementById('searchInput');
+        const currentFilterInput = document.getElementById('currentFilter');
+        const currentPageInput = document.getElementById('currentPage');
+
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        const runSmartSearch = () => {
+            const search = searchInput.value;
+            const filter = currentFilterInput.value;
+            const page = currentPageInput.value;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('search', search);
+            url.searchParams.set('filter', filter);
+            url.searchParams.set('page', page);
+            window.history.replaceState(null, '', url);
+
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(res => res.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newContent = doc.getElementById('shippersTableContainer');
+                    if (newContent) {
+                        document.getElementById('shippersTableContainer').innerHTML = newContent.innerHTML;
+                    }
+                });
+        };
+
+        window.updateTabStyles = (activeFilter) => {
+            const btnAll = document.getElementById('btn-filter-all');
+            const btnPending = document.getElementById('btn-filter-pending');
+            const btnActive = document.getElementById('btn-filter-active');
+            const pill = document.getElementById('filterPill');
+            
+            const btnTarget = activeFilter === 'all' ? btnAll : (activeFilter === 'pending' ? btnPending : btnActive);
+            
+            if (pill && btnTarget) {
+                let pillClass = "absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0";
+                if (activeFilter === 'all') {
+                    pillClass += " bg-white/10 shadow-lg shadow-white/5";
+                } else if (activeFilter === 'pending') {
+                    pillClass += " bg-red-500/10 border border-red-500/50 shadow-lg shadow-red-500/10";
+                } else if (activeFilter === 'active') {
+                    pillClass += " bg-green-500/10 border border-green-500/50 shadow-lg shadow-green-500/10";
+                }
+                pill.className = pillClass;
+                pill.style.left = btnTarget.offsetLeft + 'px';
+                pill.style.width = btnTarget.offsetWidth + 'px';
+            }
+            
+            const resetClass = "text-brand-gray hover:text-white";
+            
+            if(btnAll) btnAll.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'all' ? 'text-white' : resetClass}`;
+            if(btnPending) btnPending.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'pending' ? 'text-red-500' : resetClass}`;
+            if(btnActive) btnActive.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'active' ? 'text-green-500' : resetClass}`;
+        };
+
+        if (document.fonts) {
+            document.fonts.ready.then(() => updateTabStyles(currentFilterInput.value || 'all'));
+        } else {
+            window.addEventListener('load', () => updateTabStyles(currentFilterInput.value || 'all'));
+        }
+
+        window.setFilter = (filter) => {
+            currentFilterInput.value = filter;
+            currentPageInput.value = 1;
+            updateTabStyles(filter);
+            runSmartSearch();
+        };
+
+        window.changePage = (page) => {
+            currentPageInput.value = page;
+            runSmartSearch();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        if (searchInput) {
+            searchInput.addEventListener('input', debounce(runSmartSearch, 300));
+        }
+
+        const filterForm = document.getElementById('filterForm');
+        if (filterForm) {
+            filterForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                runSmartSearch();
+            });
+        }
+    });
+
+    function showOrderDetail(id) {
+        // Show loading state
+        const modal = document.getElementById('orderDetailModal');
+        const body = document.getElementById('modalBody');
+        const content = document.getElementById('modalContent');
+
+        content.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-40 gap-4">
+                <div class="w-12 h-12 border-4 border-brand-orange/20 border-t-brand-orange rounded-full animate-spin"></div>
+                <p class="text-xs font-black text-brand-orange uppercase tracking-widest">Đang tải...</p>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+        gsap.set(body, { scale: 0.9, opacity: 0 });
+        gsap.to(body, { duration: 0.5, scale: 1, opacity: 1, ease: "back.out(1.2)" });
+
+        fetch(`/Admin/GetOrderDetailJson/${id}`)
+            .then(res => res.json())
+            .then(data => {
+                renderOrderDetail(data);
+            })
+            .catch(err => {
+                console.error("Error loading order detail:", err);
+                content.innerHTML = `<p class="p-20 text-center text-red-500 font-bold uppercase tracking-widest">Lỗi khi tải thông tin đơn hàng</p>`;
+            });
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('orderDetailModal');
+        const body = document.getElementById('modalBody');
+        gsap.to(body, {
+            duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
+                modal.classList.add('hidden');
+            }
+        });
+    }
+
+    // --- Shipper Registration Logic ---
+    function checkHashForRegistration() {
+        const hash = window.location.hash;
+        if (hash && hash.startsWith('#shipper-')) {
+            const id = hash.replace('#shipper-', '');
+            showRegistrationModal(id);
+        }
+    }
+
+    window.addEventListener('hashchange', checkHashForRegistration);
+    document.addEventListener('DOMContentLoaded', checkHashForRegistration);
+
+    function showRegistrationModal(id) {
+        const modal = document.getElementById('shipperRegistrationModal');
+        const body = document.getElementById('regModalBody');
+        const content = document.getElementById('regModalContent');
+
+        const statusText = document.getElementById('shipperModalStatus');
+        
+        modal.classList.remove('hidden');
+        gsap.set(body, { scale: 0.9, opacity: 0 });
+        gsap.to(body, { duration: 0.5, scale: 1, opacity: 1, ease: "back.out(1.2)" });
+
+        fetch(`/Admin/GetShipperRegistrationJson/${id}`)
+            .then(res => {
+                if(!res.ok) throw new Error("Not found");
+                return res.json();
+            })
+            .then(data => {
+                // Update Status Subtitle
+                if (data.isAlreadyApproved) {
+                    statusText.innerText = 'Đã Phê Duyệt';
+                    statusText.className = 'text-xs font-bold text-green-500 uppercase tracking-widest mt-1';
+                    
+                    content.innerHTML = `
+                        <div class="flex flex-col items-center justify-center py-16 gap-6 text-center">
+                            <div class="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/20 shadow-[0_0_50px_rgba(34,197,94,0.1)]">
+                                <i class="fa-solid fa-user-check text-4xl text-green-500"></i>
+                            </div>
+                            <div class="space-y-2">
+                                <h4 class="text-xl font-black text-white px-8">Shipper này đã được duyệt và đang hoạt động</h4>
+                                <p class="text-brand-gray text-xs font-bold uppercase tracking-widest">Shipper: ${data.fullName}</p>
+                            </div>
+                            <button onclick="window.location.href='/Admin/ShipperDetail/${id}'" class="px-8 py-3 rounded-xl bg-brand-orange text-black font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">Xem chi tiết Shipper</button>
+                        </div>
+                    `;
+                    return;
+                } else {
+                    statusText.innerText = 'Chờ Xét Duyệt';
+                    statusText.className = 'text-xs font-bold text-brand-orange uppercase tracking-widest mt-1';
+                }
+                let html = `
+                    <div class="flex gap-6 mb-8 items-center bg-white/[0.02] p-6 rounded-3xl border border-white/5">
+                        <img src="${data.avatarUrl || '/images/default-avatar.png'}" class="w-24 h-24 rounded-2xl object-cover border-2 border-brand-orange/20">
+                        <div class="flex-1">
+                            <h4 class="text-2xl font-black text-white">${data.fullName}</h4>
+                            <p class="text-sm font-bold text-brand-gray">${data.email} &bull; ${data.phoneNumber}</p>
+                            <p class="text-xs font-bold text-white mt-2 bg-brand-orange/10 border border-brand-orange/20 px-3 py-1 rounded-lg inline-block text-brand-orange uppercase">
+                                <i class="fa-solid fa-motorcycle mr-2"></i>${data.vehicleType} - ${data.vehicle}
+                            </p>
+                            <p class="text-xs font-bold text-white mt-2 ml-2 bg-white/5 border border-white/10 px-3 py-1 rounded-lg inline-block uppercase">
+                                CCCD: ${data.citizenId}
+                            </p>
+                        </div>
+                    </div>
+
+                    <h4 class="text-sm font-black text-brand-orange tracking-widest uppercase mb-4">Giấy Tờ Tùy Thân</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div>
+                            <p class="text-xs text-brand-gray font-bold mb-2">CCCD Mặt Trước</p>
+                            ${data.citizenIdFrontUrl ? `<img src="${data.citizenIdFrontUrl}" class="w-full h-auto rounded-xl border border-white/10 object-cover aspect-video">` : `<div class="w-full aspect-video bg-white/5 rounded-xl flex justify-center items-center text-brand-gray text-xs">Chưa cập nhật</div>`}
+                        </div>
+                        <div>
+                            <p class="text-xs text-brand-gray font-bold mb-2">CCCD Mặt Sau</p>
+                            ${data.citizenIdBackUrl ? `<img src="${data.citizenIdBackUrl}" class="w-full h-auto rounded-xl border border-white/10 object-cover aspect-video">` : `<div class="w-full aspect-video bg-white/5 rounded-xl flex justify-center items-center text-brand-gray text-xs">Chưa cập nhật</div>`}
+                        </div>
+                        <div class="md:col-span-2">
+                            <p class="text-xs text-brand-gray font-bold mb-2">Bằng Lái Xe</p>
+                            ${data.driverLicenseUrl ? `<img src="${data.driverLicenseUrl}" class="w-full max-w-md h-auto rounded-xl border border-white/10 object-cover aspect-video">` : `<div class="w-full max-w-md aspect-video bg-white/5 rounded-xl flex justify-center items-center text-brand-gray text-xs">Chưa cập nhật</div>`}
+                        </div>
+                    </div>`;
+                    
+                if (!data.isApproved) {
+                    html += `
+                    <div class="flex gap-4 justify-end border-t border-white/10 pt-6 mt-6">
+                        <button onclick="handleReject('${data.id}')" class="px-6 py-3 rounded-xl bg-red-500/10 text-red-500 uppercase tracking-widest text-xs font-black hover:bg-red-500 hover:text-white transition-all">Từ chối (Xóa)</button>
+                        <button onclick="handleApprove('${data.id}')" class="px-6 py-3 rounded-xl bg-green-500/10 text-green-500 uppercase tracking-widest text-xs font-black shadow-lg shadow-green-500/20 hover:bg-green-500 hover:text-white transition-all">Đồng ý phê duyệt</button>
+                    </div>`;
+                } else {
+                    html += `<div class="bg-green-500/10 text-green-500 p-4 rounded-xl text-center font-bold text-xs uppercase tracking-widest">Tài khoản này đã được duyệt</div>`;
+                }
+                content.innerHTML = html;
+            })
+            .catch(err => {
+                content.innerHTML = `<p class="p-20 text-center text-red-500 font-bold uppercase tracking-widest">Không tìm thấy hoặc đã bị xóa</p>`;
+            });
+    }
+
+    function closeRegistrationModal() {
+        const modal = document.getElementById('shipperRegistrationModal');
+        const body = document.getElementById('regModalBody');
+        gsap.to(body, {
+            duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
+                modal.classList.add('hidden');
+                // Remove hash without scrolling
+                history.replaceState(null, null, ' ');
+            }
+        });
+    }
+
+    let selectedShipperId = "";
+
+    window.handleApprove = async (id) => {
+        const res = await window.showAdminConfirm(
+            'Duyệt Shipper',
+            'Đồng ý cấp quyền hoạt động cho đối tác Shipper này vào hệ thống',
+            'success',
+            'Đồng ý', 'Từ chối'
+        );
+        if (res.isConfirmed) {
+            try {
+                const result = await fetch('/Admin/ApproveShipper/' + id, { method: 'POST' }).then(r => r.json());
+                if(result.success) {
+                    await window.showAdminAlert("Thành công", "Đã duyệt Shipper.", "success");
+                    window.location.href = '/Admin/ShipperDetail/' + id;
+                } else await window.showAdminAlert("Lỗi", result.message, "error");
+            } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+        }
+    }
+
+    window.handleReject = async (id) => {
+        const res = await window.showAdminConfirm(
+            'Từ chối hồ sơ',
+            'Mọi dữ liệu hình ảnh và thông tin đăng ký của Shipper này sẽ bị xóa vĩnh viễn',
+            'error',
+            'Đồng ý xóa', 'Quay lại'
+        );
+        if (res.isConfirmed) {
+            try {
+                const result = await fetch('/Admin/RejectShipper/' + id, { method: 'POST' }).then(r => r.json());
+                if(result.success) {
+                    await window.showAdminAlert("Thành công", "Đã xóa hồ sơ đăng ký.", "destructive-success");
+                    location.reload();
+                } else await window.showAdminAlert("Lỗi", result.message, "error");
+            } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+        }
+    }
+    window.openIncomeConfigModal = async () => {
+        const modal = document.getElementById('shipperIncomeModal');
+        const body = document.getElementById('incomeModalBody');
+        
+        // Fetch current config
+        try {
+            const res = await fetch('/Admin/GetShipperIncomeConfig').then(r => r.json());
+            document.getElementById('cfgBaseIncome').value = res.baseIncome;
+            document.getElementById('cfgBaseDistance').value = res.baseDistance;
+            document.getElementById('cfgExtraFee').value = res.extraFeePerKm;
+        } catch(e) {
+            console.error('Error loading config:', e);
+            window.showAdminAlert("Lỗi", "Không thể tải cấu hình thu nhập hiện tại.", "error");
+            return;
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            body.classList.remove('scale-95', 'opacity-0');
+            body.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    };
+
+    window.closeIncomeConfigModal = () => {
+        const modal = document.getElementById('shipperIncomeModal');
+        const body = document.getElementById('incomeModalBody');
+        body.classList.remove('scale-100', 'opacity-100');
+        body.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => modal.classList.add('hidden'), 300);
+    };
+
+    window.saveIncomeConfig = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btnSaveConfig');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> LƯU...';
+        btn.disabled = true;
+
+        const data = {
+            baseIncome: parseFloat(document.getElementById('cfgBaseIncome').value),
+            baseDistance: parseFloat(document.getElementById('cfgBaseDistance').value),
+            extraFeePerKm: parseFloat(document.getElementById('cfgExtraFee').value)
+        };
+
+        try {
+            const res = await fetch('/Admin/SaveShipperIncomeConfig', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(r => r.json());
+
+            if (res.success) {
+                closeIncomeConfigModal();
+                window.showAdminAlert("Thành công", res.message, "success");
+            } else {
+                window.showAdminAlert("Lỗi", res.message || "Có lỗi xảy ra", "error");
+            }
+        } catch(err) {
+            window.showAdminAlert("Lỗi", "Mất kết nối máy chủ", "error");
+            console.error(err);
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    };
+</script>
+
+
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,107,0,0.3); border-radius: 10px; }
+    .merchant-row { animation: slideIn 0.4s ease-out forwards; opacity: 0; }
+    @@keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    @for (int i = 0; i < Model.Count(); i++)
+    {
+        <text>.merchant-row:nth-child(@(i + 1)) { animation-delay: @(i * 0.05)s; }</text>
+    }
+</style>

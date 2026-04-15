@@ -1,0 +1,250 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject DeliveryHubWeb.Data.ApplicationDbContext DbContext
+
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Delivery hub</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gray: tailwind.colors.slate,
+                        brand: {
+                            black: '#020617',
+                            dark: '#0f172a',
+                            orange: '#FF6B00',
+                            gray: '#cbd5e1',
+                            light: '#f8fafc'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Montserrat', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="~/css/main.css" asp-append-version="true" />
+    
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+
+<body class="bg-brand-black text-white font-sans overflow-x-hidden">
+    <!-- Loading Screen -->
+    <div id="loader" class="fixed inset-0 bg-brand-black z-50 flex justify-center items-center transition-opacity duration-300">
+        <div class="loader-circle border-brand-orange"></div>
+    </div>
+
+    <!-- 3D Sky Background (Three.js) - Global -->
+    <div id="canvas-container" class="fixed inset-0 z-0 opacity-40 pointer-events-none"></div>
+
+    <!-- Header -->
+    <header class="fixed top-0 left-0 w-full z-40 py-4 px-6 md:px-12 flex justify-between items-center header-transition bg-header-light" id="navbar">
+        <div class="logo cursor-pointer font-bold text-3xl flex items-center gap-2" onclick="window.location.href='/'">
+            <span class="text-white">Delivery</span>
+            <span class="bg-brand-orange text-brand-black px-2 py-0.5 rounded-lg leading-none tracking-tight">hub</span>
+        </div>
+
+        <nav class="hidden flex-1 justify-center md:flex gap-8 font-bold">
+            <a href="/" class="px-3 py-2 rounded-xl transition-all hover:bg-brand-orange hover:text-brand-black flex items-center gap-2 text-lg">
+                <i class="fa-solid fa-house text-xl"></i> Trang chủ
+            </a>
+            
+            <div class="relative group">
+                <a href="/#top-branches" class="px-3 py-2 rounded-xl transition-all hover:bg-brand-orange hover:text-brand-black flex items-center gap-2 text-lg cursor-pointer">
+                    <i class="fa-solid fa-store text-xl"></i> Quán ăn <i class="fa-solid fa-chevron-down text-sm ml-1 transition-transform group-hover:rotate-180"></i>
+                </a>
+                <div class="absolute top-full -left-4 mt-2 w-72 bg-brand-dark border-2 border-gray-800 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 p-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                    @{
+                        var allStores = DbContext.Stores.Where(s => s.ActivityState == DeliveryHubWeb.Models.StoreActivityState.Active).ToList();
+                    }
+                    @if (allStores.Any()) {
+                        @foreach(var store in allStores) {
+                            var imgUrl = string.IsNullOrEmpty(store.ImageUrl) ? "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=50&auto=format&fit=crop" : store.ImageUrl;
+                            <a href="/Home/Store/@store.Id" class="block px-3 py-2.5 hover:bg-white/5 text-base font-semibold rounded-xl flex items-center gap-3 transition-colors border-b border-white/5 last:border-0 border-transparent hover:border-brand-orange/30">
+                                <img src="@imgUrl" class="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0">
+                                <span class="truncate">@store.Name</span>
+                            </a>
+                        }
+                    } else {
+                        <div class="text-brand-gray text-sm p-4 text-center">Chưa có tiệm nào</div>
+                    }
+                </div>
+            </div>
+
+            <a href="/Home/Menu" class="px-3 py-2 rounded-xl transition-all hover:bg-brand-orange hover:text-brand-black flex items-center gap-2 text-lg">
+                <i class="fa-solid fa-burger text-xl"></i> Món ăn
+            </a>
+            <a href="#" class="px-3 py-2 rounded-xl transition-all hover:bg-brand-orange hover:text-brand-black flex items-center gap-2 text-lg pointer-events-none opacity-50">
+                <i class="fa-solid fa-star text-xl"></i> Đánh giá
+            </a>
+            <a asp-controller="Order" asp-action="Delivery" class="px-6 py-2 rounded-xl transition-all border-2 border-brand-orange text-brand-orange hover:bg-white hover:text-brand-black hover:border-white flex items-center gap-2 text-lg font-extrabold ml-4">
+                <i class="fa-solid fa-truck-fast text-xl"></i> Giao hàng
+            </a>
+        </nav>
+
+        <div class="flex items-center gap-6">
+            <div class="relative cursor-pointer" id="cart-icon">
+                <i class="fa-solid fa-cart-shopping text-2xl hover:text-brand-orange transition-colors"></i>
+                <span id="cart-badge" class="absolute -top-2 -right-2 bg-brand-orange text-brand-black text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-brand-black">0</span>
+            </div>
+            
+            @if (SignInManager.IsSignedIn(User))
+            {
+                var user = await UserManager.GetUserAsync(User);
+                <div class="relative group">
+                    <button class="flex items-center gap-2 px-5 py-2 bg-brand-dark border-2 border-gray-700 rounded-full hover:border-brand-orange transition-all shadow-xl">
+                        <span class="text-base font-bold">@user?.FullName</span>
+                        @if (!string.IsNullOrEmpty(user?.AvatarUrl))
+                        {
+                            <img src="@user.AvatarUrl" class="w-8 h-8 rounded-full object-cover border border-brand-orange" alt="Avatar" />
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-circle-user text-brand-orange text-xl"></i>
+                        }
+                    </button>
+                    <div class="absolute right-0 mt-3 w-56 bg-brand-dark border-2 border-gray-800 rounded-2xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 p-2">
+                        @if (user?.Role == UserRole.Admin) { <a class="block px-4 py-3 hover:bg-gray-800 text-base font-semibold rounded-lg" asp-controller="Admin" asp-action="Index">Quản trị viên</a> }
+                        @if (user?.Role == UserRole.Partner) { <a class="block px-4 py-3 hover:bg-gray-800 text-base font-semibold rounded-lg" asp-controller="Partner" asp-action="Index">Cửa hàng của tôi</a> }
+                        @if (user?.Role == UserRole.Shipper) { <a class="block px-4 py-3 hover:bg-gray-800 text-base font-semibold rounded-lg" asp-controller="Shipper" asp-action="Index">Bảng tài xế</a> }
+                        <a class="block px-4 py-3 hover:bg-gray-800 text-base font-semibold rounded-lg" asp-controller="Account" asp-action="Profile">Hồ sơ cá nhân</a>
+                        <hr class="border-gray-800 my-2">
+                        <form asp-controller="Account" asp-action="Logout" method="post">
+                            <button type="submit" class="w-full text-left px-4 py-3 hover:bg-gray-800 text-base font-bold text-red-500 rounded-lg">Đăng xuất</button>
+                        </form>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <a asp-controller="Account" asp-action="Login" class="hidden md:block px-6 py-2 border-2 border-brand-orange text-brand-orange rounded-full hover:bg-brand-orange hover:text-black transition-all font-bold shadow-[0_0_15px_rgba(255,107,0,0.4)] text-base text-decoration-none">
+                    Đăng nhập
+                </a>
+            }
+            
+            <button class="md:hidden text-3xl" id="mobile-menu-btn">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu" class="fixed inset-0 bg-brand-black z-50 translate-x-full transition-transform duration-300 flex flex-col justify-center items-center gap-8 text-xl font-semibold">
+        <button id="close-mobile" class="absolute top-6 right-6 text-3xl"><i class="fa-solid fa-xmark"></i></button>
+        <a href="/" class="mobile-link hover:text-brand-orange flex items-center gap-3"><i class="fa-solid fa-house"></i> Trang chủ</a>
+        <a href="/#top-branches" class="mobile-link hover:text-brand-orange flex items-center gap-3"><i class="fa-solid fa-store"></i> Quán ăn</a>
+        <a href="/Home/Menu" class="mobile-link hover:text-brand-orange flex items-center gap-3"><i class="fa-solid fa-burger"></i> Món ăn</a>
+        <a href="#" class="mobile-link hover:text-brand-orange flex items-center gap-3 pointer-events-none opacity-50"><i class="fa-solid fa-star"></i> Đánh giá</a>
+        <a asp-controller="Order" asp-action="Delivery" class="mobile-link text-brand-orange font-bold uppercase tracking-wider flex items-center gap-3"><i class="fa-solid fa-truck-fast"></i> Giao hàng</a>
+    </div>
+
+    <main role="main" class="relative z-10">
+        @RenderBody()
+    </main>
+
+    <!-- Footer -->
+    <footer class="pt-20 pb-10 border-t border-gray-800 relative z-10">
+        <div class="max-w-[1440px] mx-auto px-6 md:px-12">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
+                <div class="col-span-1 md:col-span-1">
+                    <div class="logo font-bold text-2xl flex items-center gap-1 mb-4">
+                        <span class="text-white">Delivery</span>
+                        <span class="bg-brand-orange text-brand-black px-2 py-0.5 rounded-lg leading-none tracking-tight">hub</span>
+                    </div>
+                    <p class="text-brand-gray mb-6">Nền tảng giao đồ ăn cao cấp, nhanh chóng, tiện lợi. Luôn mang đến những bữa ăn chất lượng nhất.</p>
+                    <div class="flex gap-4">
+                        <a href="#" class="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-colors"><i class="fa-brands fa-facebook-f"></i></a>
+                        <a href="#" class="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-colors"><i class="fa-brands fa-instagram"></i></a>
+                        <a href="#" class="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-colors"><i class="fa-brands fa-twitter"></i></a>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-xl font-bold mb-4">Liên kết</h3>
+                    <ul class="flex flex-col gap-2 text-brand-gray">
+                        <li><a href="#" class="hover:text-brand-orange transition-colors">Về chúng tôi</a></li>
+                        <li><a href="#menu" class="hover:text-brand-orange transition-colors">Thực đơn</a></li>
+                        <li><a href="#" class="hover:text-brand-orange transition-colors">Blog ẩm thực</a></li>
+                        <li><a href="#" class="hover:text-brand-orange transition-colors">Chính sách bảo mật</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="text-xl font-bold mb-4">Liên hệ</h3>
+                    <ul class="flex flex-col gap-3 text-brand-gray">
+                        <li class="flex items-start gap-3"><i class="fa-solid fa-location-dot mt-1 text-brand-orange"></i> 123 Đường Ẩm Thực, Q1, TP.HCM</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-phone text-brand-orange"></i> 1900 1234 56</li>
+                        <li class="flex items-center gap-3"><i class="fa-solid fa-envelope text-brand-orange"></i> contact@deliveryhub.vn</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-xl font-bold mb-4">Nhận tin khuyến mãi</h3>
+                    <div class="flex mt-2">
+                        <input type="email" placeholder="Email của bạn" class="bg-gray-900 border-none px-4 py-3 w-full focus:outline-none rounded-l-lg text-white">
+                        <button class="bg-brand-orange text-black px-5 py-3 rounded-r-lg font-bold hover:bg-yellow-500 transition-colors"><i class="fa-solid fa-paper-plane"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center text-brand-gray border-t border-gray-800 pt-8">
+                <p>&copy; 2026 Delivery hub. All rights reserved. Version 1.0.0</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Cart Sidebar -->
+    <div id="cart-sidebar" class="fixed top-0 right-0 h-full w-full sm:w-[400px] bg-brand-dark z-50 transform translate-x-full transition-transform duration-300 shadow-[-10px_0_30px_rgba(0,0,0,0.8)] border-l border-gray-800 flex flex-col">
+        <div class="p-6 border-b border-gray-800 flex justify-between items-center">
+            <h2 class="text-2xl font-bold">Giỏ hàng <span class="text-brand-orange" id="cart-count">(0)</span></h2>
+            <button id="close-cart" class="text-gray-400 hover:text-brand-orange text-2xl transition-colors"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="cart-items" class="flex-1 overflow-y-auto p-6 flex flex-col gap-4 custom-scrollbar">
+            <div class="text-brand-gray text-center mt-10" id="empty-cart-msg">Giỏ hàng của bạn đang trống</div>
+        </div>
+        <div class="p-6 border-t border-gray-800 bg-black">
+            <div class="flex justify-between items-center mb-4 text-lg">
+                <span class="font-semibold text-brand-gray">Tổng tiền:</span>
+                <span class="font-bold text-brand-orange text-xl" id="cart-total">0 ₫</span>
+            </div>
+            <button id="checkout-btn" class="w-full bg-brand-orange text-black font-bold py-3 rounded-lg hover:shadow-[0_0_15px_rgba(255,107,0,0.5)] transition-all">
+                Thanh toán ngay
+            </button>
+        </div>
+    </div>
+    <div id="cart-overlay" class="fixed inset-0 bg-black bg-opacity-60 z-40 hidden opacity-0 backdrop-blur-sm transition-opacity duration-300"></div>
+
+    <!-- Scripts -->
+    <!-- SignalR Hub (Optional but recommended to keep for future) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+    <!-- Three JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- GSAP & Plugins -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <script src="~/js/data.js" asp-append-version="true"></script>
+    <script src="~/js/main.js" asp-append-version="true"></script>
+    
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+
+</html>

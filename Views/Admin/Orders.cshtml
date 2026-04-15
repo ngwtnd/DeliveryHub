@@ -1,0 +1,550 @@
+@model IEnumerable<DeliveryHubWeb.Models.Order>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý đơn hàng";
+    var stores = ViewBag.Stores as IEnumerable<Store>;
+
+    // Helper function for Status Labels
+    string GetStatusLabel(OrderStatus status) => status switch {
+        OrderStatus.Pending => "Mới tạo",
+        OrderStatus.SearchingShipper => "Tìm shipper",
+        OrderStatus.Accepted => "Nhận đơn",
+        OrderStatus.Preparing => "Đang làm món",
+        OrderStatus.Delivering => "Đang giao",
+        OrderStatus.Completed => "Thành công",
+        OrderStatus.Cancelled => "Đã hủy",
+        OrderStatus.Failed => "Thất bại",
+        _ => status.ToString()
+    };
+
+    string GetStatusClass(OrderStatus status) => status switch {
+        OrderStatus.Pending => "bg-[#22D3EE]/10 text-[#22D3EE] border border-[#22D3EE]/20",
+        OrderStatus.SearchingShipper => "bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20",
+        OrderStatus.Accepted => "bg-pink-500/10 text-pink-500 border border-pink-500/20",
+        OrderStatus.Preparing => "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20",
+        OrderStatus.Delivering => "bg-brand-orange/10 text-brand-orange border border-brand-orange/20",
+        OrderStatus.Completed => "bg-green-500/20 text-green-400 border border-green-500/20",
+        OrderStatus.Cancelled => "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+        OrderStatus.Failed => "bg-red-500/20 text-red-500 border border-red-500/20",
+        _ => "bg-gray-500/10 text-gray-500"
+    };
+
+    string GetStatusTextColor(object? statusObj) {
+        if (statusObj == null) return "text-white";
+        string statusStr = statusObj.ToString() ?? "";
+        if (string.IsNullOrEmpty(statusStr)) return "text-white";
+        
+        if (Enum.TryParse<OrderStatus>(statusStr, out var status)) {
+            return status switch {
+                OrderStatus.Pending => "text-[#22D3EE]",
+                OrderStatus.SearchingShipper => "text-[#A855F7]",
+                OrderStatus.Accepted => "text-pink-500",
+                OrderStatus.Preparing => "text-yellow-500",
+                OrderStatus.Delivering => "text-brand-orange",
+                OrderStatus.Completed => "text-green-500",
+                OrderStatus.Cancelled => "text-blue-500",
+                OrderStatus.Failed => "text-red-500",
+                _ => "text-white"
+            };
+        }
+        return "text-white";
+    }
+}
+
+<!-- GSAP for animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex justify-between items-center fade-in relative z-10 backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Quản lý <span class="text-brand-orange">Đơn hàng</span></h2>
+        <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[10px] font-bold text-brand-orange uppercase tracking-wider">Dashboard</span>
+            <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Tổng cộng <span id="totalCountSpan" class="text-white font-black">@ViewBag.TotalItems</span> đơn hàng trong hệ thống</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form id="filterForm" method="get" class="flex items-center gap-4">
+        <input type="hidden" name="page" id="currentPage" value="@ViewBag.CurrentPage" />
+        @* Custom Status Dropdown *@
+        <div class="relative group dropdown-container min-w-[220px] z-50">
+            <input type="hidden" name="status" id="selectedStatus" value="@ViewBag.SelectedStatus" />
+            <button type="button" id="statusDropdownBtn" 
+                    class="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold focus:border-brand-orange/50 outline-none transition-all cursor-pointer hover:bg-white/10">
+                <span id="statusLabel" class="@GetStatusTextColor(ViewBag.SelectedStatus)">
+                    @(ViewBag.SelectedStatus != null ? GetStatusLabel(Enum.Parse<OrderStatus>(ViewBag.SelectedStatus.ToString())) : "Tất cả trạng thái")
+                </span>
+                <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray group-hover/btn:text-brand-orange transition-colors"></i>
+            </button>
+
+            @* Dropdown Options List *@
+            <div id="statusOptions" class="absolute top-full left-0 w-full mt-2 bg-brand-dark/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl py-2 z-[100] hidden overflow-hidden">
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-white/5 border-l-2 border-transparent transition-all" data-value="">
+                    Tất cả trạng thái
+                </div>
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-[#22D3EE] cursor-pointer hover:bg-[#22D3EE]/5 border-l-2 border-transparent transition-all" data-value="Pending">
+                    Mới tạo
+                </div>
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-[#A855F7] cursor-pointer hover:bg-[#A855F7]/5 border-l-2 border-transparent transition-all" data-value="SearchingShipper">
+                    Tìm shipper
+                </div>
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-pink-500 cursor-pointer hover:bg-pink-500/5 border-l-2 border-transparent transition-all" data-value="Accepted">
+                    Nhận đơn
+                </div>
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-yellow-500 cursor-pointer hover:bg-yellow-500/5 border-l-2 border-transparent transition-all" data-value="Preparing">
+                    Đang làm món
+                </div>
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-brand-orange cursor-pointer hover:bg-brand-orange/5 border-l-2 border-transparent transition-all" data-value="Delivering">
+                    Đang giao
+                </div>
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-green-500 cursor-pointer hover:bg-green-500/5 border-l-2 border-transparent transition-all" data-value="Completed">
+                    Thành công
+                </div>
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-red-500 cursor-pointer hover:bg-red-500/5 border-l-2 border-transparent transition-all" data-value="Failed">
+                    Thất bại
+                </div>
+                <div class="option-item px-5 py-2.5 text-xs font-bold text-blue-500 cursor-pointer hover:bg-blue-500/5 border-l-2 border-transparent transition-all" data-value="Cancelled">
+                    Đã hủy
+                </div>
+            </div>
+        </div>
+
+        @* Custom Store Dropdown *@
+        <div class="relative group dropdown-container min-w-[220px] z-50">
+            @{
+                var selectedStoreText = "Tất cả nhà hàng";
+                if (ViewBag.SelectedStore != null) {
+                    var sId = (int)ViewBag.SelectedStore;
+                    var s = stores?.FirstOrDefault(x => x.Id == sId);
+                    if (s != null) selectedStoreText = s.Name;
+                }
+            }
+            <input type="hidden" name="storeId" id="selectedStore" value="@ViewBag.SelectedStore" />
+            <button type="button" id="storeDropdownBtn" 
+                    class="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white focus:border-brand-orange/50 outline-none transition-all cursor-pointer hover:bg-white/10">
+                <span id="storeLabel">@selectedStoreText</span>
+                <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray group-hover/btn:text-brand-orange transition-colors"></i>
+            </button>
+
+            @* Dropdown Options List *@
+            <div id="storeOptions" class="absolute top-full left-0 w-full mt-2 bg-brand-dark/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl py-2 z-[100] hidden overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                <div class="store-option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-white/5 border-l-2 border-transparent hover:border-brand-orange transition-all" data-value="">
+                    Tất cả nhà hàng
+                </div>
+                @if (stores != null) {
+                    foreach (var store in stores) {
+                        <div class="store-option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-white/5 border-l-2 border-transparent hover:border-brand-orange transition-all" data-value="@store.Id">
+                            @store.Name
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="relative group">
+            <input type="text" name="search" id="searchInput" value="@ViewBag.SearchTerm" placeholder="Tìm mã đơn, khách hàng..." 
+                   class="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-72 outline-none transition-all pl-12 group-focus-within:w-80" />
+            <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+        </div>
+
+        <button type="submit" class="h-12 px-8 bg-brand-orange text-black font-black text-xs rounded-2xl hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-orange/20">
+            <i class="fa-solid fa-filter mr-2"></i>LỌC ĐƠN
+        </button>
+    </form>
+</div>
+
+<!-- Orders Table & Pagination -->
+<div id="ordersContainer">
+    <div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.3)]">
+    <div class="overflow-x-auto lg:overflow-visible"> 
+        <table class="w-full text-left order-table border-collapse">
+            <thead>
+                <tr class="bg-white/[0.02] text-[10px] font-extrabold text-brand-gray uppercase tracking-[2px]">
+                    <th class="py-5 px-8">Mã đơn</th>
+                    <th class="py-5 px-4">Merchant & Khách hàng</th>
+                    <th class="py-5 px-4">Lộ trình</th>
+                    <th class="py-5 px-2">Khoảng Cách</th>
+                    <th class="py-5 px-4">Phí (VND)</th>
+                    <th class="py-5 px-4">Trạng thái</th>
+                    <th class="py-5 px-8 text-center">Tùy chọn</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @foreach (var order in Model)
+                {
+                    <tr class="order-row group hover:bg-white/[0.03] transition-all duration-300 @(order.IsPinned ? "bg-brand-orange/5" : "")">
+                        <td class="py-5 px-8">
+                            <div class="flex items-center gap-2">
+                                @if (order.IsPinned) {
+                                    <i class="fa-solid fa-thumbtack text-[10px] text-brand-orange drop-shadow-[0_0_5px_rgba(255,107,0,0.5)]"></i>
+                                }
+                                <span class="text-brand-orange font-black text-xs hover:underline cursor-pointer tracking-wider">@order.OrderCode</span>
+                            </div>
+                            <p class="text-[9px] text-brand-gray font-bold uppercase mt-1">@order.CreatedAt.ToString("dd/MM/yy HH:mm")</p>
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="space-y-1.5">
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-solid fa-store text-[10px] text-brand-orange/60"></i>
+                                    <span class="text-xs font-extrabold text-white truncate max-w-[150px]">@order.Store?.Name</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <i class="fa-solid fa-user-tag text-[10px] text-blue-400/60"></i>
+                                    <span class="text-[11px] font-bold text-brand-gray truncate max-w-[150px]">@order.User?.FullName</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="space-y-1 text-[10px] font-bold text-brand-gray max-w-[180px]">
+                                <p class="truncate text-brand-orange/60"><i class="fa-solid fa-circle-dot mr-1"></i>@order.PickupAddress</p>
+                                <p class="truncate text-blue-400/60"><i class="fa-solid fa-location-dot mr-1"></i>@order.DeliveryAddress</p>
+                            </div>
+                        </td>
+                        <td class="py-5 px-2 font-black text-xs text-white">
+                            @(order.Distance > 0 ? $"{order.Distance:F1}km" : "0.1km")
+                        </td>
+                        <td class="py-5 px-4 font-black text-xs text-white">
+                            @string.Format("{0:N0}", order.TotalPrice + order.ShippingFee)VND
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="flex items-center gap-2 px-3 py-1.5 rounded-full w-fit @GetStatusClass(order.Status)">
+                                @if(order.Status == OrderStatus.Completed) {
+                                    <i class="fa-solid fa-circle-check text-[10px]"></i>
+                                } else if(order.Status == OrderStatus.Delivering) {
+                                    <i class="fa-solid fa-truck-fast text-[10px]"></i>
+                                } else {
+                                    <i class="fa-solid fa-clock text-[10px]"></i>
+                                }
+                                <span class="text-[10px] font-black uppercase tracking-tighter">@GetStatusLabel(order.Status)</span>
+                            </div>
+                        </td>
+                        <td class="py-5 px-8 text-center">
+                            <div class="flex items-center justify-center gap-3">
+                                <button onclick="showOrderDetail(@order.Id)" class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all hover:scale-110 shadow-lg" title="Xem chi tiết">
+                                    <i class="fa-solid fa-eye text-sm"></i>
+                                </button>
+                                <form asp-action="TogglePin" method="post" class="inline">
+                                    <input type="hidden" name="id" value="@order.Id" />
+                                    <input type="hidden" name="storeId" value="@ViewBag.SelectedStore" />
+                                    <input type="hidden" name="status" value="@ViewBag.SelectedStatus" />
+                                    <input type="hidden" name="search" value="@ViewBag.SearchTerm" />
+                                    <button type="submit" class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center transition-all hover:scale-110 shadow-lg @(order.IsPinned ? "text-brand-orange border-brand-orange/50 bg-brand-orange/10" : "hover:text-white")" title="Ghim đơn">
+                                        <i class="fa-solid fa-thumbtack text-sm @(order.IsPinned ? "-rotate-45" : "")"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    </div>
+
+    <!-- Pagination -->
+    @if (ViewBag.TotalPages > 1)
+    {
+        <div class="flex flex-col items-center justify-center mt-10 gap-3">
+            <div class="flex items-center gap-2 bg-brand-dark/50 backdrop-blur-xl rounded-2xl border border-white/5 p-2 shadow-2xl">
+                <!-- Previous -->
+                <button type="button" onclick="changePage(@(ViewBag.CurrentPage - 1))" 
+                        class="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-brand-orange hover:text-black text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
+                        @(ViewBag.CurrentPage == 1 ? "disabled" : "")>
+                    <i class="fa-solid fa-chevron-left text-sm group-hover:-translate-x-1 transition-transform"></i>
+                </button>
+
+                <!-- Numbers -->
+                <div class="flex items-center gap-1 mx-2">
+                    @{
+                        int startPage = Math.Max(1, ViewBag.CurrentPage - 2);
+                        int endPage = Math.Min((int)ViewBag.TotalPages, startPage + 4);
+                        if (endPage - startPage < 4) {
+                            startPage = Math.Max(1, endPage - 4);
+                        }
+                    }
+                    @for (int i = startPage; i <= endPage; i++)
+                    {
+                        if (i == ViewBag.CurrentPage)
+                        {
+                            <button type="button" class="w-10 h-10 flex items-center justify-center rounded-xl bg-brand-orange text-black font-black text-sm shadow-[0_0_15px_rgba(255,107,0,0.4)] pointer-events-none transform scale-110">
+                                @i
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" onclick="changePage(@i)" class="w-10 h-10 flex items-center justify-center rounded-xl bg-transparent hover:bg-white/10 text-white font-bold text-sm transition-all hover:scale-110">
+                                @i
+                            </button>
+                        }
+                    }
+                </div>
+
+                <!-- Next -->
+                <button type="button" onclick="changePage(@(ViewBag.CurrentPage + 1))" 
+                        class="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-brand-orange hover:text-black text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed group"
+                        @(ViewBag.CurrentPage == ViewBag.TotalPages ? "disabled" : "")>
+                    <i class="fa-solid fa-chevron-right text-sm group-hover:translate-x-1 transition-transform"></i>
+                </button>
+            </div>
+            
+            <p class="text-[10px] font-black text-brand-gray uppercase tracking-widest bg-white/[0.02] px-4 py-1.5 rounded-full border border-white/5">
+                Trang <span class="text-white">@ViewBag.CurrentPage</span> / @ViewBag.TotalPages
+            </p>
+        </div>
+    }
+
+    <template id="orderData">
+        @foreach(var order in Model) {
+            <div data-id="@order.Id" 
+                 data-code="@order.OrderCode"
+                 data-customer="@order.User?.FullName"
+                 data-merchant="@order.Store?.Name"
+                 data-merchant-addr="@order.Store?.Address"
+                 data-delivery-addr="@order.DeliveryAddress"
+                 data-status="@order.Status"
+                 data-price="@string.Format("{0:N0}", order.TotalPrice + order.ShippingFee)"
+                 data-time1="@order.CreatedAt.ToString("HH:mm - dd/MM")"
+                 data-time2="@(order.AcceptedAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+                 data-time3="@(order.PickedUpAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+                 data-time4="@((order.Status == OrderStatus.Completed ? order.CompletedAt : order.CancelledAt)?.ToString("HH:mm - dd/MM") ?? "--:--")"
+                 data-shipper-name="@(order.Shipper?.FullName ?? "")"
+                 data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)[order.ShipperId] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
+                 data-note="@order.Note">
+                 <div class="items-json">
+                    @Html.Raw(System.Text.Json.JsonSerializer.Serialize(order.OrderItems.Select(oi => new { name = oi.MenuItem?.Name, qty = oi.Quantity, price = oi.Price })))
+                 </div>
+            </div>
+        }
+    </template>
+</div>
+
+    @* Shared Order Detail Modal *@
+    @await Html.PartialAsync("_OrderDetailModal")
+
+
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Dropdown Toggle Logic
+            const dropdownBtn = document.getElementById('statusDropdownBtn');
+            const dropdownOptions = document.getElementById('statusOptions');
+            const selectedStatus = document.getElementById('selectedStatus');
+            const filterForm = document.getElementById('filterForm');
+
+            dropdownBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isOpen = !dropdownOptions.classList.contains('hidden');
+                if (isOpen) {
+                    gsap.to(dropdownOptions, { duration: 0.2, opacity: 0, y: -10, pointerEvents: 'none', onComplete: () => dropdownOptions.classList.add('hidden') });
+                } else {
+                    dropdownOptions.classList.remove('hidden');
+                    gsap.fromTo(dropdownOptions, { opacity: 0, y: -10, pointerEvents: 'none' }, { duration: 0.3, opacity: 1, y: 0, pointerEvents: 'auto', ease: "back.out(1.7)" });
+                }
+            });
+
+            // Option Selection Logic
+            document.querySelectorAll('.option-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const val = item.getAttribute('data-value');
+                    selectedStatus.value = val;
+                    // Auto-submit the form
+                    filterForm.submit();
+                });
+            });
+
+            // Close both when clicking outside
+            document.addEventListener('click', () => {
+                if (!dropdownOptions.classList.contains('hidden')) {
+                    gsap.to(dropdownOptions, { duration: 0.2, opacity: 0, y: -10, onComplete: () => dropdownOptions.classList.add('hidden') });
+                }
+                const sOptions = document.getElementById('storeOptions');
+                if (!sOptions.classList.contains('hidden')) {
+                    gsap.to(sOptions, { duration: 0.2, opacity: 0, y: -10, onComplete: () => sOptions.classList.add('hidden') });
+                }
+            });
+
+            // Store Dropdown Logic
+            const storeBtn = document.getElementById('storeDropdownBtn');
+            const storeOptions = document.getElementById('storeOptions');
+            const selectedStore = document.getElementById('selectedStore');
+
+            storeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Close status dropdown if open
+                if (!dropdownOptions.classList.contains('hidden')) {
+                    dropdownOptions.classList.add('hidden');
+                }
+                const isOpen = !storeOptions.classList.contains('hidden');
+                if (isOpen) {
+                    gsap.to(storeOptions, { duration: 0.2, opacity: 0, y: -10, pointerEvents: 'none', onComplete: () => storeOptions.classList.add('hidden') });
+                } else {
+                    storeOptions.classList.remove('hidden');
+                    gsap.fromTo(storeOptions, { opacity: 0, y: -10, pointerEvents: 'none' }, { duration: 0.3, opacity: 1, y: 0, pointerEvents: 'auto', ease: "back.out(1.7)" });
+                }
+            });
+
+            document.querySelectorAll('.store-option-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    selectedStore.value = item.getAttribute('data-value');
+                    filterForm.submit();
+                });
+            });
+
+            // --- SMART LIVE SEARCH LOGIC ---
+            const searchInput = document.getElementById('searchInput');
+            const tableBody = document.querySelector('.order-table tbody');
+            const totalCountSpan = document.querySelector('p.text-brand-gray.text-sm.mt-1 span.text-white.font-bold');
+
+            function debounce(func, timeout = 300) {
+                let timer;
+                return (...args) => {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+                };
+            }
+
+            const performSmartSearch = debounce(() => {
+                const search = searchInput.value;
+                const status = selectedStatus.value;
+                const storeId = selectedStore.value;
+                const page = 1; // Reset to page 1 on new search
+
+                const currentPageInput = document.getElementById('currentPage');
+                if (currentPageInput) currentPageInput.value = page;
+
+                const url = new URL(window.location.origin + window.location.pathname);
+                if (search) url.searchParams.set('search', search);
+                if (status) url.searchParams.set('status', status);
+                if (storeId) url.searchParams.set('storeId', storeId);
+                url.searchParams.set('page', page);
+
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(response => response.text())
+                    .then(html => {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        
+                        // Cập nhật toàn bộ bảng + phân trang
+                        const newContainer = doc.getElementById('ordersContainer');
+                        const currentContainer = document.getElementById('ordersContainer');
+                        if (newContainer && currentContainer) {
+                            currentContainer.innerHTML = newContainer.innerHTML;
+                        }
+                        
+                        // Update counter
+                        const newTotal = doc.querySelector('#totalCountSpan');
+                        if (newTotal && document.querySelector('#totalCountSpan')) {
+                            document.querySelector('#totalCountSpan').innerText = newTotal.innerText;
+                        }
+                    });
+            });
+
+            // Handle Page Change via AJAX
+            window.changePage = function(page) {
+                const search = searchInput.value;
+                const status = selectedStatus.value;
+                const storeId = selectedStore.value;
+                
+                const currentPageInput = document.getElementById('currentPage');
+                if (currentPageInput) currentPageInput.value = page;
+
+                const url = new URL(window.location.origin + window.location.pathname);
+                if (search) url.searchParams.set('search', search);
+                if (status) url.searchParams.set('status', status);
+                if (storeId) url.searchParams.set('storeId', storeId);
+                url.searchParams.set('page', page);
+
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(response => response.text())
+                    .then(html => {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        
+                        const newContainer = doc.getElementById('ordersContainer');
+                        const currentContainer = document.getElementById('ordersContainer');
+                        if (newContainer && currentContainer) {
+                            currentContainer.innerHTML = newContainer.innerHTML;
+                        }
+                        
+                        const newTotal = doc.querySelector('#totalCountSpan');
+                        if (newTotal && document.querySelector('#totalCountSpan')) {
+                            document.querySelector('#totalCountSpan').innerText = newTotal.innerText;
+                        }
+                    });
+            };
+
+            searchInput.addEventListener('input', performSmartSearch);
+        });
+
+        function showOrderDetail(id) {
+            const dataDiv = document.querySelector(`template#orderData`).content.querySelector(`[data-id="${id}"]`);
+            if (!dataDiv) return;
+
+            const items = JSON.parse(dataDiv.querySelector('.items-json').innerText);
+            
+            const data = {
+                id: id,
+                code: dataDiv.dataset.code,
+                customer: dataDiv.dataset.customer,
+                merchant: dataDiv.dataset.merchant,
+                merchantAddr: dataDiv.dataset.merchantAddr,
+                deliveryAddr: dataDiv.dataset.deliveryAddr,
+                status: dataDiv.dataset.status,
+                totalPrice: dataDiv.dataset.price,
+                time1: dataDiv.dataset.time1,
+                time2: dataDiv.dataset.time2,
+                time3: dataDiv.dataset.time3,
+                time4: dataDiv.dataset.time4,
+                shipperName: dataDiv.dataset.shipperName,
+                shipperCode: dataDiv.dataset.shipperCode,
+                note: dataDiv.dataset.note,
+                items: items
+            };
+
+            // Use the shared render function from _OrderDetailModal
+            if (typeof renderOrderDetail === 'function') {
+                renderOrderDetail(data);
+            }
+
+            // GSAP Open Animation
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            modal.classList.remove('hidden');
+            gsap.set(body, { scale: 0.9, opacity: 0 });
+            gsap.to(body, { duration: 0.5, scale: 1, opacity: 1, ease: "back.out(1.2)" });
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            gsap.to(body, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
+                modal.classList.add('hidden');
+            }});
+        }
+
+
+
+
+
+    </script>
+}
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 107, 0, 0.2); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 107, 0, 0.4); }
+
+    /* Hover Border Effects */
+    .option-item:hover { border-left-width: 4px; padding-left: 1.1rem; }
+    .option-item[data-value=""]:hover { border-left-color: #FF6B00; }
+    .option-item[data-value="Pending"]:hover { border-left-color: #22D3EE; }
+    .option-item[data-value="SearchingShipper"]:hover { border-left-color: #A855F7; }
+    .option-item[data-value="Accepted"]:hover { border-left-color: #ec4899; }
+    .option-item[data-value="Preparing"]:hover { border-left-color: #eab308; }
+    .option-item[data-value="Delivering"]:hover { border-left-color: #FF6B00; }
+    .option-item[data-value="Completed"]:hover { border-left-color: #22c55e; }
+    .option-item[data-value="Failed"]:hover { border-left-color: #ef4444; }
+    .option-item[data-value="Cancelled"]:hover { border-left-color: #3b82f6; }
+</style>

@@ -1,0 +1,213 @@
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0a;
+}
+::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF6B00;
+}
+
+/* Custom Hide Scrollbar */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Horizontal Custom Scrollbar for Sliders */
+.custom-scrollbar::-webkit-scrollbar {
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  margin: 0 20px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 0, 0.5);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 0, 1);
+}
+
+/* Base Body Styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* Loading Circle */
+.loader-circle {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 107, 0, 0.3);
+  border-top-color: #FF6B00;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 3D Card Effect styling */
+.product-card-container {
+  perspective: 1000px;
+}
+
+.product-card {
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.product-card:hover {
+  transform: translateY(-10px) rotateY(4deg) rotateX(2deg);
+  box-shadow: 0 20px 40px rgba(255, 107, 0, 0.15);
+}
+
+.product-card img {
+  transition: transform 0.4s ease;
+  transform: translateZ(30px);
+}
+.product-card:hover img {
+    transform: translateZ(50px) scale(1.05);
+}
+
+.add-to-cart-btn {
+    transform: translateZ(40px);
+}
+
+/* Floating animation */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-15px); }
+  100% { transform: translateY(0px); }
+}
+
+.burger-glow {
+    filter: drop-shadow(0 0 15px rgba(255, 107, 0, 0.4)) 
+            drop-shadow(0 0 30px rgba(255, 107, 0, 0.2));
+    transition: filter 0.3s ease;
+}
+
+.burger-glow:hover {
+    filter: drop-shadow(0 0 25px rgba(255, 107, 0, 0.8)) 
+            drop-shadow(0 0 50px rgba(255, 107, 0, 0.4));
+    transform: scale(1.02);
+}
+
+.floating-element {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Category card hover effect */
+.category-card {
+    transition: all 0.3s ease;
+}
+.category-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 2px solid transparent;
+    border-radius: 0.75rem;
+    transition: all 0.3s ease;
+}
+.category-card:hover::after {
+    border-color: #FF6B00;
+}
+.category-card:hover {
+    transform: translateY(-5px);
+}
+.category-card:hover .cat-img {
+    transform: scale(1.1);
+}
+
+/* Header styles */
+.header-transition {
+    transition: all 0.5s ease;
+}
+
+.bg-header-light {
+    background-color: rgba(2, 6, 23, 0.5) !important;
+    backdrop-filter: blur(8px);
+}
+
+.bg-header-scrolled {
+    background-color: rgba(2, 6, 23, 0.8) !important;
+    backdrop-filter: blur(8px);
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+}
+
+/* Delivery Page Styles */
+.delivery-card {
+    background: rgba(26, 26, 26, 0.8) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 107, 0, 0.05) !important;
+    border-radius: 1.5rem !important;
+    padding: 1.5rem !important;
+    transition: all 0.3s ease !important;
+}
+
+.delivery-card:hover {
+    border-color: #FF6B00 !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 107, 0, 0.1) !important;
+    transform: translateY(-2px);
+}
+
+.delivery-card input, 
+.delivery-card select, 
+.delivery-card textarea {
+    background: rgba(34, 34, 34, 0.5) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: white !important;
+    border-radius: 0.75rem !important;
+    padding: 0.75rem 1rem !important;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.delivery-card input:focus, 
+.delivery-card select:focus, 
+.delivery-card textarea:focus {
+    border-color: #FF6B00 !important;
+    outline: none;
+    background: rgba(42, 42, 42, 0.8) !important;
+    box-shadow: 0 0 0 4px rgba(255, 107, 0, 0.1);
+}
+
+.step-number {
+    background: #FF6B00;
+    color: black;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    margin-right: 0.75rem;
+}
+
+#map {
+    height: 350px;
+    border-radius: 1rem;
+    z-index: 10;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}

@@ -1,0 +1,274 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
+@{
+    var user = await UserManager.GetUserAsync(User);
+    var shipperName = user?.FullName ?? "Tài xế";
+    var shipperCode = user?.ShipperCode ?? "SH-0000";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Shipper DeliveryHub</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <!-- Leaflet CSS for Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-orange': '#FF6B00',
+                        'brand-dark': '#0f172a',
+                        'brand-black': '#020617',
+                        'brand-gray': '#94a3b8',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #020617; color: white; }
+        .sidebar { transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 80px; overflow: hidden; }
+        .sidebar.expanded { width: 260px; }
+        .sidebar-label { opacity: 0; transition: opacity 0.2s; white-space: nowrap; pointer-events: none; }
+        .sidebar.expanded .sidebar-label { opacity: 1; pointer-events: auto; }
+        .nav-item { transition: all 0.2s; position: relative; }
+        .nav-item:hover { background: rgba(255, 107, 0, 0.1); color: #FF6B00; }
+        
+        .nav-item.active-dashboard { background: #FF6B00; color: black; font-weight: 700; box-shadow: 0 4px 15px rgba(255,107,0,0.3); }
+        .nav-item.active-dashboard i { color: black; }
+        
+        .nav-item.active-general { background: white; color: #FF6B00; font-weight: 800; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .nav-item.active-general i { color: #FF6B00; }
+
+        .main-content { transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin-left: 80px; }
+        .sidebar.expanded + .main-content { margin-left: 260px; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .pulse-online { animation: pulseOnline 2s infinite; }
+        @@keyframes pulseOnline { 0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); } 50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); } }
+    </style>
+    @RenderSection("Styles", required: false)
+</head>
+<body class="overflow-x-hidden">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar fixed top-0 left-0 h-screen bg-brand-dark border-r border-white/5 z-50 flex flex-col pt-4 overflow-y-auto no-scrollbar shadow-2xl">
+        <!-- Logo -->
+        <div class="flex items-center px-6 mb-10 h-10 w-full overflow-hidden">
+            <button id="sidebar-toggle" class="text-2xl text-brand-orange hover:scale-110 transition-transform focus:outline-none min-w-[32px]">
+                <i class="fa-solid fa-bars-staggered"></i>
+            </button>
+            <a href="/" class="sidebar-label ml-4 flex items-center gap-1 hover:scale-105 transition-transform">
+                <span class="text-xl font-extrabold text-white">Delivery</span>
+                <span class="bg-brand-orange text-black px-1.5 py-0.5 rounded-lg text-sm font-bold">hub</span>
+            </a>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 px-3 space-y-2">
+            @{
+                var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "Index";
+            }
+            <a href="/Shipper" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Index" ? "active-dashboard" : "")">
+                <i class="fa-solid fa-gauge-high text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Dashboard</span>
+            </a>
+            
+            <div class="sidebar-label px-4 text-[10px] font-bold text-brand-gray uppercase tracking-[2px] mt-6 mb-2">Giao hàng</div>
+            <a href="/Shipper/AvailableOrders" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "AvailableOrders" ? "active-general" : "")">
+                <i class="fa-solid fa-fire text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Đơn mới nổ</span>
+            </a>
+            <a href="/Shipper/BatchOrders" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "BatchOrders" || currentAction == "BatchDetail" ? "active-general" : "")">
+                <i class="fa-solid fa-layer-group text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Gom đơn</span>
+            </a>
+            <a href="/Shipper/History" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "History" ? "active-general" : "opacity-70")">
+                <i class="fa-solid fa-clock-rotate-left text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Lịch sử giao</span>
+            </a>
+
+            <div class="sidebar-label px-4 text-[10px] font-bold text-brand-gray uppercase tracking-[2px] mt-6 mb-2">Cá nhân</div>
+            <a href="/Shipper/Wallet" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Wallet" ? "active-general" : "opacity-70")">
+                <i class="fa-solid fa-wallet text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Ví tiền</span>
+            </a>
+            <a href="/Shipper/Reviews" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Reviews" ? "active-general" : "opacity-70")">
+                <i class="fa-solid fa-star text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Đánh giá</span>
+            </a>
+        </nav>
+
+        <!-- Logout -->
+        <div class="px-3 pb-6 mt-auto">
+            <form asp-controller="Account" asp-action="Logout" method="post">
+                <button type="submit" class="nav-item flex items-center h-12 w-full rounded-xl px-4 text-red-500 hover:bg-red-500/10 transition-all">
+                    <i class="fa-solid fa-right-from-bracket text-xl min-w-[24px]"></i>
+                    <span class="sidebar-label ml-4 font-bold">Đăng xuất</span>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content min-h-screen">
+        <!-- Top Header -->
+        <header class="h-20 bg-brand-black/50 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 px-8 flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-bold">@ViewData["Title"]</h1>
+                <nav class="flex text-[10px] uppercase font-bold text-brand-gray gap-2 tracking-widest mt-1">
+                    <a href="/" class="hover:text-brand-orange">Home</a>
+                    <span>/</span>
+                    <span class="text-white">Shipper Dashboard</span>
+                </nav>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <!-- Online Status Indicator -->
+                <div class="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-2" id="layoutOnlineContainer">
+                    <div class="w-2.5 h-2.5 rounded-full @(user?.IsActive == true ? "bg-green-500 pulse-online" : "bg-red-500")" id="layoutOnlineDot"></div>
+                    <span class="text-[10px] font-black uppercase tracking-wider @(user?.IsActive == true ? "text-green-400" : "text-red-400")" id="layoutOnlineText">
+                        @(user?.IsActive == true ? "Trực tuyến" : "Ngoại tuyến")
+                    </span>
+                </div>
+
+                <!-- Profile -->
+                <a href="/Account/Profile" class="flex items-center gap-3 pl-6 border-l border-white/10 group cursor-pointer hover:bg-white/5 py-1.5 px-3 rounded-2xl transition-all">
+                    <div class="text-right">
+                        <p class="text-sm font-extrabold leading-none mb-1 group-hover:text-brand-orange transition-colors">@shipperName</p>
+                        <p class="text-[10px] text-brand-gray uppercase font-bold tracking-tighter">@shipperCode</p>
+                    </div>
+                    @if(!string.IsNullOrEmpty(user?.AvatarUrl)) {
+                        <img src="@user.AvatarUrl" class="w-10 h-10 rounded-xl object-cover shadow-[0_0_15px_rgba(255,107,0,0.3)] group-hover:scale-110 transition-transform border border-brand-orange/50" />
+                    } else {
+                        <div class="w-10 h-10 rounded-xl bg-brand-orange flex items-center justify-center text-black font-extrabold shadow-[0_0_15px_rgba(255,107,0,0.3)] group-hover:scale-110 transition-transform">
+                            <i class="fa-solid fa-motorcycle"></i>
+                        </div>
+                    }
+                </a>
+            </div>
+        </header>
+
+        <!-- Content -->
+        <div class="p-8">
+            @RenderBody()
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('sidebar-toggle');
+        
+        if (localStorage.getItem('shipper-sidebar-expanded') === 'true') {
+            sidebar.classList.add('expanded');
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('expanded');
+            localStorage.setItem('shipper-sidebar-expanded', sidebar.classList.contains('expanded'));
+        });
+    </script>
+    @RenderSection("Scripts", required: false)
+
+    <!-- Global Shipper Location Map Modal (sidebar button) -->
+    <div id="globalMapModal" style="display:none; position:fixed; inset:0; z-index:2000; align-items:center; justify-content:center; background:rgba(0,0,0,0.88); backdrop-filter:blur(6px);">
+        <div style="position:absolute; inset:0;" onclick="closeGlobalMap()"></div>
+        <div id="globalMapContent" style="position:relative; background:#0f172a; border:1px solid rgba(255,107,0,0.3); width:92%; max-width:860px; height:620px; border-radius:1.75rem; overflow:hidden; box-shadow:0 30px 60px rgba(0,0,0,0.8), 0 0 40px rgba(249,115,22,0.1); display:flex; flex-direction:column; transform:scale(0.9); opacity:0; transition:transform 0.35s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.3s ease;">
+            <div style="padding:1.25rem 1.75rem; border-bottom:1px solid rgba(255,107,0,0.2); display:flex; justify-content:space-between; align-items:center; background:#020617;">
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <div style="width:2.5rem; height:2.5rem; border-radius:0.75rem; background:rgba(249,115,22,0.2); border:1px solid rgba(249,115,22,0.3); display:flex; align-items:center; justify-content:center;">
+                        <i class="fa-solid fa-fire" style="color:#f97316;"></i>
+                    </div>
+                    <div>
+                        <h3 style="font-size:1.1rem; font-weight:900; color:white; margin:0;">Vị trí hiện tại của bạn</h3>
+                        <p style="font-size:0.7rem; color:#64748b; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; margin:0;">Bán kính hoạt động 5km</p>
+                    </div>
+                </div>
+                <button onclick="closeGlobalMap()" style="width:2.25rem; height:2.25rem; border-radius:50%; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); color:white; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:1rem; transition:background 0.2s;" onmouseover="this.style.background='#ef4444'; this.style.borderColor='#ef4444'" onmouseout="this.style.background='rgba(255,255,255,0.08)'; this.style.borderColor='rgba(255,255,255,0.1)'">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div id="globalShipperMap" style="flex:1; width:100%; background:#1e293b;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Global shipper coordinates (from layout user)
+        const _globalShipperLat = @( ((user?.Latitude ?? 10.762622)).ToString(System.Globalization.CultureInfo.InvariantCulture) );
+        const _globalShipperLng = @( ((user?.Longitude ?? 106.660172)).ToString(System.Globalization.CultureInfo.InvariantCulture) );
+        let _globalMapInstance = null;
+
+        function openShipperLocationMap() {
+            const modal = document.getElementById('globalMapModal');
+            const content = document.getElementById('globalMapContent');
+            modal.style.display = 'flex';
+            setTimeout(() => {
+                content.style.transform = 'scale(1)';
+                content.style.opacity = '1';
+            }, 20);
+
+            if (!_globalMapInstance) {
+                _globalMapInstance = L.map('globalShipperMap').setView([_globalShipperLat, _globalShipperLng], 13);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 20
+                }).addTo(_globalMapInstance);
+
+                // 5km radius circle
+                L.circle([_globalShipperLat, _globalShipperLng], {
+                    color: '#f97316',
+                    fillColor: '#f97316',
+                    fillOpacity: 0.08,
+                    weight: 2,
+                    radius: 5000
+                }).addTo(_globalMapInstance);
+
+                // Shipper marker
+                const icon = L.divIcon({
+                    html: `<div style="width:40px;height:40px;background:#f97316;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:black;box-shadow:0 0 20px rgba(249,115,22,0.8);font-size:16px;"><i class="fa-solid fa-motorcycle"></i></div>`,
+                    className: '',
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]
+                });
+                L.marker([_globalShipperLat, _globalShipperLng], { icon })
+                    .addTo(_globalMapInstance)
+                    .bindPopup(`<div style="font-weight:800; color:#f97316; font-size:13px;">📍 Vị trí của bạn</div>`)
+                    .openPopup();
+            }
+            setTimeout(() => { _globalMapInstance.invalidateSize(); }, 350);
+        }
+
+        function closeGlobalMap() {
+            const modal = document.getElementById('globalMapModal');
+            const content = document.getElementById('globalMapContent');
+            content.style.transform = 'scale(0.9)';
+            content.style.opacity = '0';
+            setTimeout(() => { modal.style.display = 'none'; }, 300);
+        }
+    </script>
+    <!-- Removed to prevent duplicate RenderSection exception -->
+</body>
+</html>

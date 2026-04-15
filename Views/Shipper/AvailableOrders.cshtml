@@ -1,0 +1,288 @@
+@model IEnumerable<Order>
+@{
+    Layout = "~/Views/Shared/_ShipperLayout.cshtml";
+    ViewData["Title"] = "Đơn mới nổ";
+    var shipperUser = ViewBag.ShipperUser as ApplicationUser;
+    bool isOnline = (bool)(ViewBag.IsOnline ?? false);
+}
+
+<style>
+    /* Override layout padding for full-height map */
+    .available-orders-page { margin: -2rem; height: calc(100vh - 80px); display: flex; overflow: hidden; }
+    .map-panel { flex: 1; min-width: 0; position: relative; }
+    .orders-panel { width: 420px; flex-shrink: 0; background: #0f172a; border-left: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; overflow: hidden; }
+    .orders-scroll { flex: 1; overflow-y: auto; padding: 1.25rem; scrollbar-width: thin; }
+    .order-card { background: #020617; border: 1px solid rgba(255,255,255,0.07); border-radius: 1.25rem; padding: 1.25rem; margin-bottom: 1rem; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
+    .order-card:hover { border-color: rgba(249,115,22,0.5); box-shadow: 0 0 20px rgba(249,115,22,0.08); }
+    .order-card.active { border-color: #f97316; box-shadow: 0 0 25px rgba(249,115,22,0.2); }
+    #availableMap { width: 100%; height: 100%; }
+    .map-overlay-badge { position: absolute; top: 1rem; right: 1rem; z-index: 800; background: rgba(2,6,23,0.9); backdrop-filter: blur(8px); border: 1px solid rgba(249,115,22,0.3); border-radius: 0.75rem; padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.5rem; }
+    .pulse-dot { width: 10px; height: 10px; border-radius: 50%; background: #f97316; animation: pulseDot 1.5s infinite; }
+    @@keyframes pulseDot { 0%,100% { box-shadow: 0 0 0 0 rgba(249,115,22,0.5); } 50% { box-shadow: 0 0 0 8px rgba(249,115,22,0); } }
+    .route-line { display: flex; flex-direction: column; align-items: center; margin-right: 0.75rem; }
+    .dot-orange { width: 10px; height: 10px; border-radius: 50%; background: #f97316; border: 2px solid rgba(249,115,22,0.3); flex-shrink: 0; }
+    .dot-blue   { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; border: 2px solid rgba(59,130,246,0.3); flex-shrink: 0; }
+    .route-seg  { width: 2px; flex: 1; min-height: 18px; background: linear-gradient(to bottom, #f97316, #3b82f6); opacity: 0.4; }
+</style>
+
+<div class="available-orders-page">
+
+    <!-- ===== MAP PANEL ===== -->
+    <div class="map-panel">
+        <div id="availableMap"></div>
+
+        <!-- Floating status badge -->
+        <div class="map-overlay-badge">
+            <div class="@(isOnline ? "pulse-dot" : "w-2.5 h-2.5 rounded-full bg-red-500")"></div>
+            <span style="font-size:0.7rem; font-weight:800; color:@(isOnline?"#f97316":"#ef4444"); text-transform:uppercase; letter-spacing:0.1em;">@(isOnline ? "Trực tuyến" : "Ngoại tuyến")</span>
+            <span style="font-size:0.7rem; color:#64748b; font-weight:600;">| @(isOnline ? "Bán kính 5km" : "Chưa khả dụng")</span>
+        </div>
+    </div>
+
+    <!-- ===== ORDERS PANEL ===== -->
+    <div class="orders-panel">
+        <!-- Header -->
+        <div style="padding:1.5rem 1.25rem 1rem; border-bottom:1px solid rgba(255,255,255,0.06);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h2 style="font-size:1.25rem; font-weight:900; color:white; margin:0;">
+                        <i class="fa-solid fa-fire" style="color:#f97316; margin-right:0.5rem;"></i>Đơn Đang Nổ!
+                    </h2>
+                    <p style="font-size:0.65rem; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; margin:0.25rem 0 0;">Các đơn đang chờ bạn nhận</p>
+                </div>
+                <div style="background:rgba(249,115,22,0.1); border:1px solid rgba(249,115,22,0.25); border-radius:999px; padding:0.4rem 1rem;">
+                    <span style="font-size:0.85rem; font-weight:900; color:#f97316;">@Model.Count() đơn</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order List -->
+        <div class="orders-scroll">
+            @if (!isOnline)
+            {
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:3rem 1rem; text-align:center;">
+                    <div style="width:5rem; height:5rem; border-radius:50%; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); display:flex; align-items:center; justify-content:center; margin-bottom:1rem;">
+                        <i class="fa-solid fa-power-off" style="font-size:1.75rem; color:#ef4444;"></i>
+                    </div>
+                    <h4 style="font-size:1rem; font-weight:900; color:white; margin:0 0 0.5rem;">Bạn đang ngoại tuyến</h4>
+                    <p style="font-size:0.75rem; color:#64748b;">Chưa thể tìm đơn hàng xung quanh. Vui lòng bật trạng thái trực tuyến.</p>
+                </div>
+            }
+            else if (Model.Any())
+            {
+                @foreach (var order in Model)
+                {
+                    var itemCount = order.OrderItems?.Sum(oi => oi.Quantity) ?? 0;
+                    <div class="order-card" id="card-@order.OrderCode"
+                         onclick="highlightOrder('@order.OrderCode', @((order.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)), @((order.Store?.Longitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)))">
+                        
+                        <!-- Card Header -->
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.875rem;">
+                            <div style="display:flex; align-items:center; gap:0.6rem;">
+                                <div style="width:2rem; height:2rem; border-radius:0.5rem; background:rgba(249,115,22,0.15); border:1px solid rgba(249,115,22,0.25); display:flex; align-items:center; justify-content:center;">
+                                    <i class="fa-solid fa-bag-shopping" style="color:#f97316; font-size:0.75rem;"></i>
+                                </div>
+                                <div>
+                                    <p style="font-size:0.8rem; font-weight:900; color:#f97316; margin:0;">@order.OrderCode</p>
+                                    <p style="font-size:0.6rem; color:#64748b; font-weight:600; margin:0;">@order.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</p>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <p style="font-size:1.1rem; font-weight:900; color:white; margin:0;">@string.Format("{0:N0}", order.ShipperIncome)</p>
+                                <p style="font-size:0.6rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0;">VND</p>
+                            </div>
+                        </div>
+
+                        <!-- Route -->
+                        <div style="display:flex; align-items:stretch; margin-bottom:0.875rem;">
+                            <div class="route-line">
+                                <div class="dot-orange"></div>
+                                <div class="route-seg"></div>
+                                <div class="dot-blue"></div>
+                            </div>
+                            <div style="flex:1; min-width:0;">
+                                <div style="margin-bottom:0.6rem;">
+                                    <p style="font-size:0.6rem; font-weight:800; color:#f97316; text-transform:uppercase; letter-spacing:0.1em; margin:0 0 2px;">Lấy hàng</p>
+                                    <p style="font-size:0.8rem; font-weight:700; color:white; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@(order.Store?.Name ?? "Cửa hàng")</p>
+                                    <p style="font-size:0.65rem; color:#64748b; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@order.PickupAddress</p>
+                                </div>
+                                <div>
+                                    <p style="font-size:0.6rem; font-weight:800; color:#3b82f6; text-transform:uppercase; letter-spacing:0.1em; margin:0 0 2px;">Giao đến</p>
+                                    <p style="font-size:0.8rem; font-weight:700; color:white; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@(order.User?.FullName ?? "Khách hàng")</p>
+                                    <p style="font-size:0.65rem; color:#64748b; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@order.DeliveryAddress</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Badges -->
+                        <div style="display:flex; flex-wrap:wrap; gap:0.375rem; margin-bottom:0.875rem;">
+                            <span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:0.5rem; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:700; color:#cbd5e1;">
+                                <i class="fa-solid fa-route" style="color:#f97316; margin-right:4px;"></i>@(order.Distance > 0 ? $"{order.Distance:F1}km" : "~1km")
+                            </span>
+                            <span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:0.5rem; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:700; color:#cbd5e1;">
+                                <i class="fa-solid fa-box" style="color:#f97316; margin-right:4px;"></i>@itemCount món
+                            </span>
+                            @if (order.PaymentMethod == PaymentMethod.Cash) {
+                                <span style="background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.25); border-radius:0.5rem; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:700; color:#4ade80;">
+                                    <i class="fa-solid fa-money-bill" style="margin-right:4px;"></i>Tiền mặt
+                                </span>
+                            } else {
+                                <span style="background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.25); border-radius:0.5rem; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:700; color:#c084fc;">
+                                    <i class="fa-solid fa-wallet" style="margin-right:4px;"></i>Ví điện tử
+                                </span>
+                            }
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div style="display:flex; gap:0.5rem;" onclick="event.stopPropagation()">
+                            <button onclick="skipOrder(this, '@order.OrderCode')"
+                                    style="flex:1; padding:0.6rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:0.75rem; color:#94a3b8; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.2s;"
+                                    onmouseover="this.style.background='rgba(239,68,68,0.15)'; this.style.color='#f87171'; this.style.borderColor='rgba(239,68,68,0.3)'"
+                                    onmouseout="this.style.background='rgba(255,255,255,0.04)'; this.style.color='#94a3b8'; this.style.borderColor='rgba(255,255,255,0.1)'">
+                                Bỏ qua
+                            </button>
+                            <button onclick="acceptOrder('@order.OrderCode', this)"
+                                    style="flex:2; padding:0.6rem; background:#f97316; border:none; border-radius:0.75rem; color:black; font-size:0.75rem; font-weight:900; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 15px rgba(249,115,22,0.35);"
+                                    onmouseover="this.style.background='#fb923c'; this.style.transform='translateY(-1px)'"
+                                    onmouseout="this.style.background='#f97316'; this.style.transform='translateY(0)'">
+                                <i class="fa-solid fa-check" style="margin-right:0.4rem;"></i>Nhận đơn
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:3rem 1rem; text-align:center;">
+                    <div style="width:5rem; height:5rem; border-radius:50%; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:center; margin-bottom:1rem;">
+                        <i class="fa-solid fa-satellite-dish" style="font-size:1.75rem; color:#334155;"></i>
+                    </div>
+                    <h4 style="font-size:1rem; font-weight:900; color:white; margin:0 0 0.5rem;">Đang quét tín hiệu...</h4>
+                    <p style="font-size:0.75rem; color:#64748b;">Chưa có đơn hàng nào gần đây. Hãy giữ trạng thái trực tuyến.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const shipperLat = @( (shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture) );
+    const shipperLng = @( (shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture) );
+
+    // --- Map Init ---
+    const map = L.map('availableMap', { zoomControl: true }).setView([shipperLat, shipperLng], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 20
+    }).addTo(map);
+
+    // 5km radius circle
+    const mapCircle = L.circle([shipperLat, shipperLng], {
+        color: '@(isOnline ? "#f97316" : "#475569")', fillColor: '@(isOnline ? "#f97316" : "#475569")',
+        fillOpacity: 0.07, weight: 2, radius: 5000
+    }).addTo(map);
+
+    // Shipper marker
+    const shipperBg = '@(isOnline ? "#f97316" : "#475569")';
+    const shipperShadow = '@(isOnline ? "rgba(249,115,22,0.85)" : "transparent")';
+    const shipperColor = '@(isOnline ? "black" : "white")';
+    const shipperIcon = L.divIcon({
+        html: `<div style="width:44px;height:44px;background:${shipperBg};border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:${shipperColor};font-size:18px;box-shadow:0 0 24px ${shipperShadow};"><i class="fa-solid fa-motorcycle"></i></div>`,
+        className: '', iconSize: [44, 44], iconAnchor: [22, 22]
+    });
+    L.marker([shipperLat, shipperLng], { icon: shipperIcon })
+        .addTo(map)
+        .bindPopup(`<div style="font-weight:800;color:#f97316;font-size:13px;">📍 Vị trí của bạn</div>`)
+        .openPopup();
+
+    // Store markers
+    const storeMarkers = {};
+    @foreach (var order in Model)
+    {
+        var sLat = (order.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var sLng = (order.Store?.Longitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (order.Store?.Latitude != null && order.Store?.Latitude != 0)
+        {
+            @:addStoreMarker('@order.OrderCode', @sLat, @sLng, '@(order.Store?.Name ?? "Cửa hàng")');
+        }
+    }
+
+    function addStoreMarker(code, lat, lng, name) {
+        if (lat === 0 && lng === 0) return;
+        const icon = L.divIcon({
+            html: `<div style="width:32px;height:32px;background:#3b82f6;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;box-shadow:0 0 12px rgba(59,130,246,0.6);"><i class="fa-solid fa-store"></i></div>`,
+            className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+        });
+        storeMarkers[code] = L.marker([lat, lng], { icon })
+            .addTo(map)
+            .bindPopup(`<div style="font-weight:800;font-size:12px;">${name}</div>`);
+    }
+
+    let activeCard = null;
+    function highlightOrder(code, storeLat, storeLng) {
+        // Card highlight
+        document.querySelectorAll('.order-card').forEach(c => c.classList.remove('active'));
+        const card = document.getElementById('card-' + code);
+        if (card) card.classList.add('active');
+        activeCard = code;
+
+        // Pan map
+        if (storeLat !== 0 && storeLng !== 0 && storeMarkers[code]) {
+            const bounds = L.latLngBounds([[shipperLat, shipperLng], [storeLat, storeLng]]);
+            map.fitBounds(bounds, { padding: [60, 60] });
+            storeMarkers[code].openPopup();
+        } else {
+            map.setView([shipperLat, shipperLng], 14);
+        }
+    }
+
+    async function acceptOrder(orderCode, btn) {
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right:0.4rem;"></i>Đang nhận...`;
+        btn.disabled = true;
+        try {
+            const res = await fetch('/Shipper/AcceptOrder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderCode)
+            });
+            const data = await res.json();
+            if (data.success) {
+                btn.innerHTML = `<i class="fa-solid fa-check" style="margin-right:0.4rem;"></i>Thành công!`;
+                btn.style.background = '#22c55e';
+                const card = document.getElementById('card-' + orderCode);
+                setTimeout(() => {
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateX(40px)';
+                    card.style.transition = 'all 0.4s ease';
+                    setTimeout(() => { card.remove(); updateCount(); }, 400);
+                }, 800);
+            } else {
+                alert('Lỗi: ' + data.message);
+                btn.innerHTML = `<i class="fa-solid fa-check" style="margin-right:0.4rem;"></i>Nhận đơn`;
+                btn.disabled = false;
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Đã xảy ra lỗi kết nối.');
+            btn.innerHTML = `<i class="fa-solid fa-check" style="margin-right:0.4rem;"></i>Nhận đơn`;
+            btn.disabled = false;
+        }
+    }
+
+    function skipOrder(btn, code) {
+        const card = document.getElementById('card-' + code);
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(40px)';
+        card.style.transition = 'all 0.3s ease';
+        if (storeMarkers[code]) map.removeLayer(storeMarkers[code]);
+        setTimeout(() => { card.remove(); updateCount(); }, 300);
+    }
+
+    function updateCount() {
+        const remaining = document.querySelectorAll('.order-card').length;
+        const badge = document.querySelector('[style*="1 đơn"],[style*="đơn"]');
+    }
+</script>
+}

@@ -1,0 +1,1054 @@
+@model DeliveryHubWeb.Models.Store
+@using System.Text.Json
+<style>
+    /* Hide number input spinners */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+    }
+    input[type=number] {
+        -moz-appearance: textfield;
+        appearance: textfield;
+    }
+</style>
+@{
+    ViewData["Title"] = "Thực đơn Chi nhánh";
+    Layout = "~/Views/Shared/_PartnerLayout.cshtml";
+    // Collect existing categories from menu items + defaults
+    var defaultCategories = new List<string> { "Món chính", "Món thêm", "Đồ uống", "Tráng miệng" };
+    
+    var customCategoriesRaw = (Model.CustomCategories ?? "").Split(",", StringSplitOptions.RemoveEmptyEntries).ToList();
+    var deletedDefaults = customCategoriesRaw.Where(c => c.StartsWith("-")).Select(c => c.Substring(1)).ToList();
+    var customCategories = customCategoriesRaw.Where(c => !c.StartsWith("-")).Reverse().ToList();
+    
+    defaultCategories.RemoveAll(c => deletedDefaults.Contains(c));
+
+    var menuCategories = Model.MenuItems?.Select(m => m.Category).Where(c => !string.IsNullOrEmpty(c)).Distinct().ToList() ?? new List<string>();
+    
+    var baseCategories = defaultCategories.Union(menuCategories).Where(c => c != "Khác" && !customCategories.Contains(c)).OrderBy(c => c).ToList();
+    
+    var allCategories = new List<string>();
+    allCategories.AddRange(customCategories);
+    allCategories.AddRange(baseCategories);
+    allCategories.Add("Khác");
+}
+
+<div class="mb-6 fade-in">
+    <a href="/Partner/Branches" class="text-brand-gray text-sm hover:text-brand-orange transition-colors font-bold flex items-center gap-2">
+        <i class="fa-solid fa-arrow-left"></i> Quay lại chi nhánh
+    </a>
+</div>
+
+<!-- Header banner -->
+<div class="relative w-full h-[300px] rounded-[2rem] overflow-hidden shadow-2xl mb-12 fade-in">
+    <div class="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-dark/50 to-transparent z-10"></div>
+    <img id="storeCoverImg" src="@(!string.IsNullOrEmpty(Model.ImageUrl) ? Model.ImageUrl : "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=1000&auto=format&fit=crop")" class="absolute inset-0 w-full h-full object-cover" alt="Store Cover" />
+    <div class="absolute bottom-0 left-0 p-8 md:p-12 z-20 w-full flex flex-col md:flex-row md:items-end justify-between gap-6 font-plus">
+        <div>
+            <div class="flex items-center gap-4 mb-3">
+                @{
+                    bool isPartnerActive = ViewBag.IsPartnerActive != null ? ViewBag.IsPartnerActive : true;
+                }
+                @if (Model.ActivityState != DeliveryHubWeb.Models.StoreActivityState.Active || !isPartnerActive) {
+                    <div class="bg-black/80 backdrop-blur shadow-xl px-5 py-2.5 rounded-xl border border-red-500/50 flex items-center gap-2">
+                        <i class="fa-solid fa-lock text-red-500 text-xs"></i>
+                        <span class="text-white text-[10px] font-black uppercase tracking-widest">Bị Admin khóa</span>
+                    </div>
+                } else {
+                    <div class="relative flex items-center bg-white shadow-xl p-1.5 rounded-2xl overflow-hidden">
+                        <!-- Sliding Pill Background -->
+                        <div id="statusPill" class="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out z-0 @(Model.IsOpen ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200")"></div>
+                        
+                        <button id="btn-status-off" type="button" onclick="changeStoreStatus(false)" class="relative z-10 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 @(!Model.IsOpen ? "text-red-500" : "text-brand-gray/60 hover:text-brand-black")">
+                            Đã đóng cửa
+                        </button>
+                        <button id="btn-status-on" type="button" onclick="changeStoreStatus(true)" class="relative z-10 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-500 @(Model.IsOpen ? "text-green-600" : "text-brand-gray/60 hover:text-brand-black")">
+                            Đang hoạt động
+                        </button>
+                    </div>
+                }
+            </div>
+            <h1 id="dispName" class="text-4xl md:text-5xl font-black text-white tracking-tight mb-2">@Model.Name</h1>
+            <p id="dispAddress" class="text-brand-gray text-sm md:text-base mb-0"><i class="fa-solid fa-location-dot text-brand-orange mr-2"></i>@(string.IsNullOrEmpty(Model.Address) ? "Chưa cập nhật địa chỉ" : Model.Address)</p>
+        </div>
+        
+        <div class="flex gap-4">
+            <div class="bg-black/50 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center min-w-[120px] shadow-2xl">
+                <div class="text-brand-orange text-2xl font-black mb-1">
+                    @Model.Rating <i class="fa-solid fa-star text-sm"></i>
+                </div>
+                <div class="text-[10px] text-brand-gray uppercase tracking-widest font-black">
+                    @if(Model.ReviewCount > 0) {
+                        <span>@Model.ReviewCount lượt đánh giá</span>
+                    } else {
+                        <span>Đánh giá</span>
+                    }
+                </div>
+            </div>
+            @if(Model.ActivityState == DeliveryHubWeb.Models.StoreActivityState.LockedByPartner) {
+                <button onclick="unlockBranchByPartner()" class="bg-green-500 text-white font-black px-6 py-4 rounded-2xl hover:bg-green-400 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(34,197,94,0.4)] flex items-center">
+                    <i class="fa-solid fa-lock-open mr-2"></i> Mở khóa
+                </button>
+            } else {
+                <button onclick="lockBranchByPartner()" class="bg-red-500 text-white font-black px-6 py-4 rounded-2xl hover:bg-red-400 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center">
+                    <i class="fa-solid fa-lock mr-2"></i> Khóa CN
+                </button>
+            }
+            <button onclick="openEditModal()" class="bg-brand-orange text-black font-black px-6 py-4 rounded-2xl hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,107,0,0.4)] flex items-center relative group">
+                <i class="fa-solid fa-pen-to-square mr-2"></i>
+                <span class="hidden md:inline">Chỉnh sửa</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Stats (unchanged) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 fade-in" style="animation-delay: 0.1s;">
+    <div class="bg-brand-dark/50 backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-brand-orange/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-brand-orange/20 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <div class="w-12 h-12 rounded-xl bg-brand-orange/10 flex items-center justify-center border border-brand-orange/20">
+                <i class="fa-solid fa-burger text-brand-orange text-xl"></i>
+            </div>
+        </div>
+        <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest mb-1">Tổng món hiện có</h3>
+        <div class="text-3xl font-black text-white">@(Model.MenuItems?.Count ?? 0) <span class="text-sm font-normal text-brand-gray ml-1">món</span></div>
+    </div>
+    
+    <div class="bg-brand-dark/50 backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-blue-500/20 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                <i class="fa-solid fa-check-circle text-blue-500 text-xl"></i>
+            </div>
+        </div>
+        <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest mb-1">Đang kinh doanh</h3>
+        <div class="text-3xl font-black text-white">@(Model.MenuItems?.Count(m => m.IsAvailable) ?? 0) <span class="text-sm font-normal text-brand-gray ml-1">món</span></div>
+    </div>
+
+    <div class="bg-brand-dark/50 backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-red-500/20 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <div class="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center border border-red-500/20">
+                <i class="fa-solid fa-ban text-red-500 text-xl"></i>
+            </div>
+        </div>
+        <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest mb-1">Hết hàng</h3>
+        <div class="text-3xl font-black text-white">@(Model.MenuItems?.Count(m => !m.IsAvailable) ?? 0) <span class="text-sm font-normal text-brand-gray ml-1">món</span></div>
+    </div>
+</div>
+
+<!-- Menus Management (Category Grouped) -->
+<div class="bg-brand-dark/40 border border-white/5 rounded-[2rem] shadow-2xl overflow-hidden fade-in" style="animation-delay: 0.2s;">
+    <div class="p-8 border-b border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/5">
+        <div>
+            <h2 class="text-2xl font-black text-white flex items-center gap-3">
+                <i class="fa-solid fa-utensils text-brand-orange"></i> Quản lý Thực Đơn
+            </h2>
+            <p class="text-brand-gray text-sm mt-1">Giao diện quản lý danh sách món ăn của chi nhánh</p>
+        </div>
+        <div class="flex gap-3">
+            <div class="relative group">
+                <input type="text" placeholder="Tìm món..." class="bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-brand-gray focus:border-brand-orange outline-none transition-all pl-10 w-40 md:w-48 group-focus-within:w-48 md:group-focus-within:w-64" />
+                <i class="fa-solid fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-gray group-focus-within:text-brand-orange transition-colors text-sm"></i>
+            </div>
+            <button onclick="openCategoryModal()" class="bg-white/5 border border-white/10 text-white font-extrabold px-5 py-3 rounded-xl hover:bg-white/10 hover:border-brand-orange/40 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-tags text-brand-orange"></i> <span class="hidden md:inline">Thêm danh mục</span>
+            </button>
+            <button onclick="openMenuModal()" class="bg-brand-orange text-black font-extrabold px-6 py-3 rounded-xl hover:bg-white transition-all shadow-[0_0_15px_rgba(255,107,0,0.2)] flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i> <span>Thêm món mới</span>
+            </button>
+        </div>
+    </div>
+    
+    <div class="p-8">
+        @if(Model.MenuItems != null && Model.MenuItems.Any())
+        {
+            var itemSalesCounts = ViewBag.ItemSalesCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
+            var itemRatings = ViewBag.ItemRatings as Dictionary<int, (int Count, double Avg)> ?? new Dictionary<int, (int Count, double Avg)>();
+            var topItemsCounts = ViewBag.TopItems as Dictionary<int, int> ?? new Dictionary<int, int>();
+            var topItemsList = Model.MenuItems.Where(m => topItemsCounts.ContainsKey(m.Id)).OrderByDescending(m => topItemsCounts[m.Id]).ToList();
+
+            <!-- Top Items Section -->
+            <div class="mb-12 bg-white/[0.02] border border-white/5 rounded-[3rem] p-8">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-orange to-yellow-500 flex items-center justify-center shadow-lg">
+                        <i class="fa-solid fa-crown text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-xl font-black text-white uppercase tracking-wider">Top món bán chạy</h4>
+                        <p class="text-xs text-brand-gray mt-0.5">Dựa trên các đơn hàng giao thành công</p>
+                    </div>
+                </div>
+
+                @if(topItemsList.Any()) {
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        @for(int i = 0; i < topItemsList.Count; i++) {
+                            var item = topItemsList[i];
+                            var salesCount = topItemsCounts[item.Id];
+                            var rating = itemRatings.ContainsKey(item.Id) ? itemRatings[item.Id] : (Count: 0, Avg: 5.0);
+                            
+                            <div class="p-5 rounded-[2.5rem] bg-brand-dark border border-brand-orange/20 hover:border-brand-orange/50 transition-all hover:-translate-y-1 duration-300 relative group/item overflow-hidden flex gap-5 shadow-[0_0_30px_rgba(255,107,0,0.05)]">
+                                <!-- Rank Badge -->
+                                <div class="absolute top-0 right-0 w-12 h-12 bg-brand-orange rounded-bl-3xl flex items-start justify-end p-2.5 z-20">
+                                    <span class="text-black font-black text-sm">#@(i + 1)</span>
+                                </div>
+
+                                <div class="w-24 h-24 rounded-2xl overflow-hidden border border-white/10 shadow-lg flex-shrink-0 relative z-20">
+                                    <img src="@(!string.IsNullOrEmpty(item.ImageUrl) ? item.ImageUrl : "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=500&auto=format&fit=crop")" 
+                                         class="w-full h-full object-cover group-hover/item:scale-110 transition-transform duration-500" alt="@item.Name" />
+                                    @if(!item.IsAvailable) {
+                                        <div class="absolute inset-0 bg-brand-dark/60 backdrop-blur-[2px] flex items-center justify-center z-20">
+                                            <span class="text-[9px] font-black text-white uppercase tracking-widest bg-red-600 px-2.5 py-1 rounded-md shadow-[0_0_10px_rgba(220,38,38,0.6)] border border-red-400/50">Hết</span>
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="flex-1 flex flex-col justify-between min-w-0 pr-6">
+                                    <div>
+                                        <h5 class="font-extrabold text-white text-base line-clamp-1 mb-0.5">@item.Name</h5>
+                                        <p class="text-[11px] text-brand-gray line-clamp-2 leading-relaxed h-[32px]">@item.Description</p>
+                                    </div>
+                                    <div class="flex flex-col mt-2">
+                                        <div class="text-brand-orange font-black text-lg leading-tight">
+                                            @item.Price.ToString("N0") <span class="text-[9px] font-bold text-white opacity-40">VND</span>
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-0.5">
+                                            <span class="text-[10px] font-bold text-brand-gray/60 italic">Đã bán: @salesCount</span>
+                                            <span class="w-[3px] h-[3px] rounded-full bg-white/20"></span>
+                                            <span class="text-[10px] font-black text-brand-orange flex items-center gap-1">
+                                                @rating.Avg.ToString("0.0") <i class="fa-solid fa-star text-[8px]"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                } else {
+                    <div class="py-12 text-center border-2 border-dashed border-white/10 rounded-[2rem] bg-black/20">
+                        <div class="w-16 h-16 mx-auto bg-white/5 border border-white/10 rounded-full flex items-center justify-center mb-4">
+                            <i class="fa-solid fa-chart-line text-2xl text-brand-gray/30"></i>
+                        </div>
+                        <h5 class="text-white font-bold mb-2">Chưa có thống kê doanh thu</h5>
+                        <p class="text-xs text-brand-gray max-w-sm mx-auto leading-relaxed">Top các món ăn xuất sắc nhất sẽ xuất hiện tại đây khi quán của bạn bắt đầu có những đơn giao hàng thành công đầu tiên.</p>
+                    </div>
+                }
+            </div>
+
+            <div class="space-y-12">
+                @foreach(var cat in allCategories) {
+                    var itemsInCat = Model.MenuItems?.Where(m => m.Category == cat).ToList() ?? new List<DeliveryHubWeb.Models.MenuItem>();
+                    <div class="category-block animate-fade-in-up">
+                        <div class="flex items-center mb-6">
+                            <h4 class="text-lg font-black text-white uppercase tracking-wider mr-4">@cat</h4>
+                            <div class="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent mr-4"></div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-bold text-brand-gray bg-white/5 px-2 py-1 rounded">@itemsInCat.Count món</span>
+                                @if (cat != "Khác") {
+                                    <button type="button" onclick="confirmDeleteCategory('@cat', @itemsInCat.Count)" class="w-6 h-6 rounded bg-red-500/10 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all" title="Xóa danh mục">
+                                        <i class="fa-solid fa-xmark text-xs"></i>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        
+                        @if(itemsInCat.Any()) {
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                @foreach(var item in itemsInCat) {
+                                    var salesCount = itemSalesCounts.ContainsKey(item.Id) ? itemSalesCounts[item.Id] : 0;
+                                    var rating = itemRatings.ContainsKey(item.Id) ? itemRatings[item.Id] : (Count: 0, Avg: 5.0);
+                                    <div class="p-5 rounded-[2.5rem] bg-white/[0.03] border border-white/5 hover:border-brand-orange/20 transition-all hover:-translate-y-1 duration-300 relative group/item overflow-hidden flex gap-5 backdrop-blur-md">
+                                        @if(!item.IsAvailable) {
+                                            <div class="absolute inset-0 bg-black/40 backdrop-blur-[1px] z-10 pointer-events-none rounded-[2.5rem]"></div>
+                                        }
+                                        
+                                        <div class="w-24 h-24 rounded-2xl overflow-hidden border border-white/10 shadow-lg flex-shrink-0 relative z-20">
+                                            <img src="@(!string.IsNullOrEmpty(item.ImageUrl) ? item.ImageUrl : "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=500&auto=format&fit=crop")" 
+                                                 class="w-full h-full object-cover group-hover/item:scale-110 transition-transform duration-500" alt="@item.Name" />
+                                            @if(!item.IsAvailable) {
+                                                <div class="absolute inset-0 bg-brand-dark/60 backdrop-blur-[2px] flex items-center justify-center z-20">
+                                                    <span class="text-[9px] font-black text-white uppercase tracking-widest bg-red-600 px-2.5 py-1 rounded-md shadow-[0_0_10px_rgba(220,38,38,0.6)] border border-red-400/50">Hết</span>
+                                                </div>
+                                            }
+                                        </div>
+
+                                        <div class="flex-1 flex flex-col justify-between min-w-0">
+                                            <div>
+                                                <h5 class="font-extrabold text-white text-base line-clamp-1 mb-0.5">@item.Name</h5>
+                                                <p class="text-[11px] text-brand-gray line-clamp-2 leading-relaxed h-[32px]">@item.Description</p>
+                                            </div>
+                                            <div class="flex items-end justify-between">
+                                                <div class="flex flex-col">
+                                                    <div class="text-brand-orange font-black text-lg leading-tight">
+                                                        @item.Price.ToString("N0") <span class="text-[9px] font-bold text-white opacity-40">VND</span>
+                                                    </div>
+                                                    <div class="flex items-center gap-2 mt-0.5">
+                                                        <span class="text-[10px] font-bold text-brand-gray/60 italic">Đã bán: @salesCount</span>
+                                                        <span class="w-[3px] h-[3px] rounded-full bg-white/20"></span>
+                                                        <span class="text-[10px] font-black text-brand-orange flex items-center gap-1">
+                                                            @rating.Avg.ToString("0.0") <i class="fa-solid fa-star text-[8px]"></i>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div class="flex gap-2 relative z-20">
+                                                    <button onclick='openMenuModal(@Html.Raw(JsonSerializer.Serialize(new { 
+                                                        id = item.Id, 
+                                                        name = item.Name, 
+                                                        description = item.Description, 
+                                                        price = (double)item.Price, 
+                                                        category = item.Category, 
+                                                        isAvailable = item.IsAvailable, 
+                                                        imageUrl = item.ImageUrl 
+                                                    })))' class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all hover:scale-105" title="Sửa">
+                                                        <i class="fa-solid fa-pen text-[11px]"></i>
+                                                    </button>
+                                                    <button onclick="confirmDeleteMenu(@item.Id, '@item.Name')" class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all hover:scale-105" title="Xóa">
+                                                        <i class="fa-solid fa-trash-can text-[11px]"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        } else {
+                            <!-- Empty State Container -->
+                            <div class="border-2 border-dashed border-white/10 rounded-[2rem] p-8 text-center bg-white/[0.01]">
+                                <div class="w-16 h-16 mx-auto bg-white/5 border border-white/10 rounded-full flex items-center justify-center mb-4">
+                                    <i class="fa-solid fa-utensils text-2xl text-brand-gray/30"></i>
+                                </div>
+                                <h5 class="text-white font-bold mb-2">Chưa có món ăn</h5>
+                                <p class="text-xs text-brand-gray mb-6 max-w-sm mx-auto">Danh mục này hiện đang trống. Hãy thêm món ăn đầu tiên để phục vụ khách hàng!</p>
+                                <button type="button" onclick='openMenuModal({ category: "@cat" })' class="bg-white/10 hover:bg-brand-orange text-brand-gray hover:text-black font-bold px-6 py-3 rounded-xl transition-all inline-flex items-center gap-2 shadow-lg">
+                                    <i class="fa-solid fa-plus"></i> Thêm món ngay
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-24 border-2 border-dashed border-white/10 rounded-[3rem] bg-brand-dark/20 backdrop-blur-sm">
+                <div class="w-24 h-24 mx-auto bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/10 shadow-[0_0_30px_rgba(255,255,255,0.05)]">
+                    <i class="fa-solid fa-burger text-4xl text-brand-gray/50"></i>
+                </div>
+                <h3 class="text-2xl font-black text-white mb-3">Chưa có món ăn nào</h3>
+                <p class="text-brand-gray mb-8 max-w-md mx-auto text-sm leading-relaxed">Thực đơn của chi nhánh trống. Hãy thêm các món ăn hấp dẫn để thu hút thực khách.</p>
+                <button onclick="openMenuModal()" class="bg-brand-orange text-black font-extrabold px-8 py-4 rounded-xl hover:bg-white hover:scale-105 transition-all shadow-[0_0_20px_rgba(255,107,0,0.3)]">
+                    <i class="fa-solid fa-plus mr-2"></i> Tạo món ăn đầu tiên
+                </button>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Add/Edit Menu Item Modal -->
+<div id="menuItemModal" class="fixed inset-0 z-[1000] hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-brand-black/80 backdrop-blur-md transition-opacity" onclick="closeMenuModal()"></div>
+    <div id="menuModalContent" class="bg-brand-dark border border-brand-orange/20 rounded-[2.5rem] w-full max-w-xl overflow-hidden flex flex-col shadow-[0_0_80px_rgba(255,107,0,0.15)] relative z-10">
+        <div class="px-10 py-7 border-b border-white/5 bg-white/5 flex justify-between items-center">
+            <h2 id="menuModalTitle" class="text-2xl font-black text-white tracking-tight flex items-center gap-3">
+                <i class="fa-solid fa-bowl-food text-brand-orange"></i> Thêm món ăn mới
+            </h2>
+            <button onclick="closeMenuModal()" class="w-10 h-10 rounded-full bg-white/5 hover:bg-red-500/20 text-brand-gray hover:text-white flex items-center justify-center transition-all">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        
+        <form id="menuItemForm" class="p-10 space-y-6 overflow-y-auto custom-scrollbar" style="max-h-[60vh]">
+            <input type="hidden" name="id" id="menuItemId" value="0" />
+            <input type="hidden" name="storeId" value="@Model.Id" />
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Tên món ăn <span class="text-red-500">*</span></label>
+                    <input type="text" name="name" id="menuItemName" required placeholder="VD: Bún đậu mắm tôm" class="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all" />
+                </div>
+                <div class="space-y-2 relative">
+                    <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Danh mục <span class="text-red-500">*</span></label>
+                    <div class="relative" id="customCatWrapper">
+                        <input type="hidden" name="category" id="menuItemCategory" required />
+                        <button type="button" onclick="toggleCatDropdown()" id="customCatBtn" class="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none transition-all flex justify-between items-center group hover:border-brand-orange/40">
+                            <span id="customCatText">@allCategories.FirstOrDefault()</span>
+                            <i class="fa-solid fa-chevron-down text-brand-gray text-xs group-hover:text-brand-orange transition-colors"></i>
+                        </button>
+                        <div id="customCatList" class="absolute left-0 right-0 top-[calc(100%+8px)] bg-brand-dark border border-brand-orange/30 rounded-2xl shadow-[0_10px_40px_rgba(255,107,0,0.15)] overflow-y-auto overflow-x-hidden z-[2000] hidden flex-col custom-scrollbar max-h-48 py-2 opacity-0 scale-95 transform origin-top">
+                            <!-- JS injected -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Mô tả món ăn</label>
+                <textarea name="description" id="menuItemDesc" rows="2" placeholder="Hương vị bún đậu chuẩn vị Hà Thành..." class="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all resize-none"></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Giá bán (VND) <span class="text-red-500">*</span></label>
+                    <input type="number" name="price" id="menuItemPrice" required placeholder="55000" class="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm font-black text-brand-orange focus:border-brand-orange outline-none transition-all" style="-moz-appearance: textfield; appearance: textfield;" />
+                </div>
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Trạng thái</label>
+                    <div class="flex items-center gap-3 h-[56px]">
+                        <input type="hidden" name="isAvailable" id="menuItemIsAvailable" value="true" />
+                        <button type="button" onclick="toggleItemAvailable(true)" id="btn-avail-on" class="flex-1 rounded-xl border border-green-500/30 bg-green-500/10 text-green-500 text-[10px] font-black uppercase tracking-widest h-full">Sẵn sàng</button>
+                        <button type="button" onclick="toggleItemAvailable(false)" id="btn-avail-off" class="flex-1 rounded-xl border border-white/5 bg-white/5 text-brand-gray text-[10px] font-black uppercase tracking-widest h-full">Hết hàng</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Hình ảnh món ăn</label>
+                    <div class="flex bg-white/5 p-1 rounded-lg">
+                        <button type="button" id="imgSourceUrl" onclick="switchImageSource('url')" class="px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md transition-all bg-white/10 text-white">URL Ảnh</button>
+                        <button type="button" id="imgSourceFile" onclick="switchImageSource('file')" class="px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md transition-all text-brand-gray">Tải tệp</button>
+                    </div>
+                </div>
+                
+                <div id="urlInputContainer" class="block animate-fade-in">
+                    <input type="text" name="imageUrl" id="menuItemImgUrl" oninput="previewItemUrl(this.value)" placeholder="Dán link ảnh tại đây..." class="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-xs font-bold text-white focus:border-brand-orange outline-none transition-all mb-4" />
+                    <div id="urlPreviewContainer" class="hidden h-32 rounded-2xl overflow-hidden border border-white/10 relative flex items-center justify-center bg-black/40">
+                        <img id="urlPreviewImg" src="" class="w-full h-full object-cover" alt="Preview"/>
+                    </div>
+                </div>
+
+                <div id="fileInputContainer" class="hidden animate-fade-in">
+                    <label class="block w-full border-2 border-dashed border-white/5 rounded-2xl p-6 text-center cursor-pointer hover:border-brand-orange/50 hover:bg-white/5 transition-all group">
+                        <input type="file" name="imageFile" id="menuItemImgFile" class="hidden" onchange="previewItemFile(this)" />
+                        <i class="fa-solid fa-camera text-2xl text-brand-gray group-hover:text-brand-orange transition-colors mb-2 block"></i>
+                        <span id="itemFileName" class="text-xs font-bold text-brand-gray line-clamp-1">Chọn ảnh từ thiết bị...</span>
+                    </label>
+                </div>
+            </div>
+        </form>
+
+        <div class="px-10 py-6 border-t border-white/5 bg-white/[0.02] flex justify-end gap-4">
+            <button type="button" onclick="closeMenuModal()" class="px-8 py-3 rounded-2xl border border-white/10 text-xs font-bold text-brand-gray hover:text-white transition-colors">Đóng</button>
+            <button onclick="saveMenuItem()" class="px-8 py-3 rounded-2xl bg-brand-orange text-black font-black text-xs hover:bg-white hover:scale-105 transition-all shadow-lg shadow-brand-orange/20">
+                Lưu món ăn
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Store Modal -->
+<div id="editStoreModal" class="fixed inset-0 z-[1000] hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-brand-black/80 backdrop-blur-sm transition-opacity" onclick="closeEditModal()"></div>
+    <div id="editModalContent" class="bg-brand-dark border border-white/10 rounded-[2.5rem] w-full max-w-lg overflow-hidden flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.5)] relative z-10 transition-all opacity-0 scale-95">
+        <div class="p-8 border-b border-white/5 bg-white/5">
+            <h2 class="text-2xl font-black text-white flex items-center gap-3">
+                <i class="fa-solid fa-store text-brand-orange"></i> Chỉnh sửa Chi nhánh
+            </h2>
+        </div>
+        
+        <form id="editStoreForm" class="p-8 space-y-6">
+            <input type="hidden" name="id" value="@Model.Id" />
+            
+            <div class="space-y-2">
+                <label class="text-xs font-black text-brand-gray uppercase tracking-widest">Tên chi nhánh</label>
+                <input type="text" name="name" value="@Model.Name" required class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:border-brand-orange outline-none transition-all" />
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-xs font-black text-brand-gray uppercase tracking-widest">Địa chỉ</label>
+                <input type="text" name="address" value="@Model.Address" required class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:border-brand-orange outline-none transition-all" />
+            </div>
+
+            <div class="space-y-4">
+                <label class="text-xs font-black text-brand-gray uppercase tracking-widest block">Hình ảnh chi nhánh</label>
+                
+                <!-- URL Option -->
+                <div class="space-y-2">
+                    <span class="text-[10px] text-brand-gray font-bold uppercase italic">Cách 1: Nhập trực tiếp URL ảnh</span>
+                    <input type="text" id="imgUrlInput" name="imageUrl" value="@Model.ImageUrl" placeholder="https://..." class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs text-white placeholder-white/20 outline-none focus:border-brand-orange transition-all" />
+                </div>
+
+                <div class="flex items-center gap-4 py-2">
+                    <hr class="flex-1 border-white/5" />
+                    <span class="text-[10px] font-black text-brand-gray uppercase">Hoặc</span>
+                    <hr class="flex-1 border-white/5" />
+                </div>
+
+                <!-- File Option -->
+                <div class="space-y-2">
+                    <span class="text-[10px] text-brand-gray font-bold uppercase italic">Cách 2: Tải ảnh từ thiết bị</span>
+                    <label class="block w-full border-2 border-dashed border-white/10 rounded-2xl p-6 text-center cursor-pointer hover:border-brand-orange/50 hover:bg-white/5 transition-all group">
+                        <input type="file" name="imageFile" class="hidden" onchange="previewFile(this)" />
+                        <i class="fa-solid fa-cloud-arrow-up text-2xl text-brand-gray group-hover:text-brand-orange transition-colors mb-2 block"></i>
+                        <span id="fileName" class="text-sm font-bold text-brand-gray">Chọn ảnh từ máy tính...</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex gap-4 pt-4">
+                <button type="button" onclick="closeEditModal()" class="flex-1 bg-white/5 text-white font-bold py-4 rounded-2xl hover:bg-white/10 transition-all">Hủy bỏ</button>
+                <button type="submit" class="flex-1 bg-brand-orange text-black font-black py-4 rounded-2xl hover:bg-white hover:scale-105 transition-all shadow-[0_0_20px_rgba(255,107,0,0.3)]">
+                    Lưu thay đổi
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal (Admin Style) -->
+<div id="deleteMenuModal" class="fixed inset-0 z-[2000] flex items-center justify-center hidden p-4">
+    <div class="delete-backdrop absolute inset-0 bg-brand-black/90 backdrop-blur-md opacity-0 cursor-pointer" onclick="closeDeleteMenuModal()"></div>
+    
+    <div class="delete-content relative bg-brand-dark border border-red-500/30 rounded-[3rem] w-full max-w-md shadow-[0_0_100px_rgba(239,68,68,0.2)] overflow-hidden scale-75 opacity-0 text-center p-12 transform-gpu">
+        <div class="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.3)]">
+            <i class="fa-solid fa-triangle-exclamation text-5xl text-red-500"></i>
+        </div>
+        <h3 id="deleteModalTitle" class="text-3xl font-black text-white mb-3 tracking-tight">Xóa món ăn</h3>
+        <p id="deleteModalMsg" class="text-brand-gray text-sm mb-10 leading-relaxed font-medium">Bạn có chắc chắn muốn xóa món "<span id="delItemName" class="text-white font-bold"></span>" khỏi thực đơn? <br/> Hành động này không thể hoàn tác.</p>
+        
+        <div class="flex items-center gap-4">
+            <button onclick="closeDeleteMenuModal()" class="flex-1 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all border border-white/5">
+                Từ chối
+            </button>
+            <button id="btnConfirmDelete" onclick="executeDeleteMenu()" class="flex-1 py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-black shadow-lg shadow-red-500/30 hover:scale-105 active:scale-95 transition-all">
+                Đồng ý xóa
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+<div id="categoryModal" class="fixed inset-0 z-[2000] hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-brand-black/80 backdrop-blur-md" onclick="closeCategoryModal()"></div>
+    <div id="categoryModalContent" class="relative bg-brand-dark border border-brand-orange/20 rounded-[2.5rem] w-full max-w-md shadow-[0_0_80px_rgba(255,107,0,0.15)] overflow-hidden z-10">
+        <div class="px-8 py-6 border-b border-white/5 bg-white/5 flex items-center justify-between">
+            <h2 class="text-xl font-black text-white flex items-center gap-3">
+                <i class="fa-solid fa-tags text-brand-orange"></i> Quản lý Danh mục
+            </h2>
+            <button onclick="closeCategoryModal()" class="w-9 h-9 rounded-full bg-white/5 hover:bg-red-500/20 text-brand-gray hover:text-white flex items-center justify-center transition-all">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="p-8 space-y-6">
+            <!-- Existing categories -->
+            <div>
+                <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest block mb-3">Danh mục hiện có</label>
+                <div id="categoryTagList" class="flex flex-wrap gap-2">
+                    @foreach(var cat in allCategories) {
+                        <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-tag text-brand-orange text-[10px]"></i> @cat
+                        </span>
+                    }
+                </div>
+            </div>
+            <!-- Add new category -->
+            <div class="space-y-3">
+                <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest block">Thêm danh mục mới</label>
+                <div class="flex gap-3">
+                    <input type="text" id="newCategoryInput" placeholder="VD: Món cuộn, Lẩu, Set..." maxlength="50"
+                           class="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-3 text-sm font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange outline-none transition-all"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();addNewCategory(document.getElementById('addCatBtn'));}" />
+                    <button id="addCatBtn" onclick="addNewCategory(this)" class="px-5 py-3 rounded-xl bg-brand-orange text-black font-black text-xs hover:bg-white transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Thêm
+                    </button>
+                </div>
+                <p class="text-[10px] text-brand-gray/60">Danh mục mới sẽ xuất hiện trong ô chọn khi thêm/sửa món ăn.</p>
+            </div>
+        </div>
+        <div class="px-8 py-5 border-t border-white/5 bg-white/[0.02] flex justify-end">
+            <button onclick="closeCategoryModal()" class="px-8 py-3 rounded-xl bg-brand-orange text-black font-black text-xs hover:bg-white transition-all">Xong</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        // --- GLOBAL TOAST SYSTEM ---
+        function showNotification(msg, type) {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-24 right-8 z-[5000] px-8 py-4 rounded-2xl shadow-2xl border font-bold text-sm flex items-center gap-4 transition-all opacity-0 translate-x-10 backdrop-blur-xl ${type === 'error' ? 'bg-red-500/90 text-white border-red-500' : 'bg-green-500/90 text-white border-green-500'}`;
+            toast.innerHTML = `<i class="fa-solid ${type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-check'} text-xl"></i> <div>${msg}</div>`;
+            document.body.appendChild(toast);
+
+            gsap.to(toast, { duration: 0.5, opacity: 1, x: 0, ease: "power2.out" });
+            setTimeout(() => {
+                gsap.to(toast, { duration: 0.4, opacity: 0, x: 50, ease: "power2.in", onComplete: () => toast.remove() });
+            }, 4000);
+        }
+
+        // --- BRANCH STORE LOGIC ---
+        function openEditModal() {
+            const modal = document.getElementById('editStoreModal');
+            const content = document.getElementById('editModalContent');
+            modal.classList.remove('hidden');
+            gsap.fromTo(content, { opacity: 0, scale: 0.9, y: 20 }, { duration: 0.5, opacity: 1, scale: 1, y: 0, ease: "back.out(1.5)" });
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('editStoreModal');
+            const content = document.getElementById('editModalContent');
+            gsap.to(content, { duration: 0.3, opacity: 0, scale: 0.9, y: 20, ease: "power2.in", onComplete: () => modal.classList.add('hidden') });
+        }
+
+        function previewFile(input) {
+            const label = document.getElementById('fileName');
+            if (input.files && input.files[0]) {
+                label.innerText = input.files[0].name;
+                label.classList.add('text-brand-orange');
+            }
+        }
+
+        document.getElementById('editStoreForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Đang lưu...';
+            btn.disabled = true;
+
+            const formData = new FormData(e.target);
+            try {
+                const response = await fetch('/Partner/UpdateStore', { method: 'POST', body: formData });
+                const result = await response.json();
+                if (result.success) {
+                    showNotification("Đã cập nhật thông tin chi nhánh!", "success");
+                    setTimeout(() => location.reload(), 800);
+                } else {
+                    showNotification(result.message, "error");
+                }
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        });
+
+        // --- BRANCH STATUS TOGGLE ---
+        let currentIsOpen = @(Model.IsOpen.ToString().ToLower());
+        function updatePillStyles(isOpen) {
+            const btnOn = document.getElementById('btn-status-on');
+            const btnOff = document.getElementById('btn-status-off');
+            const pill = document.getElementById('statusPill');
+            const targetBtn = isOpen ? btnOn : btnOff;
+            if (!pill || !targetBtn) return;
+            gsap.to(pill, { duration: 0.4, left: targetBtn.offsetLeft + 'px', width: targetBtn.offsetWidth + 'px', ease: "power2.inOut" });
+            if (isOpen) {
+                pill.className = "absolute top-1.5 bottom-1.5 rounded-xl z-0 bg-green-50 border border-green-200 shadow-sm";
+                btnOn.className = "relative z-10 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-green-600 transition-colors duration-500";
+                btnOff.className = "relative z-10 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-brand-gray/60 hover:text-brand-black transition-colors duration-500";
+            } else {
+                pill.className = "absolute top-1.5 bottom-1.5 rounded-xl z-0 bg-red-50 border border-red-200 shadow-sm";
+                btnOff.className = "relative z-10 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-red-500 transition-colors duration-500";
+                btnOn.className = "relative z-10 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-brand-gray/60 hover:text-brand-black transition-colors duration-500";
+            }
+        }
+        window.addEventListener('load', () => updatePillStyles(currentIsOpen));
+
+        async function changeStoreStatus(targetIsOpen) {
+            if (targetIsOpen === currentIsOpen) return;
+            try {
+                const response = await fetch('/Partner/ToggleStoreStatus/@Model.Id', { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    currentIsOpen = result.isOpen;
+                    updatePillStyles(currentIsOpen);
+                    showNotification(currentIsOpen ? "Chi nhánh đã mở cửa!" : "Chi nhánh đã đóng cửa!", "success");
+                } else {
+                    showNotification(result.message, "error");
+                }
+            } catch (err) { showNotification("Lỗi kết nối server.", "error"); }
+        }
+
+        async function lockBranchByPartner() {
+            if(!confirm("Bạn có chắc chắn muốn khóa chi nhánh này?")) return;
+            try {
+                const response = await fetch('/Partner/LockStoreByPartner/@Model.Id', { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    showNotification("Đã khóa chi nhánh thành công!", "success");
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showNotification(result.message, "error");
+                }
+            } catch (err) { showNotification("Lỗi kết nối server.", "error"); }
+        }
+
+        async function unlockBranchByPartner() {
+            if(!confirm("Bạn có chắc chắn muốn mở khóa chi nhánh này?")) return;
+            try {
+                const response = await fetch('/Partner/UnlockStoreByPartner/@Model.Id', { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    showNotification("Mở khóa thành công!", "success");
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showNotification(result.message, "error");
+                }
+            } catch (err) { showNotification("Lỗi kết nối server.", "error"); }
+        }
+
+        // --- MENU ITEM LOGIC ---
+        function switchImageSource(type) {
+            const btnUrl = document.getElementById('imgSourceUrl');
+            const btnFile = document.getElementById('imgSourceFile');
+            const urlCont = document.getElementById('urlInputContainer');
+            const fileCont = document.getElementById('fileInputContainer');
+
+            if (type === 'url') {
+                btnUrl.className = "px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md bg-white/10 text-white";
+                btnFile.className = "px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md text-brand-gray hover:text-white";
+                urlCont.classList.replace('hidden', 'block');
+                fileCont.classList.replace('block', 'hidden');
+            } else {
+                btnFile.className = "px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md bg-white/10 text-white";
+                btnUrl.className = "px-3 py-1 text-[9px] font-black uppercase tracking-tighter rounded-md text-brand-gray hover:text-white";
+                fileCont.classList.replace('hidden', 'block');
+                urlCont.classList.replace('block', 'hidden');
+            }
+        }
+
+        function toggleItemAvailable(val) {
+            document.getElementById('menuItemIsAvailable').value = val;
+            const btnOn = document.getElementById('btn-avail-on');
+            const btnOff = document.getElementById('btn-avail-off');
+            if(val) {
+                btnOn.className = "flex-1 rounded-xl border border-green-500/30 bg-green-500/10 text-green-500 text-[10px] font-black uppercase tracking-widest h-full";
+                btnOff.className = "flex-1 rounded-xl border border-white/5 bg-white/5 text-brand-gray text-[10px] font-black uppercase tracking-widest h-full hover:bg-white/10 hover:text-white transition-all";
+            } else {
+                btnOff.className = "flex-1 rounded-xl border border-red-500/30 bg-red-500/10 text-red-500 text-[10px] font-black uppercase tracking-widest h-full";
+                btnOn.className = "flex-1 rounded-xl border border-white/5 bg-white/5 text-brand-gray text-[10px] font-black uppercase tracking-widest h-full hover:bg-white/10 hover:text-white transition-all";
+            }
+        }
+
+        function previewItemUrl(url) {
+            const container = document.getElementById('urlPreviewContainer');
+            const img = document.getElementById('urlPreviewImg');
+            if (url && url.trim() !== '') {
+                img.src = url;
+                container.classList.remove('hidden');
+                
+                // If the user pastes an invalid URL, the image error event will hide it
+                img.onerror = () => container.classList.add('hidden');
+                img.onload = () => container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function previewItemFile(input) {
+            const label = document.getElementById('itemFileName');
+            if (input.files && input.files[0]) {
+                label.innerText = input.files[0].name;
+                label.classList.add('text-brand-orange');
+            }
+        }
+
+        function openMenuModal(data = null) {
+            const modal = document.getElementById('menuItemModal');
+            const content = document.getElementById('menuModalContent');
+            const form = document.getElementById('menuItemForm');
+            const title = document.getElementById('menuModalTitle');
+            
+            form.reset();
+            document.getElementById('menuItemId').value = "0";
+            document.getElementById('itemFileName').innerText = "Chọn ảnh từ thiết bị...";
+            document.getElementById('itemFileName').classList.remove('text-brand-orange');
+            switchImageSource('url');
+            toggleItemAvailable(true);
+
+            if(data && data.id) {
+                title.innerHTML = `<i class="fa-solid fa-pen-to-square text-brand-orange"></i> Chỉnh sửa món ăn`;
+                document.getElementById('menuItemId').value = data.id;
+                document.getElementById('menuItemName').value = data.name || "";
+                document.getElementById('menuItemDesc').value = data.description || "";
+                document.getElementById('menuItemPrice').value = data.price || "";
+                document.getElementById('menuItemImgUrl').value = data.imageUrl || "";
+                previewItemUrl(data.imageUrl || "");
+                toggleItemAvailable(data.isAvailable !== undefined ? data.isAvailable : true);
+            } else {
+                title.innerHTML = `<i class="fa-solid fa-bowl-food text-brand-orange"></i> Thêm món ăn mới`;
+                previewItemUrl("");
+            }
+
+            modal.classList.remove('hidden');
+            gsap.fromTo(content, { opacity: 0, scale: 0.9, y: 20 }, { duration: 0.4, opacity: 1, scale: 1, y: 0, ease: "back.out(1.5)" });
+        }
+
+        function closeMenuModal() {
+            const modal = document.getElementById('menuItemModal');
+            const content = document.getElementById('menuModalContent');
+            gsap.to(content, { duration: 0.3, opacity: 0, scale: 0.9, y: 20, ease: "power2.in", onComplete: () => modal.classList.add('hidden') });
+        }
+
+        async function saveMenuItem() {
+            const form = document.getElementById('menuItemForm');
+            const formData = new FormData(form);
+            const btn = document.querySelector('[onclick="saveMenuItem()"]');
+            const originalText = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fa-solid fa-save fa-spin"></i>';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/Partner/SaveMenuItem', { method: 'POST', body: formData });
+                const result = await response.json();
+                if(result.success) {
+                    showNotification(formData.get('id') === "0" ? "Đã thêm món mới!" : "Đã cập nhật món ăn!", "success");
+                    location.reload();
+                } else {
+                    showNotification(result.message, "error");
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                showNotification("Lỗi kết nối mạng.", "error");
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // --- DELETE LOGIC ---
+        function openDeleteModal() {
+            const modal = document.getElementById('deleteMenuModal');
+            const backdrop = modal.querySelector('.delete-backdrop');
+            const content = modal.querySelector('.delete-content');
+            modal.classList.remove('hidden');
+            gsap.fromTo(backdrop, { opacity: 0 }, { duration: 0.3, opacity: 1 });
+            gsap.fromTo(content, { scale: 0.7, opacity: 0 }, { duration: 0.4, scale: 1, opacity: 1, ease: "back.out(1.5)" });
+        }
+
+        function closeDeleteMenuModal() {
+            const modal = document.getElementById('deleteMenuModal');
+            const backdrop = modal.querySelector('.delete-backdrop');
+            const content = modal.querySelector('.delete-content');
+            gsap.to(content, { duration: 0.3, scale: 0.7, opacity: 0, ease: "power2.in" });
+            gsap.to(backdrop, { duration: 0.3, opacity: 0, onComplete: () => {
+                modal.classList.add('hidden');
+                deleteItemId = 0;
+            }});
+        }
+
+        let deleteItemId = 0;
+        function confirmDeleteMenu(id, name) {
+            deleteItemId = id;
+            document.getElementById('deleteModalTitle').innerText = "Xóa món ăn";
+            document.getElementById('deleteModalMsg').innerHTML = `Bạn có chắc chắn muốn xóa món "<span class="text-white font-bold">${name}</span>"?`;
+            
+            const confirmBtn = document.getElementById('btnConfirmDelete');
+            confirmBtn.onclick = executeDeleteMenu;
+            openDeleteModal();
+        }
+
+        async function executeDeleteMenu() {
+            if(!deleteItemId) return;
+            const btn = document.getElementById('btnConfirmDelete');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/Partner/DeleteMenuItem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `id=${deleteItemId}`
+                });
+                const result = await response.json();
+                if(result.success) {
+                    showNotification("Đã xóa món ăn!", "success");
+                    location.reload();
+                } else {
+                    showNotification(result.message, "error");
+                    btn.innerHTML = "Đồng ý xóa";
+                    btn.disabled = false;
+                }
+            } catch(e) { showNotification("Lỗi hệ thống.", "error"); btn.disabled = false; }
+        }
+
+        // --- CATEGORY MODAL LOGIC ---
+        // In-memory list of categories, seeded from server
+        let categoryList = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(allCategories));
+
+        function openCategoryModal() {
+            const modal = document.getElementById('categoryModal');
+            const content = document.getElementById('categoryModalContent');
+            modal.classList.remove('hidden');
+            gsap.fromTo(content, { opacity: 0, scale: 0.9, y: 20 }, { duration: 0.4, opacity: 1, scale: 1, y: 0, ease: "back.out(1.5)" });
+        }
+
+        function closeCategoryModal() {
+            const modal = document.getElementById('categoryModal');
+            const content = document.getElementById('categoryModalContent');
+            gsap.to(content, { duration: 0.3, opacity: 0, scale: 0.9, y: 20, ease: "power2.in", onComplete: () => modal.classList.add('hidden') });
+        }
+
+        function renderCategoryTags() {
+            const container = document.getElementById('categoryTagList');
+            container.innerHTML = categoryList.map(cat => `
+                <span class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-tag text-brand-orange text-[10px]"></i> ${cat}
+                </span>
+            `).join('');
+        }
+
+        let isCatDropdownOpen = false;
+
+        function toggleCatDropdown() {
+            const list = document.getElementById('customCatList');
+            if(isCatDropdownOpen) {
+                gsap.to(list, {duration: 0.2, opacity: 0, scale: 0.95, ease: "power2.in", onComplete: () => list.classList.replace('flex', 'hidden')});
+                isCatDropdownOpen = false;
+            } else {
+                list.classList.replace('hidden', 'flex');
+                gsap.fromTo(list, {opacity: 0, scale: 0.95}, {duration: 0.3, opacity: 1, scale: 1, ease: "back.out(1.5)"});
+                isCatDropdownOpen = true;
+            }
+        }
+
+        function selectCategory(cat) {
+            document.getElementById('menuItemCategory').value = cat;
+            document.getElementById('customCatText').innerText = cat;
+            toggleCatDropdown();
+        }
+
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('customCatWrapper');
+            if(isCatDropdownOpen && wrapper && !wrapper.contains(e.target)) {
+                toggleCatDropdown();
+            }
+        });
+
+        function syncCategorySelect(selectedValue) {
+            const defaultCat = selectedValue || categoryList[0];
+            document.getElementById('menuItemCategory').value = defaultCat;
+            const textEl = document.getElementById('customCatText');
+            if(textEl) textEl.innerText = defaultCat;
+            
+            const listContainer = document.getElementById('customCatList');
+            if(listContainer) {
+                listContainer.innerHTML = categoryList.map(cat => `
+                    <button type="button" onclick="selectCategory('${cat.replace(/'/g, "\\'")}')" class="w-full text-left px-5 py-3 text-sm font-bold text-brand-gray hover:text-white hover:bg-brand-orange/20 transition-all ${cat === defaultCat ? 'bg-white/5 text-white' : ''}">
+                        ${cat}
+                    </button>
+                `).join('');
+            }
+        }
+
+        async function addNewCategory(btn) {
+            const input = document.getElementById('newCategoryInput');
+            const name = input.value.trim();
+            if (!name) { input.focus(); return; }
+            if (categoryList.map(c => c.toLowerCase()).includes(name.toLowerCase())) {
+                showNotification('Danh mục này đã tồn tại!', 'error');
+                return;
+            }
+
+            if(!btn) btn = document.getElementById('addCatBtn');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang thêm...';
+            btn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('storeId', '@Model.Id');
+                formData.append('categoryName', name);
+
+                const response = await fetch('/Partner/AddCustomCategory', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const text = await response.text();
+                try {
+                    const result = JSON.parse(text);
+                    if(result.success) {
+                        // Insert and keep Khác at the end
+                        categoryList.push(name);
+                        categoryList.sort();
+                        const khacIdx = categoryList.indexOf("Khác");
+                        if (khacIdx > -1) {
+                            categoryList.splice(khacIdx, 1);
+                            categoryList.push("Khác");
+                        }
+                        
+                        showNotification(`Đã thêm danh mục "${name}"`, 'success');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        showNotification(result.message || 'Lỗi khi thêm danh mục', 'error');
+                        btn.innerHTML = originalContent;
+                        btn.disabled = false;
+                    }
+                } catch (jsonErr) {
+                    throw new Error("Lỗi máy chủ trả về: " + text.substring(0, 50) + "...");
+                }
+            } catch(e) {
+                showNotification(e.message, 'error');
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }
+        }
+
+        // Override openMenuModal to sync dropdown with current categoryList
+        const _origOpenMenuModal = openMenuModal;
+        openMenuModal = function(data = null) {
+            _origOpenMenuModal(data);
+            syncCategorySelect(data ? data.category : null);
+        };
+
+
+
+        let catToDelete = "";
+        function confirmDeleteCategory(name, itemCount) {
+            catToDelete = name;
+            document.getElementById('deleteModalTitle').innerText = "Xóa danh mục";
+            
+            let msg = `Bạn có chắc chắn muốn xóa danh mục "<span class="text-white font-bold">${name}</span>"?`;
+            if(itemCount > 0) {
+                msg += `<br><span class="text-xs text-brand-gray mt-2 block">Cảnh báo: Tác vụ này sẽ tự động chuyển ${itemCount} món ăn trong danh mục sang danh mục "Khác".</span>`;
+            }
+            document.getElementById('deleteModalMsg').innerHTML = msg;
+            
+            const confirmBtn = document.getElementById('btnConfirmDelete');
+            confirmBtn.onclick = async function() {
+                const prevHtml = this.innerHTML;
+                this.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                this.disabled = true;
+
+                try {
+                    const formData = new FormData();
+                    formData.append('storeId', '@Model.Id');
+                    formData.append('categoryName', catToDelete);
+
+                    const response = await fetch('/Partner/DeleteCustomCategory', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if(result.success) {
+                        showNotification(`Đã xóa danh mục "${catToDelete}"`, "success");
+                        location.reload();
+                    } else {
+                        showNotification(result.message || 'Lỗi khi xóa', "error");
+                        this.innerHTML = prevHtml;
+                        this.disabled = false;
+                    }
+                } catch(e) {
+                    showNotification("Lỗi kết nối.", "error");
+                    this.innerHTML = prevHtml;
+                    this.disabled = false;
+                }
+            };
+
+            openDeleteModal();
+        }
+    </script>
+}
+
+<style>
+    .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; opacity: 0; }
+    @@keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    
+    select option { background: #111827; }
+</style>

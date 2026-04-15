@@ -1,0 +1,590 @@
+@using System.Text.Json
+@model IEnumerable<DeliveryHubWeb.Models.Order>
+@{
+    ViewData["Title"] = "Thống kê hệ thống";
+    Layout = "~/Views/Shared/_PartnerLayout.cshtml";
+
+    var stores = ViewBag.Stores as List<DeliveryHubWeb.Models.Store> ?? new List<DeliveryHubWeb.Models.Store>();
+    var selectedStore = ViewBag.SelectedStore as int?;
+    var selectedTime = ViewBag.SelectedTimeRange as string ?? "7days";
+
+    var revenueByBranch = ViewBag.RevenueByBranch as IEnumerable<dynamic>;
+    var statusStats = ViewBag.StatusStats as IEnumerable<dynamic>;
+    var chartData = ViewBag.ChartData as IEnumerable<dynamic>;
+
+    var totalRevenue = (decimal)(ViewBag.TotalRevenue ?? 0m);
+    var totalOrders = (int)(ViewBag.TotalOrders ?? 0);
+
+    // Helpers
+    string GetStatusLabel(DeliveryHubWeb.Models.OrderStatus status) => status switch {
+        DeliveryHubWeb.Models.OrderStatus.Pending => "Mới tạo",
+        DeliveryHubWeb.Models.OrderStatus.SearchingShipper => "Tìm shipper",
+        DeliveryHubWeb.Models.OrderStatus.Accepted => "Nhận đơn",
+        DeliveryHubWeb.Models.OrderStatus.Preparing => "Đang làm món",
+        DeliveryHubWeb.Models.OrderStatus.Delivering => "Đang giao",
+        DeliveryHubWeb.Models.OrderStatus.Completed => "Thành công",
+        DeliveryHubWeb.Models.OrderStatus.Cancelled => "Đã hủy",
+        DeliveryHubWeb.Models.OrderStatus.Failed => "Thất bại",
+        _ => status.ToString()
+    };
+
+    string GetStatusClass(DeliveryHubWeb.Models.OrderStatus status) => status switch {
+        DeliveryHubWeb.Models.OrderStatus.Pending => "bg-[#22D3EE]/10 text-[#22D3EE] border-[#22D3EE]/30",
+        DeliveryHubWeb.Models.OrderStatus.SearchingShipper => "bg-[#A855F7]/10 text-[#A855F7] border-[#A855F7]/30",
+        DeliveryHubWeb.Models.OrderStatus.Accepted => "bg-pink-500/10 text-pink-500 border-pink-500/30",
+        DeliveryHubWeb.Models.OrderStatus.Preparing => "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
+        DeliveryHubWeb.Models.OrderStatus.Delivering => "bg-brand-orange/10 text-brand-orange border-brand-orange/30",
+        DeliveryHubWeb.Models.OrderStatus.Completed => "bg-green-500/20 text-green-400 border-green-500/30",
+        DeliveryHubWeb.Models.OrderStatus.Cancelled => "bg-blue-500/10 text-blue-400 border-blue-500/30",
+        DeliveryHubWeb.Models.OrderStatus.Failed => "bg-red-500/20 text-red-500 border-red-500/30",
+        _ => "bg-gray-500/10 text-gray-500 border-gray-500/30"
+    };
+
+    string GetStatusDotClass(DeliveryHubWeb.Models.OrderStatus status) => status switch {
+        DeliveryHubWeb.Models.OrderStatus.Pending => "bg-[#22D3EE]",
+        DeliveryHubWeb.Models.OrderStatus.SearchingShipper => "bg-[#A855F7]",
+        DeliveryHubWeb.Models.OrderStatus.Accepted => "bg-pink-500",
+        DeliveryHubWeb.Models.OrderStatus.Preparing => "bg-yellow-500",
+        DeliveryHubWeb.Models.OrderStatus.Delivering => "bg-brand-orange",
+        DeliveryHubWeb.Models.OrderStatus.Completed => "bg-green-400",
+        DeliveryHubWeb.Models.OrderStatus.Cancelled => "bg-blue-400",
+        DeliveryHubWeb.Models.OrderStatus.Failed => "bg-red-500",
+        _ => "bg-gray-500"
+    };
+
+    string GetStatusColorCode(string statusStr) {
+        if (Enum.TryParse<DeliveryHubWeb.Models.OrderStatus>(statusStr, out var status)) {
+            return status switch {
+                DeliveryHubWeb.Models.OrderStatus.Pending => "#22D3EE",
+                DeliveryHubWeb.Models.OrderStatus.SearchingShipper => "#A855F7",
+                DeliveryHubWeb.Models.OrderStatus.Accepted => "#ec4899",
+                DeliveryHubWeb.Models.OrderStatus.Preparing => "#eab308",
+                DeliveryHubWeb.Models.OrderStatus.Delivering => "#FF6B00",
+                DeliveryHubWeb.Models.OrderStatus.Completed => "#4ade80",
+                DeliveryHubWeb.Models.OrderStatus.Cancelled => "#60a5fa",
+                DeliveryHubWeb.Models.OrderStatus.Failed => "#ef4444",
+                _ => "#9ca3af"
+            };
+        }
+        return "#ffffff";
+    }
+}
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex flex-col md:flex-row justify-between items-start md:items-center gap-6 fade-in relative z-10 backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Tổng quan <span class="text-brand-orange">Chi nhánh</span></h2>
+        <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[10px] font-bold text-brand-orange uppercase tracking-wider">Dashboard</span>
+            @{
+                var currentStore = stores.FirstOrDefault(s => s.Id == selectedStore);
+                if (currentStore != null)
+                {
+                    <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Dữ liệu thống kê hoạt động từ chi nhánh <span class="text-white font-black">@currentStore.Name</span></p>
+                }
+                else
+                {
+                    <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Dữ liệu thống kê hoạt động từ toàn bộ <span class="text-white font-black">@stores.Count</span> chi nhánh của bạn</p>
+                }
+            }
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form id="filterForm" method="get" class="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+        <!-- Store Dropdown -->
+        <div class="relative group dropdown-container min-w-[200px] z-50">
+            @{
+                var currentStoreLabel = stores.FirstOrDefault(s => s.Id == selectedStore)?.Name ?? "Tất cả chi nhánh";
+            }
+            <input type="hidden" name="storeId" id="selectedStore" value="@selectedStore" />
+            <button type="button" id="storeDropdownBtn" 
+                    class="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white focus:border-brand-orange/50 outline-none transition-all cursor-pointer hover:bg-white/10">
+                <span id="storeLabel" class="truncate max-w-[150px]">@currentStoreLabel</span>
+                <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray group-hover/btn:text-brand-orange transition-colors"></i>
+            </button>
+
+            <div id="storeOptions" class="absolute top-full left-0 w-full mt-2 bg-brand-dark/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl py-2 z-[100] hidden overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                <div class="store-option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer transition-all border-l-2 @(selectedStore == null ? "bg-white/5 border-brand-orange" : "border-transparent hover:border-brand-orange hover:bg-white/5")" data-value="">
+                    Tất cả chi nhánh
+                </div>
+                @foreach(var store in stores)
+                {
+                    <div class="store-option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer transition-all border-l-2 @(selectedStore == store.Id ? "bg-white/5 border-brand-orange" : "border-transparent hover:border-brand-orange hover:bg-white/5")" data-value="@store.Id">
+                        @store.Name
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- TimeRange Dropdown -->
+        <div class="relative group dropdown-container min-w-[160px] z-[49]">
+            @{
+                var timeLabelMap = new Dictionary<string, string> {
+                    {"today", "Hôm nay"}, {"7days", "7 ngày qua"}, {"1month", "1 tháng qua"}, {"1year", "1 năm qua"}, {"all", "Toàn thời gian"}
+                };
+                var currentTimeLabel = timeLabelMap.ContainsKey(selectedTime) ? timeLabelMap[selectedTime] : "7 ngày qua";
+            }
+            <input type="hidden" name="timeRange" id="selectedTimeRange" value="@selectedTime" />
+            <button type="button" id="timeDropdownBtn" 
+                    class="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white focus:border-brand-orange/50 outline-none transition-all cursor-pointer hover:bg-white/10">
+                <span id="timeLabel">@currentTimeLabel</span>
+                <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray group-hover/btn:text-brand-orange transition-colors"></i>
+            </button>
+
+            <div id="timeOptions" class="absolute top-full right-0 w-full md:min-w-[160px] mt-2 bg-brand-dark/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl py-2 z-[100] hidden overflow-hidden">
+                @foreach(var time in timeLabelMap)
+                {
+                    <div class="time-option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer transition-all border-l-2 @(selectedTime == time.Key ? "bg-white/5 border-brand-orange" : "border-transparent hover:border-brand-orange hover:bg-white/5")" data-value="@time.Key">
+                        @time.Value
+                    </div>
+                }
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Highlight Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 fade-in" style="animation-delay: 0.1s;">
+    <!-- Orders Card -->
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-brand-orange/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-brand-orange/20 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest">Tổng đơn hàng</h3>
+            <i class="fa-solid fa-box text-brand-orange/20 text-4xl mt-1"></i>
+        </div>
+        <div class="text-4xl font-black text-white mb-2">@totalOrders</div>
+    </div>
+    
+    <!-- Revenue Card -->
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-green-500/20 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest">Tổng doanh thu</h3>
+            <i class="fa-solid fa-money-bill-wave text-green-500/20 text-4xl mt-1"></i>
+        </div>
+        <div class="text-4xl font-black text-white mb-2">@totalRevenue.ToString("N0")<span class="text-sm ml-1 text-brand-gray font-normal">VND</span></div>
+    </div>
+
+    <!-- Active Branches Card -->
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-blue-500/20 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest">Chi nhánh hoạt động</h3>
+            <i class="fa-solid fa-store text-blue-500/20 text-4xl mt-1"></i>
+        </div>
+        <div class="text-4xl font-black text-white mb-2">@stores.Count(s => s.IsOpen)</div>
+        <div class="text-xs text-brand-gray"><span class="text-blue-500 font-bold">@stores.Count</span> tổng chi nhánh</div>
+    </div>
+
+    <!-- Branches/Items Top 3 Preview -->
+    <div class="bg-brand-orange rounded-[2rem] p-6 shadow-[0_0_30px_rgba(255,107,0,0.2)] text-black relative overflow-hidden flex flex-col justify-center">
+        @if(selectedStore.HasValue)
+        {
+            var topItems = ViewBag.TopItems as IEnumerable<dynamic>;
+            <h3 class="font-bold mb-4 uppercase tracking-wider text-xs border-b border-black/10 pb-2"><i class="fa-solid fa-fire text-black mr-1 drop-shadow-md"></i>Top món ăn bán chạy nhất</h3>
+            <div class="space-y-3">
+                @if(topItems != null && topItems.Any())
+                {
+                    foreach(var item in topItems.Take(3))
+                    {
+                        <div class="flex justify-between items-center text-sm font-bold">
+                            <span class="truncate pr-2">@item.GetType().GetProperty("ItemName")?.GetValue(item, null)</span>
+                            <span>@item.GetType().GetProperty("Quantity")?.GetValue(item, null) <span class="text-[10px] uppercase opacity-70">đã bán</span></span>
+                        </div>
+                    }
+                } else {
+                    <div class="text-sm font-semibold opacity-70">Chưa có dữ liệu món ăn</div>
+                }
+            </div>
+        }
+        else
+        {
+            <h3 class="font-bold mb-4 uppercase tracking-wider text-xs border-b border-black/10 pb-2"><i class="fa-solid fa-fire text-black mr-1 drop-shadow-md"></i>Top Chi nhánh doanh thu</h3>
+            <div class="space-y-3">
+                @if(revenueByBranch != null && revenueByBranch.Any())
+                {
+                    foreach(var b in revenueByBranch.Take(3))
+                    {
+                        <div class="flex justify-between items-center text-sm font-bold">
+                            <span class="truncate pr-2">@b.GetType().GetProperty("StoreName")?.GetValue(b, null)</span>
+                            <span>@(((decimal)(b.GetType().GetProperty("Revenue")?.GetValue(b, null) ?? 0m)).ToString("N0"))đ</span>
+                        </div>
+                    }
+                } else {
+                    <div class="text-sm font-semibold opacity-70">Chưa có dữ liệu doanh thu</div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 fade-in" style="animation-delay: 0.2s;">
+    <!-- Main Chart -->
+    <div class="lg:col-span-2 bg-brand-dark border border-white/5 rounded-[2rem] p-6 shadow-xl relative overflow-hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-line text-brand-orange"></i> Thống kê Đơn hàng & Doanh thu</h3>
+            <div class="flex gap-4 text-xs font-bold">
+                <span class="flex items-center gap-2 text-brand-orange"><span class="w-3 h-3 rounded-full bg-brand-orange"></span> Doanh thu</span>
+                <span class="flex items-center gap-2 text-white"><span class="w-3 h-3 rounded-full border-2 border-white"></span> Số đơn</span>
+            </div>
+        </div>
+        <div class="h-[300px] w-full">
+            <canvas id="mainChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Doughnut Chart -->
+    <div class="bg-brand-dark border border-white/5 rounded-[2rem] p-6 shadow-xl relative overflow-hidden flex flex-col">
+        <h3 class="font-bold text-white mb-6 flex items-center gap-2"><i class="fa-solid fa-chart-pie text-brand-orange"></i> Trạng thái đơn hàng</h3>
+        <div class="flex-1 flex items-center justify-center relative min-h-[220px]">
+            <canvas id="statusChart"></canvas>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mt-6">
+            @if(statusStats != null) {
+                var groupedStats = new Dictionary<string, (string Color, int Count)>();
+                foreach(var stat in statusStats) {
+                    var statusStr = stat.GetType().GetProperty("Status")?.GetValue(stat, null)?.ToString() ?? "Unknown";
+                    var countStr = stat.GetType().GetProperty("Count")?.GetValue(stat, null)?.ToString() ?? "0";
+                    var count = int.Parse(countStr);
+                    
+                    if (Enum.TryParse<DeliveryHubWeb.Models.OrderStatus>(statusStr, out DeliveryHubWeb.Models.OrderStatus enumStatus)) {
+                        var vnLabel = GetStatusLabel(enumStatus);
+                        var dotColor = GetStatusDotClass(enumStatus);
+                        
+                        if (!groupedStats.ContainsKey(vnLabel)) {
+                            groupedStats[vnLabel] = (dotColor, 0);
+                        }
+                        groupedStats[vnLabel] = (groupedStats[vnLabel].Color, groupedStats[vnLabel].Count + count);
+                    }
+                }
+
+                foreach(var kvp in groupedStats) {
+                    <div class="flex items-center justify-between text-xs font-bold p-2 rounded-lg bg-white/5">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full @kvp.Value.Color"></span>
+                            <span class="text-brand-gray uppercase text-[10px]">@kvp.Key</span>
+                        </div>
+                        <span class="text-white">@kvp.Value.Count</span>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders Table -->
+<div class="bg-brand-dark border border-white/5 rounded-[2rem] overflow-hidden shadow-xl fade-in" style="animation-delay: 0.3s;">
+    <div class="p-6 border-b border-white/5 flex justify-between items-center">
+        <h3 class="text-xl font-bold text-white">Đơn hàng mới nhất</h3>
+        <a href="@Url.Action("Orders", "Partner", new { storeId = selectedStore, timeRange = selectedTime })" class="text-brand-orange text-sm font-bold hover:text-white transition-colors">Xem tất cả <i class="fa-solid fa-arrow-right ml-1"></i></a>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse" id="ordersTable">
+            <thead>
+                <tr class="border-b border-white/5 bg-white/5">
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest rounded-tl-2xl">Mã Đơn</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Chi nhánh</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Khách hàng</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Tổng cộng</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Trạng thái</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Thời gian</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest text-center">Tùy chọn</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @if(Model.Any()) {
+                    int idx = 0;
+                    foreach(var order in Model) {
+                        idx++;
+                        <tr class="hover:bg-white/[0.02] transition-colors group order-row">
+                            <td class="p-4 font-bold text-brand-orange">#@order.OrderCode</td>
+                            <td class="p-4">
+                                <div class="font-bold text-white text-sm">@order.Store?.Name</div>
+                            </td>
+                            <td class="p-4">
+                                <div class="font-bold text-white text-sm">@(order.User?.FullName ?? "Khách hàng")</div>
+                                <div class="text-[10px] text-brand-gray uppercase">@order.User?.PhoneNumber</div>
+                            </td>
+                            <td class="p-4 font-black">@((order.TotalPrice + order.ShippingFee).ToString("N0"))<span class="text-[10px] text-brand-gray font-normal ml-1">VND</span></td>
+                            <td class="p-4">
+                                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border @GetStatusClass(order.Status)">
+                                    @GetStatusLabel(order.Status)
+                                </span>
+                            </td>
+                            <td class="p-4 text-sm text-brand-gray">@order.CreatedAt.ToString("dd/MM HH:mm")</td>
+                            <td class="p-4 text-center">
+                                <button onclick="showOrderDetail(@order.Id)" class="w-8 h-8 mx-auto rounded-lg bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all hover:scale-110" title="Xem chi tiết">
+                                    <i class="fa-solid fa-eye text-xs"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                } else {
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-brand-gray">Không có đơn hàng nào trong thời gian này</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<template id="orderData">
+    @foreach(var order in Model) {
+        <div data-id="@order.Id" 
+             data-code="@order.OrderCode"
+             data-customer="@order.User?.FullName"
+             data-merchant="@order.Store?.Name"
+             data-merchant-addr="@order.Store?.Address"
+             data-delivery-addr="@order.DeliveryAddress"
+             data-status="@order.Status"
+             data-price="@string.Format("{0:N0}", order.TotalPrice + order.ShippingFee)"
+             data-time1="@order.CreatedAt.ToString("HH:mm - dd/MM")"
+             data-time2="@(order.AcceptedAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-time3="@(order.PickedUpAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-time4="@((order.Status == DeliveryHubWeb.Models.OrderStatus.Completed ? order.CompletedAt : order.CancelledAt)?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-shipper-name="@(order.Shipper?.FullName ?? "")"
+             data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)[order.ShipperId] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
+             data-note="@order.Note">
+             <div class="items-json">
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(order.OrderItems.Select(oi => new { name = oi.MenuItem?.Name, qty = oi.Quantity, price = oi.Price })))
+             </div>
+        </div>
+    }
+</template>
+
+@await Html.PartialAsync("_OrderDetailModal")
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        // Prepare Chart Data
+        const rawChartData = @Html.Raw(JsonSerializer.Serialize(chartData));
+        const labels = rawChartData.map(d => new Date(d.Date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }));
+        const revenueData = rawChartData.map(d => d.Revenue);
+        const orderData = rawChartData.map(d => d.Count);
+
+        // Chart.js defaults
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+
+        // Setup Custom Dropdowns
+        function setupDropdown(btnId, optionsId, inputId, labelId, itemClass, formId) {
+            const btn = document.getElementById(btnId);
+            const options = document.getElementById(optionsId);
+            const input = document.getElementById(inputId);
+            const label = document.getElementById(labelId);
+            const items = document.querySelectorAll('.' + itemClass);
+            const form = document.getElementById(formId);
+
+            if (!btn || !options) return;
+
+            let isOpen = false;
+
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!isOpen) closeAllDropdowns();
+
+                isOpen = !isOpen;
+                if (isOpen) {
+                    options.classList.remove('hidden');
+                    btn.classList.remove('border-white/10');
+                    btn.classList.add('border-brand-orange/50');
+                    gsap.fromTo(options, { opacity: 0, y: -10 }, { duration: 0.2, opacity: 1, y: 0, ease: "power2.out" });
+                } else {
+                    btn.classList.add('border-white/10');
+                    btn.classList.remove('border-brand-orange/50');
+                    gsap.to(options, { duration: 0.15, opacity: 0, y: -10, ease: "power2.in", onComplete: () => {
+                        options.classList.add('hidden');
+                    }});
+                }
+            });
+
+            items.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    input.value = item.dataset.value;
+                    label.innerText = item.innerText.trim();
+                    isOpen = false;
+                    options.classList.add('hidden');
+                    if (form) form.submit();
+                });
+            });
+
+            if (!window.dropdowns) window.dropdowns = [];
+            window.dropdowns.push({ btn, options, setIsOpen: (val) => isOpen = val });
+        }
+
+        function closeAllDropdowns() {
+            if (window.dropdowns) {
+                window.dropdowns.forEach(d => {
+                    if (!d.options.classList.contains('hidden')) {
+                        d.btn.classList.add('border-white/10');
+                        d.btn.classList.remove('border-brand-orange/50');
+                        gsap.to(d.options, { duration: 0.15, opacity: 0, y: -10, ease: "power2.in", onComplete: () => {
+                            d.options.classList.add('hidden');
+                        }});
+                        d.setIsOpen(false);
+                    }
+                });
+            }
+        }
+
+        document.addEventListener('click', closeAllDropdowns);
+
+        setupDropdown('storeDropdownBtn', 'storeOptions', 'selectedStore', 'storeLabel', 'store-option-item', 'filterForm');
+        setupDropdown('timeDropdownBtn', 'timeOptions', 'selectedTimeRange', 'timeLabel', 'time-option-item', 'filterForm');
+
+        // Main line chart
+        const ctxMain = document.getElementById('mainChart').getContext('2d');
+        new Chart(ctxMain, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Doanh thu',
+                        data: revenueData,
+                        borderColor: '#FF6B00',
+                        backgroundColor: 'rgba(255, 107, 0, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Số đơn',
+                        data: orderData,
+                        borderColor: '#ffffff',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' } },
+                    y: { 
+                        type: 'linear', display: true, position: 'left',
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { callback: value => (value/1000) + 'k' }
+                    },
+                    y1: {
+                        type: 'linear', display: true, position: 'right',
+                        grid: { drawOnChartArea: false },
+                        ticks: { stepSize: 1 }
+                    }
+                }
+            }
+        });
+
+        // Status Doughnut Chart (No longer grouping manually here, using exact C# helpers)
+        const rawStatusData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(statusStats));
+        
+        const aggregatedData = {};
+        rawStatusData.forEach(d => {
+            // Using literal status maps or direct matching C# logic
+            const statusMap = {
+                "Pending": { label: "Mới tạo", color: "#22D3EE" },
+                "SearchingShipper": { label: "Tìm shipper", color: "#A855F7" },
+                "Accepted": { label: "Nhận đơn", color: "#ec4899" },
+                "Preparing": { label: "Đang làm món", color: "#eab308" },
+                "Delivering": { label: "Đang giao", color: "#FF6B00" },
+                "Completed": { label: "Thành công", color: "#4ade80" },
+                "Failed": { label: "Thất bại", color: "#ef4444" },
+                "Cancelled": { label: "Đã hủy", color: "#60a5fa" }
+            };
+            const vnLabel = statusMap[d.Status] ? statusMap[d.Status].label : d.Status;
+            
+            if(!aggregatedData[vnLabel]) {
+                aggregatedData[vnLabel] = { count: 0, color: statusMap[d.Status] ? statusMap[d.Status].color : "#ffffff" };
+            }
+            aggregatedData[vnLabel].count += parseInt(d.Count);
+        });
+
+        const statusLabels = Object.keys(aggregatedData);
+        const statusCounts = Object.values(aggregatedData).map(x => x.count);
+        const bgColors = Object.values(aggregatedData).map(x => x.color);
+
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    data: statusCounts,
+                    backgroundColor: bgColors,
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '75%',
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // (Toggle logic removed because it redirects to new page)
+
+        // Show View Detail Modal logic
+        function showOrderDetail(id) {
+            const dataDiv = document.querySelector(`template#orderData`).content.querySelector(`[data-id="${id}"]`);
+            if (!dataDiv) return;
+
+            const items = JSON.parse(dataDiv.querySelector('.items-json').innerText);
+            
+            const data = {
+                id: id,
+                code: dataDiv.dataset.code,
+                customer: dataDiv.dataset.customer,
+                merchant: dataDiv.dataset.merchant,
+                merchantAddr: dataDiv.dataset.merchantAddr,
+                deliveryAddr: dataDiv.dataset.deliveryAddr,
+                status: dataDiv.dataset.status,
+                totalPrice: dataDiv.dataset.price,
+                time1: dataDiv.dataset.time1,
+                time2: dataDiv.dataset.time2,
+                time3: dataDiv.dataset.time3,
+                time4: dataDiv.dataset.time4,
+                shipperName: dataDiv.dataset.shipperName,
+                shipperCode: dataDiv.dataset.shipperCode,
+                note: dataDiv.dataset.note,
+                items: items
+            };
+
+            // Assuming `renderOrderDetail` is included via `_OrderDetailModal`
+            if (typeof renderOrderDetail === 'function') {
+                renderOrderDetail(data);
+            }
+
+            // GSAP Open Animation
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            modal.classList.remove('hidden');
+            gsap.set(body, { scale: 0.9, opacity: 0 });
+            gsap.to(body, { duration: 0.5, scale: 1, opacity: 1, ease: "back.out(1.2)" });
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            if (typeof gsap !== 'undefined') {
+                gsap.to(body, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
+                    modal.classList.add('hidden');
+                }});
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+    </script>
+}

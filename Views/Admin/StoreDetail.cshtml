@@ -1,0 +1,387 @@
+@model DeliveryHubWeb.Models.Store
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = $"Chi tiết: {Model.Name}";
+    var menuGrouped = Model.MenuItems.GroupBy(m => m.Category).OrderBy(g => g.Key);
+    var dailyRevenue = ViewBag.DailyRevenue as dynamic;
+}
+
+<div class="mb-8 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex justify-between items-center animate-fade-in backdrop-blur-xl shadow-2xl">
+    <div class="flex items-center gap-6">
+        <div class="flex flex-col items-center gap-2">
+            <div class="w-24 h-24 rounded-[2rem] overflow-hidden border-2 border-brand-orange/30 shadow-[0_0_30px_rgba(255,107,0,0.2)]">
+                @if (!string.IsNullOrEmpty(Model.ImageUrl)) {
+                    <img src="@Model.ImageUrl" class="w-full h-full object-cover" alt="store" />
+                } else {
+                    <div class="w-full h-full bg-brand-dark flex items-center justify-center text-brand-orange">
+                        <i class="fa-solid fa-store text-4xl"></i>
+                    </div>
+                }
+            </div>
+            <span class="text-[10px] font-bold text-brand-orange bg-brand-orange/10 px-2.5 py-1 rounded-lg border border-brand-orange/20 whitespace-nowrap">
+                @ViewBag.BranchCode
+            </span>
+        </div>
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <h2 class="text-3xl font-black text-white tracking-tighter">@Model.Name</h2>
+                <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest @(ViewBag.IsPending ? "bg-brand-orange/10 text-brand-orange border border-brand-orange/20" : (Model.IsOpen ? "bg-green-500/10 text-green-500 border border-green-500/20" : "bg-red-500/10 text-red-500 border border-red-500/20"))">
+                    @(ViewBag.IsPending ? "Chờ phê duyệt" : (Model.IsOpen ? "Đang hoạt động" : "Ngưng hoạt động"))
+                </span>
+            </div>
+            <p class="text-brand-gray text-sm flex items-center gap-2">
+                <i class="fa-solid fa-location-dot text-brand-orange text-xs"></i>
+                @Model.Address
+            </p>
+        </div>
+    </div>
+    
+    <a href="@Url.Action("Merchants", "Admin", new { openPartnerId = Model.OwnerId, openPartnerName = Model.Owner?.FullName })" class="h-12 px-6 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white font-bold hover:bg-white/10 transition-all gap-2">
+        <i class="fa-solid fa-arrow-left text-xs"></i> Quay lại
+    </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+    <!-- Revenue Section -->
+    <div class="lg:col-span-2 space-y-8">
+        <div class="bg-brand-dark/40 backdrop-blur-xl rounded-[3rem] border border-white/5 p-8 shadow-2xl overflow-hidden relative group">
+            <h3 class="text-xl font-black text-white mb-8 flex items-center gap-3">
+                <span class="w-2 h-8 bg-brand-orange rounded-full"></span>
+                Dashboard Doanh thu
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5">
+                    <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-1">Tổng doanh thu</p>
+                    <h4 class="text-2xl font-black text-brand-orange">@ViewBag.TotalRevenue.ToString("N0") <span class="text-xs">VNĐ</span></h4>
+                </div>
+                <div class="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5">
+                    <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-1">Tổng đơn hoàn thành</p>
+                    <h4 class="text-2xl font-black text-white">@ViewBag.TotalOrders</h4>
+                </div>
+                <div class="p-6 rounded-[2rem] bg-white/[0.02] border border-white/5">
+                    <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-1">Đánh giá chung</p>
+                    <div class="flex items-center gap-2">
+                        <h4 class="text-2xl font-black text-yellow-400">@(((double)ViewBag.AvgRating).ToString("0.0"))</h4>
+                        <div class="flex text-[10px] text-yellow-400 gap-0.5">
+                            @for(int i=0; i<5; i++) {
+                                <i class="fa-solid fa-star @(i < Math.Round((double)ViewBag.AvgRating) ? "" : "text-white/10")"></i>
+                            }
+                        </div>
+                        <span class="text-[10px] text-brand-gray ml-1">(@ViewBag.ReviewCount)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="h-[300px] w-full">
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Info / Categories List -->
+    <div class="space-y-8">
+        @{
+            var topItems = ViewBag.TopItems as List<MenuItem>;
+            var itemRatings = ViewBag.ItemRatings as Dictionary<int, (int Count, double Avg)>;
+            var itemSalesCounts = ViewBag.ItemSalesCounts as Dictionary<int, int>;
+        }
+        
+        @if (topItems != null && topItems.Any()) {
+            <div class="bg-brand-dark/40 backdrop-blur-xl rounded-[3rem] border border-white/5 p-8 shadow-2xl h-full">
+                <h3 class="text-xl font-black text-white mb-6 flex items-center gap-3">
+                    <span class="w-2 h-8 bg-brand-orange rounded-full shadow-[0_0_15px_rgba(255,107,0,0.4)]"></span>
+                    Top món bán chạy
+                </h3>
+                
+                <div class="space-y-4">
+                    @foreach(var item in topItems) {
+                        var rating = itemRatings != null && itemRatings.ContainsKey(item.Id) ? itemRatings[item.Id] : (Count: 0, Avg: 5.0);
+                        var salesCount = itemSalesCounts != null && itemSalesCounts.ContainsKey(item.Id) ? itemSalesCounts[item.Id] : 0;
+                        <div class="group/top-item flex items-center gap-4 p-3 rounded-2xl bg-white/[0.02] border border-white/5 hover:border-brand-orange/30 hover:bg-white/[0.04] transition-all cursor-pointer">
+                            <div class="relative w-14 h-14 shrink-0">
+                                <img src="@item.ImageUrl" class="w-full h-full rounded-xl object-cover border border-white/10 group-hover/top-item:scale-105 transition-transform" />
+                                <div class="absolute -top-1 -right-1 w-5 h-5 bg-brand-orange rounded-full flex items-center justify-center border-2 border-brand-dark shadow-lg">
+                                    <i class="fa-solid fa-fire text-[10px] text-white"></i>
+                                </div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1.5 mb-1">
+                                    <span class="text-[13px] font-bold text-white/90 truncate group-hover/top-item:text-white transition-colors">@item.Name</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex flex-col">
+                                        <span class="text-[12px] font-black text-brand-orange">@item.Price.ToString("N0") <span class="text-[9px] opacity-60">VND</span></span>
+                                        @if(salesCount > 0) {
+                                            <span class="text-[9px] font-bold text-brand-gray/60 italic mt-0.5">Đã bán: @salesCount</span>
+                                        }
+                                    </div>
+                                    <div class="flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded-lg border border-white/5">
+                                        <span class="text-[9px] font-bold text-brand-gray/60">(@rating.Count)</span>
+                                        <div class="flex text-[8px] text-yellow-400">
+                                            @for(int i = 1; i <= 5; i++) {
+                                                <i class="fa-solid fa-star @(i <= Math.Round(rating.Avg) ? "" : "text-white/10")"></i>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Menu Items Grid -->
+<div class="bg-brand-dark/40 backdrop-blur-xl rounded-[3rem] border border-white/5 p-10 shadow-2xl">
+    <h3 class="text-2xl font-black text-white mb-10 flex items-center gap-4">
+        <span class="w-3 h-10 bg-brand-orange rounded-full shadow-[0_0_20px_rgba(255,107,0,0.4)]"></span>
+        Thực đơn Chi nhánh
+    </h3>
+
+    <div class="space-y-12">
+        @foreach(var group in menuGrouped) {
+            var categoryId = "cat-" + group.Key.Replace(" ", "-").ToLower();
+            <div class="animate-fade-in-up category-section" id="@categoryId">
+                <div onclick="toggleCategory('@categoryId')" class="flex items-center gap-4 mb-6 cursor-pointer group/header">
+                    <h4 class="text-lg font-black text-white uppercase tracking-wider group-hover/header:text-brand-orange transition-colors">@group.Key</h4>
+                    <div class="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent"></div>
+                    <i class="fa-solid fa-chevron-down text-xs text-brand-gray/40 group-hover/header:text-brand-orange transition-all chevron-header"></i>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10 category-content overflow-hidden">
+                    @foreach(var item in group) {
+                        var ratings = ViewBag.ItemRatings as Dictionary<int, (int Count, double Avg)>;
+                        var salesCounts = ViewBag.ItemSalesCounts as Dictionary<int, int>;
+                        var hasRating = ratings != null && ratings.ContainsKey(item.Id);
+                        var count = hasRating ? ratings[item.Id].Count : 0;
+                        var avg = hasRating ? ratings[item.Id].Avg : 5.0; // Default to 5 stars if no reviews
+                        var salesCount = salesCounts != null && salesCounts.ContainsKey(item.Id) ? salesCounts[item.Id] : 0;
+                        
+                        <div class="p-6 rounded-[2.5rem] bg-white/[0.03] border border-white/5 hover:border-brand-orange/20 transition-all hover:-translate-y-1 duration-300 relative group/item overflow-hidden">
+                            <div class="flex gap-5">
+                                <div class="w-24 h-24 rounded-2xl overflow-hidden border border-white/10 shadow-lg flex-shrink-0">
+                                    @if(!string.IsNullOrEmpty(item.ImageUrl)) {
+                                        <img src="@item.ImageUrl" class="w-full h-full object-cover group-hover/item:scale-110 transition-transform duration-500" alt="food" />
+                                    } else {
+                                        <div class="w-full h-full bg-brand-dark flex items-center justify-center text-brand-orange/50">
+                                            <i class="fa-solid fa-bowl-food text-3xl"></i>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="flex-1 flex flex-col justify-between">
+                                    <div>
+                                        <div class="flex justify-between items-start mb-1">
+                                            <h5 class="font-extrabold text-white text-base line-clamp-1">@item.Name</h5>
+                                            <div class="flex items-center gap-1">
+                                                @if(count > 0) {
+                                                    <span class="text-[8px] text-brand-gray/60 font-bold">(@count)</span>
+                                                }
+                                                <div class="flex text-[8px] text-yellow-400 gap-0.5">
+                                                    @for(int i=0; i<5; i++) {
+                                                        <i class="fa-solid fa-star @(i < Math.Round(avg) ? "" : "text-white/10")"></i>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-brand-gray line-clamp-2 leading-relaxed">@item.Description</p>
+                                    </div>
+                                    <div class="flex items-center justify-between mt-3">
+                                        <div class="flex flex-col">
+                                            <span class="text-brand-orange font-black text-base">@item.Price.ToString("N0") <span class="text-[10px]">VNĐ</span></span>
+                                            @if(salesCount > 0) {
+                                                <span class="text-[10px] font-bold text-brand-gray/50 italic mt-0.5">Đã bán: @salesCount</span>
+                                            }
+                                        </div>
+                                        @if(!item.IsAvailable) {
+                                            <span class="text-[9px] font-black text-red-500 uppercase px-2 py-0.5 rounded bg-red-500/10">Hết hàng</span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="mt-12 flex items-center justify-center gap-6">
+        @{
+            int curPage = ViewBag.CurrentPage;
+            int totalPgs = ViewBag.TotalPages;
+        }
+
+        @if (curPage > 1) {
+            <a href="?id=@Model.Id&page=@(curPage - 1)" class="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-brand-orange/20 hover:border-brand-orange/30 transition-all transition-transform hover:-translate-x-1">
+                <i class="fa-solid fa-chevron-left text-xs"></i>
+                Trang trước
+            </a>
+        } else {
+            <div class="px-6 py-3 rounded-2xl bg-white/[0.02] border border-white/5 text-brand-gray/30 font-bold cursor-not-allowed">
+                Trang trước
+            </div>
+        }
+
+        <div class="flex items-center gap-2 px-5 py-2 rounded-xl bg-brand-orange/10 border border-brand-orange/20">
+            <span class="text-xs font-bold text-brand-orange">Trang @curPage / @totalPgs</span>
+        </div>
+
+        @if (curPage < totalPgs) {
+            <a href="?id=@Model.Id&page=@(curPage + 1)" class="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-brand-orange/20 hover:border-brand-orange/30 transition-all transition-transform hover:translate-x-1">
+                Trang sau
+                <i class="fa-solid fa-chevron-right text-xs"></i>
+            </a>
+        } else {
+            <div class="px-6 py-3 rounded-2xl bg-white/[0.02] border border-white/5 text-brand-gray/30 font-bold cursor-not-allowed">
+                Trang sau
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const ctx = document.getElementById('revenueChart').getContext('2d');
+            
+            // Prepare data from ViewBag
+            const rawData = @Html.Raw(Json.Serialize(ViewBag.DailyRevenue));
+            
+            // Last 7 days labels
+            const labels = [];
+            const dataValues = [];
+            
+            for(let i = 6; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i);
+                const dateStr = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+                labels.push(dateStr);
+                
+                // Find data for this date
+                const match = rawData.find(d => {
+                    const dDate = new Date(d.date);
+                    return dDate.getDate() === date.getDate() && dDate.getMonth() === date.getMonth();
+                });
+                dataValues.push(match ? match.amount : 0);
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Doanh thu (VNĐ)',
+                        data: dataValues,
+                        borderColor: '#FF6B00',
+                        backgroundColor: (context) => {
+                            const chart = context.chart;
+                            const {ctx, chartArea} = chart;
+                            if (!chartArea) return null;
+                            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                            gradient.addColorStop(0, 'rgba(255, 107, 0, 0)');
+                            gradient.addColorStop(1, 'rgba(255, 107, 0, 0.2)');
+                            return gradient;
+                        },
+                        borderWidth: 4,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#FF6B00',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { 
+                                color: 'rgba(255, 255, 255, 0.4)',
+                                font: { size: 10 },
+                                callback: val => (val / 1000) + 'k'
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { 
+                                color: 'rgba(255, 255, 255, 0.4)',
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+
+        function toggleCategory(id, shouldScroll = false) {
+            const section = document.getElementById(id);
+            if (!section) return;
+
+            const content = section.querySelector('.category-content');
+            const sidebarListId = "sidebar-list-" + id.replace("cat-", "");
+            const sidebarList = document.getElementById(sidebarListId);
+            const chevrons = document.querySelectorAll(`[onclick^="toggleCategory('${id}'"] .chevron-icon, #${id} .chevron-header`);
+            
+            // Toggle main menu section
+            const isHidden = content.style.display === 'none' || window.getComputedStyle(content).display === 'none';
+            
+            if (isHidden) {
+                // Open main menu content
+                content.style.display = 'grid';
+                chevrons.forEach(c => c.style.transform = 'rotate(0deg)');
+                gsap.fromTo(content, { height: 0, opacity: 0 }, { duration: 0.4, height: "auto", opacity: 1, ease: "power2.out", onComplete: () => {
+                    content.style.height = "auto";
+                }});
+
+                // Expand sidebar items list
+                if (sidebarList) {
+                    sidebarList.style.display = 'block';
+                    gsap.fromTo(sidebarList, { height: 0, opacity: 0 }, { duration: 0.4, height: "auto", opacity: 1, ease: "power2.out" });
+                }
+            } else if (!shouldScroll) {
+                // Close (Only if clicking to toggle, not when sidebar wants to scroll to an already open section)
+                chevrons.forEach(c => c.style.transform = 'rotate(-90deg)');
+                gsap.to(content, { duration: 0.3, height: 0, opacity: 0, ease: "power2.in", onComplete: () => {
+                    content.style.display = 'none';
+                }});
+
+                // Collapse sidebar items list
+                if (sidebarList) {
+                    gsap.to(sidebarList, { duration: 0.3, height: 0, opacity: 0, ease: "power2.in", onComplete: () => {
+                        sidebarList.style.display = 'none';
+                    }});
+                }
+            }
+
+            if (shouldScroll) {
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    </script>
+}
+
+<style>
+    .animate-fade-in-up {
+        animation: fadeInUp 0.6s ease-out forwards;
+        opacity: 0;
+    }
+    @@keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @for (int i = 1; i <= 10; i++) {
+        <text>.animate-fade-in-up:nth-child(@i) { animation-delay: @(i * 0.1)s; }</text>
+    }
+</style>

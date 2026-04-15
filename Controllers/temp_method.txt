@@ -1,0 +1,149 @@
+        private async Task EnsureDatabaseSchemaAndNotifications()
+        {
+            try {
+                // Delete mock/unnecessary notifications
+                var obsoleteTypes = new[] { NotificationType.MenuItemApproval };
+                var oldMocks = await _context.Notifications
+                    .Where(n => obsoleteTypes.Contains(n.Type) || n.RelatedId == null)
+                    .ToListAsync();
+                if (oldMocks.Any()) {
+                    _context.Notifications.RemoveRange(oldMocks);
+                    await _context.SaveChangesAsync();
+                }
+
+                // 1. Shipper Registrations
+                var allShippers = await _context.Users.Where(u => u.Role == UserRole.Shipper).ToListAsync();
+                foreach(var s in allShippers) {
+                    var notif = await _context.Notifications.FirstOrDefaultAsync(n => n.Type == NotificationType.ShipperRegistration && n.RelatedId == s.Id && n.RecipientId == null);
+                    if (notif == null) {
+                        if (!s.IsActive) {
+                            _context.Notifications.Add(new Notification {
+                                Title = "Đăng ký Shipper mới", Message = $"Ứng viên '{s.FullName}' nộp hồ sơ.",
+                                Type = NotificationType.ShipperRegistration, RelatedId = s.Id, TargetUrl = $"/Admin/Shippers#shipper-{s.Id}", CreatedAt = s.CreatedAt
+                            });
+                        }
+                    } else {
+                        if (s.IsActive) {
+                            notif.Title = "Shipper đã được duyệt";
+                            notif.Message = $"Sẵn sàng hoạt động: {s.FullName}";
+                            notif.TargetUrl = $"/Admin/ShipperDetail/{s.Id}";
+                        } else {
+                            notif.Title = "Đăng ký Shipper mới";
+                            notif.TargetUrl = $"/Admin/Shippers#shipper-{s.Id}";
+                        }
+                    }
+                }
+
+                // 2. Partner Registrations
+                var allPartners = await _context.Users.Where(u => u.Role == UserRole.Partner).ToListAsync();
+                foreach(var p in allPartners) {
+                    var notif = await _context.Notifications.FirstOrDefaultAsync(n => n.Type == NotificationType.PartnerRegistration && n.RelatedId == p.Id && n.RecipientId == null);
+                    if (notif == null) {
+                        if (!p.IsActive) {
+                            _context.Notifications.Add(new Notification {
+                                Title = "Đăng ký Đối tác mới", Message = $"Người dùng '{p.FullName}' đăng ký Đối tác.",
+                                Type = NotificationType.PartnerRegistration, RelatedId = p.Id, TargetUrl = $"/Admin/Merchants#partner-{p.Id}", CreatedAt = p.CreatedAt
+                            });
+                        }
+                    } else {
+                        if (p.IsActive) {
+                            notif.Title = "Đối tác đã được duyệt";
+                            notif.Message = $"Bắt đầu kinh doanh: {p.FullName}";
+                            notif.TargetUrl = $"/Admin/Merchants?openPartnerId={p.Id}";
+                        } else {
+                            notif.Title = "Đăng ký Đối tác mới";
+                            notif.TargetUrl = $"/Admin/Merchants#partner-{p.Id}";
+                        }
+                    }
+                }
+
+                // 3. Branch Registrations 
+                var allStores = await _context.Stores.ToListAsync();
+                foreach(var st in allStores) {
+                    var notif = await _context.Notifications.FirstOrDefaultAsync(n => n.Type == NotificationType.StoreRegistration && n.RelatedId == st.Id.ToString() && n.RecipientId == null);
+                    if (notif == null) {
+                        if (st.IsLocked && !st.IsOpen) {
+                            _context.Notifications.Add(new Notification {
+                                Title = "Đăng ký Chi nhánh mới", Message = $"Chi nhánh '{st.Name}' chờ duyệt.",
+                                Type = NotificationType.StoreRegistration, RelatedId = st.Id.ToString(), TargetUrl = $"/Admin/Merchants#store-{st.Id}", CreatedAt = DateTime.UtcNow
+                            });
+                        }
+                    } else {
+                        if (st.IsOpen && !st.IsLocked) {
+                            notif.Title = "Chi nhánh đã được duyệt";
+                            notif.Message = $"Sẵn sàng phục vụ: {st.Name}";
+                            notif.TargetUrl = $"/Admin/StoreDetail/{st.Id}";
+                        } else {
+                            notif.Title = "Đăng ký Chi nhánh mới";
+                            notif.TargetUrl = $"/Admin/Merchants#store-{st.Id}";
+                        }
+                    }
+                }
+
+                // 4. 1-Star Reviews 
+                var negativeReviews = await _context.Reviews
+                    .Include(r => r.Order).ThenInclude(o => (o != null ? o.OrderItems : null))
+                    .Where(r => r.RatingShipper == 1 || r.RatingMenu == 1)
+                    .ToListAsync();
+                
+                foreach(var rv in negativeReviews) {
+                    if (rv.RatingShipper == 1 && rv.Order?.ShipperId != null) {
+                        if(!await _context.Notifications.AnyAsync(n => n.Type == NotificationType.CustomerReview && n.RelatedId == "S" + rv.Id.ToString())) {
+                            var shipper = await _context.Users.FindAsync(rv.Order.ShipperId);
+                            if (shipper != null && !shipper.HasOneStarReview) { shipper.HasOneStarReview = true; }
+                            _context.Notifications.Add(new Notification {
+                                Title = "Đánh giá 1 sao (Shipper)", Message = $"Shipper bị đánh giá 1 sao. (ĐH: {rv.Order.OrderCode})",
+                                Type = NotificationType.CustomerReview, RelatedId = "S" + rv.Id.ToString(), TargetUrl = $"/Admin/Shippers", CreatedAt = rv.CreatedAt
+                            });
+                        }
+                    }
+                    if (rv.RatingMenu == 1 && rv.Order != null && rv.Order.OrderItems.Any()) {
+                        var storeId = rv.Order.StoreId != 0 ? rv.Order.StoreId : rv.Order.OrderItems.FirstOrDefault()?.MenuItem?.StoreId;
+                        if (storeId != null) {
+                            var store = await _context.Stores.FindAsync(storeId);
+                            if (store != null) {
+                                if (!store.HasOneStarReview) { store.HasOneStarReview = true; }
+                                // Admin notification
+                                if(!await _context.Notifications.AnyAsync(n => n.Type == NotificationType.CustomerReview && n.RelatedId == "M" + rv.Id.ToString() && n.RecipientId == null)) {
+                                    _context.Notifications.Add(new Notification {
+                                        Title = "Đánh giá 1 sao (Chi nhánh)", Message = $"Chi nhánh '{store.Name}' bị 1 sao. (ĐH: {rv.Order.OrderCode})",
+                                        Type = NotificationType.CustomerReview, RelatedId = "M" + rv.Id.ToString(), TargetUrl = $"/Admin/Merchants", CreatedAt = rv.CreatedAt
+                                    });
+                                }
+                                // Partner notification
+                                if(!await _context.Notifications.AnyAsync(n => n.Type == NotificationType.CustomerReview && n.RelatedId == "M" + rv.Id.ToString() && n.RecipientId == store.OwnerId)) {
+                                    _context.Notifications.Add(new Notification {
+                                        Title = "Đánh giá 1 sao (Chi nhánh)", Message = $"Chi nhánh '{store.Name}' của bạn bị đánh giá 1 sao.",
+                                        Type = NotificationType.CustomerReview, RelatedId = "M" + rv.Id.ToString(), TargetUrl = $"/Partner/Index", CreatedAt = rv.CreatedAt, RecipientId = store.OwnerId
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 5. Expiring Vouchers 
+                var activeVouchers = await _context.Vouchers.Where(v => v.IsActive).ToListAsync();
+                foreach(var v in activeVouchers) {
+                    bool expiring = v.EndDate <= DateTime.UtcNow.AddDays(3) && v.EndDate >= DateTime.UtcNow;
+                    bool limitSoon = v.UsedCount >= v.MaxUsageCount * 0.9 && v.UsedCount < v.MaxUsageCount;
+                    
+                    if (expiring && !await _context.Notifications.AnyAsync(n => n.Type == NotificationType.VoucherExpiring && n.RelatedId == v.Id.ToString())) {
+                        _context.Notifications.Add(new Notification {
+                            Title = "Voucher sắp hết hạn", Message = $"Voucher {v.Code} sắp hết hạn.",
+                            Type = NotificationType.VoucherExpiring, RelatedId = v.Id.ToString(), TargetUrl = v.OwnerId == null ? "/Admin/Vouchers" : "/Partner/Vouchers", CreatedAt = DateTime.UtcNow, RecipientId = v.OwnerId
+                        });
+                    }
+                    if (limitSoon && !await _context.Notifications.AnyAsync(n => n.Type == NotificationType.VoucherLimitSoon && n.RelatedId == v.Id.ToString())) {
+                        _context.Notifications.Add(new Notification {
+                            Title = "Voucher sắp hết lượt", Message = $"Voucher {v.Code} sắp hết lượt dùng.",
+                            Type = NotificationType.VoucherLimitSoon, RelatedId = v.Id.ToString(), TargetUrl = v.OwnerId == null ? "/Admin/Vouchers" : "/Partner/Vouchers", CreatedAt = DateTime.UtcNow, RecipientId = v.OwnerId
+                        });
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+            } catch (Exception ex) {
+                Console.WriteLine($"[ERROR] EnsureDatabaseSchemaAndNotifications: {ex.Message}");
+            }
+        }

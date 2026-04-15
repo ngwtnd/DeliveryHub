@@ -1,0 +1,144 @@
+@model IEnumerable<Review>
+@{
+    Layout = "~/Views/Shared/_ShipperLayout.cshtml";
+    ViewData["Title"] = "Đánh giá";
+    double avgRating = ViewBag.AvgRating ?? 5.0;
+    int totalReviews = ViewBag.TotalReviews ?? 0;
+    int star5 = ViewBag.Star5 ?? 0;
+    int star4 = ViewBag.Star4 ?? 0;
+    int star3 = ViewBag.Star3 ?? 0;
+    int star2 = ViewBag.Star2 ?? 0;
+    int star1 = ViewBag.Star1 ?? 0;
+
+    string StarHtml(int rating)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 1; i <= 5; i++)
+        {
+            if (i <= rating) sb.Append("<i class='fa-solid fa-star' style='color:#eab308;font-size:0.75rem;'></i>");
+            else sb.Append("<i class='fa-regular fa-star' style='color:#334155;font-size:0.75rem;'></i>");
+        }
+        return sb.ToString();
+    }
+
+    string TimeAgo(DateTime dt)
+    {
+        var diff = DateTime.Now - dt;
+        if (diff.TotalMinutes < 1) return "vừa xong";
+        if (diff.TotalHours < 1) return $"{(int)diff.TotalMinutes} phút trước";
+        if (diff.TotalDays < 1) return $"{(int)diff.TotalHours} giờ trước";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays} ngày trước";
+        return dt.ToString("dd/MM/yyyy");
+    }
+}
+
+<div class="max-w-5xl mx-auto space-y-6">
+    <!-- Rating Summary -->
+    <div style="display:grid; grid-template-columns:auto 1fr; gap:1.25rem;">
+        <!-- Big score -->
+        <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.07); padding:2.5rem 3rem; border-radius:2rem; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.5rem; min-width:200px;">
+            <span style="font-size:4rem; font-weight:900; color:white; line-height:1;">@avgRating</span>
+            <div style="display:flex; gap:4px;">
+                @for (int i = 1; i <= 5; i++)
+                {
+                    double filled = avgRating - i + 1;
+                    if (filled >= 1)
+                    {
+                        <i class="fa-solid fa-star" style="color:#eab308; font-size:1.25rem;"></i>
+                    }
+                    else if (filled > 0)
+                    {
+                        <i class="fa-solid fa-star-half-stroke" style="color:#eab308; font-size:1.25rem;"></i>
+                    }
+                    else
+                    {
+                        <i class="fa-regular fa-star" style="color:#334155; font-size:1.25rem;"></i>
+                    }
+                }
+            </div>
+            <p style="color:#64748b; font-size:0.75rem; font-weight:600; margin:0;">Dựa trên @totalReviews đánh giá</p>
+        </div>
+
+        <!-- Star bars -->
+        <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.07); padding:2rem 2.5rem; border-radius:2rem; display:flex; flex-direction:column; justify-content:center; gap:0.875rem;">
+            @{
+                var bars = new[] {
+                    (5, star5), (4, star4), (3, star3), (2, star2), (1, star1)
+                };
+            }
+            @foreach (var (star, pct) in bars)
+            {
+                var barColor = star >= 4 ? "#eab308" : star == 3 ? "#f97316" : "#ef4444";
+                <div style="display:flex; align-items:center; gap:1rem;">
+                    <span style="color:#94a3b8; font-size:0.75rem; font-weight:700; width:3.5rem; text-align:right;">@star sao</span>
+                    <div style="flex:1; height:10px; background:rgba(255,255,255,0.06); border-radius:999px; overflow:hidden;">
+                        <div style="height:100%; width:@pct%; background:@barColor; border-radius:999px; transition:width 0.8s ease; box-shadow:0 0 8px @(barColor)55;"></div>
+                    </div>
+                    <span style="color:#64748b; font-size:0.7rem; font-weight:700; width:2.5rem;">@pct%</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Review Cards -->
+    @if (!Model.Any())
+    {
+        <div style="text-align:center; padding:5rem 1rem; background:#0f172a; border:1px solid rgba(255,255,255,0.06); border-radius:2rem;">
+            <i class="fa-regular fa-star" style="font-size:3rem; color:#1e293b; display:block; margin-bottom:1rem;"></i>
+            <h4 style="color:white; font-weight:900; margin:0 0 0.5rem;">Chưa có đánh giá nào</h4>
+            <p style="color:#64748b; font-size:0.8rem;">Hoàn thành đơn hàng và khách hàng sẽ để lại đánh giá tại đây.</p>
+        </div>
+    }
+    else
+    {
+        <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:1.25rem;">
+            @foreach (var review in Model)
+            {
+                var order = review.Order;
+                <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.07); border-radius:1.5rem; padding:1.5rem; transition:border-color 0.2s;" onmouseover="this.style.borderColor='rgba(249,115,22,0.35)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.07)'">
+                    <!-- Header -->
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem;">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <div style="width:2.5rem; height:2.5rem; background:#1e293b; border-radius:50%; border:2px solid rgba(255,255,255,0.1); display:flex; align-items:center; justify-content:center; color:#64748b;">
+                                <i class="fa-solid fa-user" style="font-size:0.85rem;"></i>
+                            </div>
+                            <div>
+                                <p style="color:white; font-weight:800; font-size:0.85rem; margin:0;">@(order?.User?.FullName ?? "Khách hàng")</p>
+                                <p style="color:#64748b; font-size:0.65rem; font-weight:600; margin:0; margin-top:1px;">@TimeAgo(review.CreatedAt)</p>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:2px; align-items:center;">
+                            @Html.Raw(StarHtml(review.RatingShipper))
+                        </div>
+                    </div>
+
+                    <!-- Comment -->
+                    @if (!string.IsNullOrEmpty(review.Comment))
+                    {
+                        <p style="color:#cbd5e1; font-size:0.8rem; line-height:1.6; margin:0 0 1rem; font-style:italic;">"@review.Comment"</p>
+                    }
+                    else
+                    {
+                        <p style="color:#475569; font-size:0.75rem; font-style:italic; margin:0 0 1rem;">(Không có bình luận)</p>
+                    }
+
+                    <!-- Order tags -->
+                    <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+                        @if (order?.Store != null)
+                        {
+                            <span style="padding:0.25rem 0.6rem; background:rgba(249,115,22,0.1); border:1px solid rgba(249,115,22,0.2); border-radius:0.5rem; font-size:0.65rem; color:#fb923c; font-weight:700;">
+                                <i class="fa-solid fa-store" style="margin-right:3px;"></i>@order.Store.Name
+                            </span>
+                        }
+                        @if (order != null)
+                        {
+                            <span style="padding:0.25rem 0.6rem; background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.2); border-radius:0.5rem; font-size:0.65rem; color:#60a5fa; font-weight:700;">
+                                <i class="fa-solid fa-hashtag" style="margin-right:3px;"></i>@order.OrderCode
+                            </span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

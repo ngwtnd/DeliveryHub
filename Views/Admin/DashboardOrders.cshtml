@@ -1,0 +1,248 @@
+@model IEnumerable<Order>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Chi tiết đơn hàng Dashboard";
+
+    string GetStatusLabel(OrderStatus status) => status switch {
+        OrderStatus.Pending => "Mới tạo",
+        OrderStatus.SearchingShipper => "Tìm shipper",
+        OrderStatus.Accepted => "Nhận đơn",
+        OrderStatus.Preparing => "Đang làm món",
+        OrderStatus.Delivering => "Đang giao",
+        OrderStatus.Completed => "Thành công",
+        OrderStatus.Cancelled => "Đã hủy",
+        OrderStatus.Failed => "Thất bại",
+        _ => status.ToString()
+    };
+
+    string GetStatusClass(OrderStatus status) => status switch {
+        OrderStatus.Pending => "bg-[#22D3EE]/10 text-[#22D3EE] border border-[#22D3EE]/20",
+        OrderStatus.SearchingShipper => "bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20",
+        OrderStatus.Accepted => "bg-pink-500/10 text-pink-500 border border-pink-500/20",
+        OrderStatus.Preparing => "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20",
+        OrderStatus.Delivering => "bg-brand-orange/10 text-brand-orange border border-brand-orange/20",
+        OrderStatus.Completed => "bg-green-500/20 text-green-400 border border-green-500/20",
+        OrderStatus.Cancelled => "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+        OrderStatus.Failed => "bg-red-500/20 text-red-500 border border-red-500/20",
+        _ => "bg-gray-500/10 text-gray-500"
+    };
+}
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex justify-between items-center fade-in relative z-10 backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <div class="flex items-center gap-3 mb-2">
+            <a href="@Url.Action("Index", "Admin", new { days = ViewBag.SelectedDays, storeId = ViewBag.SelectedStoreId })" class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-brand-orange hover:text-black transition-all">
+                <i class="fa-solid fa-arrow-left text-xs"></i>
+            </a>
+            <span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[10px] font-bold text-brand-orange uppercase tracking-wider">Dashboard</span>
+        </div>
+        <h2 class="text-4xl font-black text-white tracking-tighter">Tất cả <span class="text-brand-orange">Đơn hàng</span></h2>
+        <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Tổng cộng <span class="text-white font-black">@ViewBag.TotalItems</span> đơn hàng theo bộ lọc</p>
+    </div>
+
+    <div class="flex items-center gap-4">
+        <div class="relative group">
+            <input type="text" id="tableSearch" placeholder="Tìm kiếm nhanh..." 
+                   class="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-64 outline-none transition-all pl-12" />
+            <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange"></i>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders Table -->
+<div class="bg-brand-dark rounded-[2.5rem] border border-white/5 overflow-hidden fade-in">
+    <div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+        <h4 class="text-xl font-bold flex items-center gap-3"><i class="fa-solid fa-list-check text-brand-orange"></i> Danh sách chi tiết</h4>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="bg-white/5 text-[10px] font-extrabold text-brand-gray uppercase tracking-widest px-8">
+                    <th class="py-5 px-8">Mã đơn</th>
+                    <th class="py-5">Nhà hàng</th>
+                    <th class="py-5">Khách hàng</th>
+                    <th class="py-5">Tổng cộng</th>
+                    <th class="py-5">Trạng thái</th>
+                    <th class="py-5">Thời gian</th>
+                    <th class="py-5 text-center">Tùy chọn</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @if(Model.Any()) {
+                    foreach (var order in Model)
+                    {
+                        var firstStore = order.OrderItems.FirstOrDefault()?.MenuItem?.Store ?? order.Store;
+                        var storeName = firstStore?.Name ?? "Giao hàng";
+                        <tr class="hover:bg-white/[0.02] transition-colors group">
+                            <td class="py-4 px-8 font-bold text-brand-orange">#@order.OrderCode</td>
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center font-bold text-brand-orange">
+                                        @(storeName.Length > 0 ? storeName.Substring(0, 1) : "I")
+                                    </div>
+                                    <span class="font-bold text-sm">@storeName</span>
+                                </div>
+                            </td>
+                            <td>
+                                <p class="font-bold text-sm">@order.User?.FullName</p>
+                                <p class="text-[10px] text-brand-gray uppercase">@order.User?.Email</p>
+                            </td>
+                            <td class="font-bold text-white">@string.Format("{0:N0} VND", order.TotalPrice + order.ShippingFee)</td>
+                            <td>
+                                <span class="px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase @GetStatusClass(order.Status)">
+                                    @GetStatusLabel(order.Status)
+                                </span>
+                            </td>
+                            <td class="text-xs text-brand-gray font-bold">@order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td class="py-4 text-center">
+                                <button onclick="showOrderDetail(@order.Id)" class="w-8 h-8 rounded-full bg-white/5 border border-white/10 hover:bg-brand-orange hover:text-black transition-all shadow-md hover:scale-110">
+                                    <i class="fa-solid fa-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                } else {
+                    <tr>
+                        <td colspan="7" class="py-8 text-center text-brand-gray font-bold">Không tìm thấy đơn hàng nào.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pagination -->
+@if (ViewBag.TotalPages > 1)
+{
+    <div class="flex flex-col items-center justify-center mt-10 gap-3">
+        <div class="flex items-center gap-2 bg-brand-dark/50 backdrop-blur-xl rounded-2xl border border-white/5 p-2 shadow-2xl">
+            <!-- Previous -->
+            <a href="@Url.Action("DashboardOrders", "Admin", new { days = ViewBag.SelectedDays, storeId = ViewBag.SelectedStoreId, page = ViewBag.CurrentPage - 1 })" 
+               class="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-brand-orange hover:text-black text-white transition-all group @(ViewBag.CurrentPage == 1 ? "opacity-30 pointer-events-none" : "")">
+                <i class="fa-solid fa-chevron-left text-sm group-hover:-translate-x-1 transition-transform"></i>
+            </a>
+
+            <!-- Numbers -->
+            <div class="flex items-center gap-1 mx-2">
+                @{
+                    int startPage = Math.Max(1, ViewBag.CurrentPage - 2);
+                    int endPage = Math.Min((int)ViewBag.TotalPages, startPage + 4);
+                    if (endPage - startPage < 4) {
+                        startPage = Math.Max(1, endPage - 4);
+                    }
+                }
+                @for (int i = startPage; i <= endPage; i++)
+                {
+                    if (i == ViewBag.CurrentPage)
+                    {
+                        <span class="w-10 h-10 flex items-center justify-center rounded-xl bg-brand-orange text-black font-black text-sm shadow-[0_0_15px_rgba(255,107,0,0.4)] pointer-events-none transform scale-110">@i</span>
+                    }
+                    else
+                    {
+                        <a href="@Url.Action("DashboardOrders", "Admin", new { days = ViewBag.SelectedDays, storeId = ViewBag.SelectedStoreId, page = i })" 
+                           class="w-10 h-10 flex items-center justify-center rounded-xl bg-transparent hover:bg-white/10 text-white font-bold text-sm transition-all hover:scale-110">@i</a>
+                    }
+                }
+            </div>
+
+            <!-- Next -->
+            <a href="@Url.Action("DashboardOrders", "Admin", new { days = ViewBag.SelectedDays, storeId = ViewBag.SelectedStoreId, page = ViewBag.CurrentPage + 1 })" 
+               class="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-brand-orange hover:text-black text-white transition-all group @(ViewBag.CurrentPage == ViewBag.TotalPages ? "opacity-30 pointer-events-none" : "")">
+                <i class="fa-solid fa-chevron-right text-sm group-hover:translate-x-1 transition-transform"></i>
+            </a>
+        </div>
+        
+        <p class="text-[10px] font-black text-brand-gray uppercase tracking-widest bg-white/[0.02] px-4 py-1.5 rounded-full border border-white/5">
+            Trang <span class="text-white">@ViewBag.CurrentPage</span> / @ViewBag.TotalPages
+        </p>
+    </div>
+}
+
+<template id="orderData">
+    @foreach(var order in Model) {
+        <div data-id="@order.Id" 
+             data-code="@order.OrderCode"
+             data-customer="@order.User?.FullName"
+             data-merchant="@(order.OrderItems.FirstOrDefault()?.MenuItem?.Store?.Name ?? order.Store?.Name)"
+             data-merchant-addr="@(order.OrderItems.FirstOrDefault()?.MenuItem?.Store?.Address ?? order.Store?.Address)"
+             data-delivery-addr="@order.DeliveryAddress"
+             data-status="@order.Status"
+             data-price="@string.Format("{0:N0}", order.TotalPrice + order.ShippingFee)"
+             data-time1="@order.CreatedAt.ToString("HH:mm - dd/MM")"
+             data-time2="@(order.AcceptedAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-time3="@(order.PickedUpAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-time4="@((order.Status == OrderStatus.Completed ? order.CompletedAt : order.CancelledAt)?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-shipper-name="@(order.Shipper?.FullName ?? "")"
+             data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)[order.ShipperId] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
+             data-note="@order.Note">
+             <div class="items-json">
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(order.OrderItems.Select(oi => new { name = oi.MenuItem?.Name, qty = oi.Quantity, price = oi.Price })))
+             </div>
+        </div>
+    }
+</template>
+
+@await Html.PartialAsync("_OrderDetailModal")
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        function showOrderDetail(id) {
+            const dataDiv = document.querySelector(`template#orderData`).content.querySelector(`[data-id="${id}"]`);
+            if (!dataDiv) return;
+            const items = JSON.parse(dataDiv.querySelector('.items-json').innerText);
+            
+            const data = {
+                id: id,
+                code: dataDiv.dataset.code,
+                customer: dataDiv.dataset.customer,
+                merchant: dataDiv.dataset.merchant,
+                merchantAddr: dataDiv.dataset.merchantAddr,
+                deliveryAddr: dataDiv.dataset.deliveryAddr,
+                status: dataDiv.dataset.status,
+                totalPrice: dataDiv.dataset.price,
+                time1: dataDiv.dataset.time1,
+                time2: dataDiv.dataset.time2,
+                time3: dataDiv.dataset.time3,
+                time4: dataDiv.dataset.time4,
+                shipperName: dataDiv.dataset.shipperName,
+                shipperCode: dataDiv.dataset.shipperCode,
+                note: dataDiv.dataset.note,
+                items: items
+            };
+
+            if (typeof renderOrderDetail === 'function') {
+                renderOrderDetail(data);
+            }
+
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            modal.classList.remove('hidden');
+            if (typeof gsap !== 'undefined') {
+                gsap.set(body, { scale: 0.9, opacity: 0 });
+                gsap.to(body, { duration: 0.5, scale: 1, opacity: 1, ease: "back.out(1.2)" });
+            }
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            if (typeof gsap !== 'undefined') {
+                gsap.to(body, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
+                    modal.classList.add('hidden');
+                }});
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+
+        // Quick Search implementation
+        document.getElementById('tableSearch')?.addEventListener('keyup', function() {
+            let val = this.value.toLowerCase();
+            let rows = document.querySelectorAll('table tbody tr:not(.no-search)');
+            rows.forEach(row => {
+                row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
+            });
+        });
+    </script>
+}

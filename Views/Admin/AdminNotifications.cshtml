@@ -1,0 +1,462 @@
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Trung tâm Thông báo";
+}
+
+<div class="flex gap-8 min-h-[calc(100vh-160px)]">
+    <!-- Sidebar: Categories -->
+    <aside class="w-72 shrink-0">
+        <div class="sticky top-28 space-y-6">
+            <div class="p-6 bg-brand-dark/50 border border-white/5 rounded-[2.5rem] backdrop-blur-xl">
+                <h3 class="text-[10px] font-black text-brand-gray uppercase tracking-[3px] mb-6 px-2">Danh mục</h3>
+                <nav class="space-y-1">
+                    <button onclick="setCategory('all')" id="cat-all" class="cat-btn w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all active-cat">
+                        <div class="flex items-center gap-4">
+                            <i class="fa-solid fa-layer-group text-lg"></i>
+                            <span class="text-sm font-bold">Tất cả</span>
+                        </div>
+                        <span id="badge-all" class="hidden shrink-0 w-5 h-5 bg-red-500 border border-black rounded-full text-[10px] font-black flex items-center justify-center text-black shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>
+                    </button>
+                    <button onclick="setCategory('branch')" id="cat-branch" class="cat-btn w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all text-brand-gray hover:bg-white/5 hover:text-white">
+                        <div class="flex items-center gap-4">
+                            <i class="fa-solid fa-store text-lg"></i>
+                            <span class="text-sm font-bold">Chi nhánh</span>
+                        </div>
+                        <span id="badge-branch" class="hidden shrink-0 w-5 h-5 bg-red-500 border border-black rounded-full text-[10px] font-black flex items-center justify-center text-black shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>
+                    </button>
+                    <button onclick="setCategory('partner')" id="cat-partner" class="cat-btn w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all text-brand-gray hover:bg-white/5 hover:text-white">
+                        <div class="flex items-center gap-4">
+                            <i class="fa-solid fa-user-tie text-lg"></i>
+                            <span class="text-sm font-bold">Đối tác</span>
+                        </div>
+                        <span id="badge-partner" class="hidden shrink-0 w-5 h-5 bg-red-500 border border-black rounded-full text-[10px] font-black flex items-center justify-center text-black shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>
+                    </button>
+                    <button onclick="setCategory('shipper')" id="cat-shipper" class="cat-btn w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all text-brand-gray hover:bg-white/5 hover:text-white">
+                        <div class="flex items-center gap-4">
+                            <i class="fa-solid fa-truck-fast text-lg"></i>
+                            <span class="text-sm font-bold">Shipper</span>
+                        </div>
+                        <span id="badge-shipper" class="hidden shrink-0 w-5 h-5 bg-red-500 border border-black rounded-full text-[10px] font-black flex items-center justify-center text-black shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>
+                    </button>
+                    <button onclick="setCategory('voucher')" id="cat-voucher" class="cat-btn w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all text-brand-gray hover:bg-white/5 hover:text-white">
+                        <div class="flex items-center gap-4">
+                            <i class="fa-solid fa-ticket text-lg"></i>
+                            <span class="text-sm font-bold">Voucher</span>
+                        </div>
+                        <span id="badge-voucher" class="hidden shrink-0 w-5 h-5 bg-red-500 border border-black rounded-full text-[10px] font-black flex items-center justify-center text-black shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>
+                    </button>
+                    <button onclick="setCategory('review')" id="cat-review" class="cat-btn w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all text-brand-gray hover:bg-white/5 hover:text-white">
+                        <div class="flex items-center gap-4">
+                            <i class="fa-solid fa-star text-lg"></i>
+                            <span class="text-sm font-bold">Đánh giá</span>
+                        </div>
+                        <span id="badge-review" class="hidden shrink-0 w-5 h-5 bg-red-500 border border-black rounded-full text-[10px] font-black flex items-center justify-center text-black shadow-[0_0_10px_rgba(239,68,68,0.5)]"></span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content: List -->
+    <div class="flex-1 flex flex-col items-start gap-4">
+        <!-- Filters Container -->
+        <div id="statusFilterContainer" class="hidden">
+            <div class="relative flex items-center bg-white/5 p-1.5 rounded-2xl border border-white/10 w-fit">
+                <div id="statusPill" class="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0 bg-white/10 shadow-lg shadow-white/5"></div>
+                <div id="statusButtonsContainer" class="flex z-10 w-full h-full">
+                    <!-- Buttons injected via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification List Container -->
+        <div id="notificationsContainer" class="w-full space-y-3 pb-4">
+            <!-- Items loaded via AJAX -->
+            <div class="py-40 text-center animate-pulse">
+                <i class="fa-solid fa-circle-notch fa-spin text-4xl text-brand-orange mb-4"></i>
+                <p class="text-sm font-black text-brand-gray uppercase tracking-widest">Đang tải dữ liệu...</p>
+            </div>
+        </div>
+
+        <!-- Pagination Bar -->
+        <div id="paginationContainer" class="flex items-center justify-center gap-2 py-8 border-t border-white/5">
+            <!-- Buttons injected via JS -->
+        </div>
+    </div>
+</div>
+
+<style>
+    .active-cat {
+        background: #FF6B00 !important;
+        color: black !important;
+        box-shadow: 0 10px 25px rgba(255, 107, 0, 0.3);
+        transform: translateX(10px);
+    }
+    .notification-card {
+        transition: all 0.3s ease;
+        animation: cardIn 0.5s ease-out forwards;
+    }
+    @@keyframes cardIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .notification-card:hover {
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.03);
+    }
+    .page-btn {
+        width: 45px;
+        height: 45px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 14px;
+        font-weight: 900;
+        font-size: 13px;
+        transition: all 0.3s ease;
+        background: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.05);
+        color: #94a3b8;
+    }
+    .page-btn:hover {
+        background: rgba(255,255,255,0.1);
+        color: white;
+        transform: translateY(-2px);
+    }
+    .active-page {
+        background: #FF6B00 !important;
+        color: black !important;
+        border-color: #FF6B00 !important;
+        box-shadow: 0 5px 15px rgba(255, 107, 0, 0.3);
+    }
+</style>
+
+
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        let currentCategory = 'all';
+        let currentStatus = 'all';
+        let currentPage = 1;
+
+        async function loadData(page = 1) {
+            currentPage = page;
+            const container = document.getElementById('notificationsContainer');
+            const countLabel = document.getElementById('resultCount');
+            const pagination = document.getElementById('paginationContainer');
+            
+            // Show loading state
+            container.style.opacity = '0.5';
+
+            try {
+                const response = await fetch(`/Admin/GetFilteredNotifications?category=${currentCategory}&status=${currentStatus}&page=${currentPage}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    if (countLabel) countLabel.innerText = `${data.totalItems} thông báo`;
+                    renderList(data.notifications);
+                    renderPagination(data.page, data.totalPages);
+                    if (data.categoryCounts) updateBadges(data.categoryCounts);
+                }
+            } catch (error) {
+                container.innerHTML = `<div class="py-20 text-center text-red-500 font-bold">Lỗi: Không thể tải dữ liệu.</div>`;
+            }
+
+            container.style.opacity = '1';
+        }
+
+        function renderList(list) {
+            const container = document.getElementById('notificationsContainer');
+            if (!list || list.length === 0) {
+                container.innerHTML = `
+                    <div class="py-40 bg-brand-dark/30 border border-dashed border-white/10 rounded-[3rem] text-center">
+                        <i class="fa-solid fa-ghost text-5xl text-brand-gray/20 mb-6 block"></i>
+                        <p class="text-sm font-black text-brand-gray uppercase tracking-[4px]">Không tìm thấy thông báo nào</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(n => {
+                let t = parseInt(n.type);
+                if (isNaN(t)) {
+                    const typeMap = {
+                        "StoreRegistration": 0, "PartnerRegistration": 1, "MenuItemApproval": 2, "ShipperRegistration": 3,
+                        "CustomerReview": 4, "ShipperReview": 5, "VoucherExpiring": 14, "VoucherExpired": 15,
+                        "VoucherLimitSoon": 16, "VoucherLimitReached": 17
+                    };
+                    t = typeMap[n.type] !== undefined ? typeMap[n.type] : -1;
+                }
+
+                const icon = getNotificationIcon(t);
+                const timeStr = formatTime(n.createdAt);
+                
+                // Detailed Badge Logic
+                let statusBadge = '';
+                
+                if (t === 4) { // CustomerReview
+                    statusBadge = '<span class="px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded text-[9px] font-black text-blue-500 uppercase">Đánh giá chi nhánh</span>';
+                } else if (t === 5) { // ShipperReview
+                    statusBadge = '<span class="px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded text-[9px] font-black text-purple-500 uppercase">Đánh giá shipper</span>';
+                } else if (t === 14) { // VoucherExpiring
+                    statusBadge = '<span class="px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded text-[9px] font-black text-orange-500 uppercase">Sắp hết hạn</span>';
+                } else if (t === 15) { // VoucherExpired
+                    statusBadge = '<span class="px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-[9px] font-black text-red-500 uppercase">Đã hết hạn</span>';
+                } else if (t === 16) { // VoucherLimitSoon
+                    statusBadge = '<span class="px-2 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded text-[9px] font-black text-yellow-500 uppercase">Sắp hết lượt dùng</span>';
+                } else if (t === 17) { // VoucherLimitReached
+                    statusBadge = '<span class="px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-[9px] font-black text-red-500 uppercase">Đã hết lượt dùng</span>';
+                } else {
+                    const isPending = [0, 1, 3].includes(t);
+                    statusBadge = isPending 
+                        ? '<span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[9px] font-black text-brand-orange uppercase">Chờ duyệt</span>'
+                        : '<span class="px-2 py-0.5 bg-green-500/10 border border-green-500/20 rounded text-[9px] font-black text-green-500 uppercase">Đã duyệt</span>';
+                }
+
+                return `
+                    <div onclick="handleNotifClick(${n.id}, '${n.targetUrl}', ${t}, '${n.relatedId}')" class="notification-card p-5 bg-brand-dark/50 border border-white/5 rounded-[2rem] flex items-center justify-between cursor-pointer group">
+                        <div class="flex items-center gap-5">
+                            <div class="w-12 h-12 rounded-xl bg-brand-black border border-white/5 flex items-center justify-center text-brand-orange group-hover:scale-110 transition-transform shadow-xl">
+                                <i class="fa-solid ${icon} text-lg"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-3 mb-0.5">
+                                    <h4 class="text-sm font-black text-white">${n.title}</h4>
+                                    ${statusBadge}
+                                </div>
+                                <p class="text-xs text-brand-gray font-medium line-clamp-1">${n.message}</p>
+                                <div class="flex items-center gap-4 mt-1.5">
+                                    <span class="text-[9px] font-bold text-brand-gray uppercase tracking-widest flex items-center gap-1">
+                                        <i class="fa-regular fa-clock"></i> ${timeStr}
+                                    </span>
+                                    <span class="text-[9px] font-bold text-brand-orange/40 uppercase tracking-widest">ID: #${n.id}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                            <button class="px-5 py-2.5 bg-brand-orange text-black rounded-lg font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-orange/20">
+                                Chi tiết
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderPagination(current, total) {
+            const container = document.getElementById('paginationContainer');
+            
+            if (total <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            
+            // Previous Button
+            if (current > 1) {
+                html += `<button onclick="goToPage(${current - 1})" class="page-btn"><i class="fa-solid fa-chevron-left"></i></button>`;
+            }
+
+            // Page numbers
+            for (let i = 1; i <= total; i++) {
+                if (total > 7) {
+                    if (i === 1 || i === total || (i >= current - 2 && i <= current + 2)) {
+                        html += `<button onclick="goToPage(${i})" class="page-btn ${i === current ? 'active-page' : ''}">${i}</button>`;
+                    } else if (i === current - 3 || i === current + 3) {
+                        html += `<div class="w-8 flex justify-center text-brand-gray">...</div>`;
+                    }
+                } else {
+                    html += `<button onclick="goToPage(${i})" class="page-btn ${i === current ? 'active-page' : ''}">${i}</button>`;
+                }
+            }
+
+            // Next Button
+            if (current < total) {
+                html += `<button onclick="goToPage(${current + 1})" class="page-btn"><i class="fa-solid fa-chevron-right"></i></button>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            loadData(page);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        async function triggerFullSync() {
+            const btn = document.getElementById('syncBtn');
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            btn.innerHTML = '<i class="fa-solid fa-sync fa-spin"></i> <span>Đang đồng bộ...</span>';
+
+            try {
+                const response = await fetch('/Admin/ForceRefreshSync', { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    // Show success toast or simple alert
+                    const toast = document.createElement('div');
+                    toast.className = 'fixed bottom-10 right-10 px-8 py-4 bg-green-500 text-black font-black rounded-2xl shadow-2xl z-[100] animate-bounce';
+                    toast.innerText = 'ĐỒNG BỘ THÀNH CÔNG!';
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                    
+                    loadData(1);
+                }
+            } catch (error) {
+                console.error('Sync failed:', error);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+                btn.innerHTML = originalHtml;
+            }
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            currentStatus = 'all'; // Reset status when category changes
+            
+            document.querySelectorAll('.cat-btn').forEach(btn => btn.classList.remove('active-cat', 'text-white'));
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                const innerBtn = btn;
+                if (!innerBtn.classList.contains('active-cat')) innerBtn.classList.add('text-brand-gray');
+            });
+            
+            const activeBtn = document.getElementById(`cat-${cat}`);
+            activeBtn.classList.add('active-cat');
+            activeBtn.classList.remove('text-brand-gray');
+            
+            renderStatusFilters();
+            loadData(1);
+        }
+
+        function renderStatusFilters() {
+            const container = document.getElementById('statusFilterContainer');
+            const btns = document.getElementById('statusButtonsContainer');
+            
+            let html = '';
+            
+            if (currentCategory === 'voucher') {
+                html = `
+                    <button onclick="setStatus('all', this)" data-color="text-white" data-pill="bg-white/10 shadow-lg shadow-white/5" class="status-btn active relative z-10 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all duration-300">Tất cả</button>
+                    <button onclick="setStatus('v_expiring', this)" data-color="text-brand-orange" data-pill="bg-brand-orange/10 border border-brand-orange/50 shadow-[0_0_15px_rgba(255,107,0,0.2)]" class="status-btn relative z-10 px-4 py-2 rounded-xl text-xs font-bold text-brand-gray hover:text-white transition-all duration-300">Sắp hết hạn</button>
+                    <button onclick="setStatus('v_limit', this)" data-color="text-yellow-400" data-pill="bg-yellow-400/10 border border-yellow-400/50 shadow-[0_0_15px_rgba(250,204,21,0.2)]" class="status-btn relative z-10 px-4 py-2 rounded-xl text-xs font-bold text-brand-gray hover:text-white transition-all duration-300">Sắp hết lượt</button>
+                    <button onclick="setStatus('v_expired', this)" data-color="text-red-500" data-pill="bg-red-500/10 border border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]" class="status-btn relative z-10 px-4 py-2 rounded-xl text-xs font-bold text-brand-gray hover:text-white transition-all duration-300">Đã hết hạn</button>
+                `;
+            } else if (currentCategory === 'review') {
+                html = `
+                    <button onclick="setStatus('all', this)" data-color="text-white" data-pill="bg-white/10 shadow-lg shadow-white/5" class="status-btn active relative z-10 px-4 py-2 rounded-xl text-xs font-bold text-white transition-all duration-300">Tất cả</button>
+                    <button onclick="setStatus('r_shipper', this)" data-color="text-brand-orange" data-pill="bg-brand-orange/10 border border-brand-orange/50 shadow-[0_0_15px_rgba(255,107,0,0.2)]" class="status-btn relative z-10 px-4 py-2 rounded-xl text-xs font-bold text-brand-gray hover:text-white transition-all duration-300">Shipper</button>
+                    <button onclick="setStatus('r_branch', this)" data-color="text-yellow-400" data-pill="bg-yellow-400/10 border border-yellow-400/50 shadow-[0_0_15px_rgba(250,204,21,0.2)]" class="status-btn relative z-10 px-4 py-2 rounded-xl text-xs font-bold text-brand-gray hover:text-white transition-all duration-300">Chi nhánh</button>
+                `;
+            }
+            
+            if (html !== '') {
+                container.classList.remove('hidden');
+                btns.innerHTML = html;
+                // Init pill position smoothly
+                setTimeout(() => {
+                    const firstBtn = btns.querySelector('.status-btn');
+                    if (firstBtn) setStatus('all', firstBtn, false);
+                }, 50);
+            } else {
+                container.classList.add('hidden');
+                btns.innerHTML = '';
+            }
+        }
+
+        function setStatus(status, element = null, shouldLoad = true) {
+            currentStatus = status;
+            
+            if (element) {
+                const container = document.getElementById('statusButtonsContainer');
+                const pill = document.getElementById('statusPill');
+                
+                // Revert all
+                const btns = container.querySelectorAll('.status-btn');
+                btns.forEach(b => {
+                    const colors = (b.getAttribute('data-color') || '').split(' ');
+                    b.classList.remove('active', ...colors);
+                    b.classList.add('text-brand-gray');
+                });
+                
+                // Activate clicked
+                element.classList.remove('text-brand-gray');
+                element.classList.add('active', ...(element.getAttribute('data-color') || '').split(' '));
+                
+                // Move & theme the pill
+                if (pill) {
+                    pill.style.width = element.offsetWidth + 'px';
+                    pill.style.left = element.offsetLeft + 'px';
+                    pill.className = `absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0 ${element.getAttribute('data-pill')}`;
+                }
+            }
+
+            if (shouldLoad) loadData(1);
+        }
+
+        function refreshData() {
+            loadData(currentPage);
+        }
+
+        async function handleNotifClick(id, targetUrl, type, relatedId) {
+            await fetch(`/Admin/MarkNotificationAsRead/${id}`, { method: 'POST' });
+            
+            // If Partner Registration, show modal in place!
+            if (type === 1 && relatedId && relatedId !== 'null') {
+                showPartnerRegistrationModal(relatedId);
+            } else if (targetUrl && targetUrl !== 'null' && targetUrl !== '') {
+                window.location.href = targetUrl;
+            } else {
+                loadData(currentPage);
+            }
+        }
+
+        // --- PARTNER REGISTRATION LOGIC ---
+        // DELETED local logic: utilizing the global _PartnerRegistrationModal instead
+
+
+        function getNotificationIcon(type) {
+            const icons = {
+                0: "fa-store",           // StoreRegistration
+                1: "fa-user-tie",        // PartnerRegistration
+                2: "fa-utensils",        // MenuItemApproval
+                3: "fa-truck-fast",      // ShipperRegistration
+                4: "fa-star",            // CustomerReview
+                5: "fa-star-half-stroke", // ShipperReview
+                14: "fa-ticket",
+                15: "fa-ticket",
+                16: "fa-ticket",
+                17: "fa-ticket"
+            };
+            return icons[type] || "fa-bell";
+        }
+
+        function formatTime(dateStr) {
+            const date = new Date(dateStr);
+            const timeStr = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+            const dateStrFormatted = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            return `${timeStr} - ${dateStrFormatted}`;
+        }
+
+        function updateBadges(counts) {
+            const keys = ['all', 'branch', 'partner', 'shipper', 'voucher', 'review'];
+            keys.forEach(k => {
+                const b = document.getElementById('badge-' + k);
+                if (b) {
+                    const count = counts[k] || 0;
+                    if (count > 0) {
+                        b.innerText = count > 99 ? '99+' : count;
+                        b.classList.remove('hidden');
+                    } else {
+                        b.classList.add('hidden');
+                    }
+                }
+            });
+        }
+
+        // Initial load
+        document.addEventListener('DOMContentLoaded', () => loadData(1));
+    </script>
+}

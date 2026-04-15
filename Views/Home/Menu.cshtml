@@ -1,0 +1,284 @@
+@model IEnumerable<DeliveryHubWeb.Models.MenuItem>
+@{
+    ViewData["Title"] = "Tất cả món ăn";
+    var totalSoldDict = ViewBag.ItemSoldDict as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var itemRatingsDict = ViewBag.ItemRatingsDict as Dictionary<int, double> ?? new Dictionary<int, double>();
+
+    string currentSearch = ViewBag.CurrentSearch as string ?? "";
+    string currentFilter = ViewBag.CurrentFilter as string ?? "top-sales";
+    int currentPage = ViewBag.CurrentPage != null ? (int)ViewBag.CurrentPage : 1;
+    int totalPages = ViewBag.TotalPages != null ? (int)ViewBag.TotalPages : 1;
+
+    // Filter Options
+    var filters = new Dictionary<string, string>
+    {
+        { "top-sales", "Bán chạy nhất" },
+        { "top-rating", "Đánh giá cao" },
+        { "price-asc", "Giá: Thấp đến Cao" },
+        { "price-desc", "Giá: Cao đến Thấp" }
+    };
+}
+
+<!-- Menu Banner -->
+<section class="pt-28 pb-10 px-6 md:px-12 bg-brand-black">
+    <div class="max-w-[1440px] mx-auto text-center">
+        <h1 class="text-3xl md:text-5xl font-black text-white mb-4">Khám phá <span class="text-brand-orange">Thực đơn</span></h1>
+        <p class="text-brand-gray max-w-2xl mx-auto">Hàng ngàn món ăn hấp dẫn từ các quán ăn xuất sắc nhất trên toàn hệ thống đang chờ bạn thưởng thức.</p>
+    </div>
+</section>
+
+<!-- Filter & Search Bar -->
+<section class="pb-8 px-6 md:px-12 bg-brand-black sticky top-20 z-40">
+    <div class="max-w-[1440px] mx-auto">
+        <form method="get" action="/Home/Menu" id="menuFilterForm" class="flex flex-col md:flex-row gap-4 bg-gray-900/80 backdrop-blur-md p-4 rounded-2xl border border-gray-800 shadow-xl">
+            <!-- Search -->
+            <div class="relative flex-1 group">
+                <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+                <input type="text" name="search" id="searchInput" value="@currentSearch" placeholder="Bạn muốn ăn gì hôm nay? (Ví dụ: phở, bún, gà...)" 
+                       class="w-full bg-brand-black border border-gray-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-brand-gray focus:border-brand-orange outline-none transition-all">
+                <input type="hidden" name="page" value="1" />
+            </div>
+
+            <!-- Custom Dropdown Component -->
+            <div class="relative min-w-[220px]" id="filterDropdownContainer">
+                <input type="hidden" name="filter" id="filterInput" value="@currentFilter" />
+                <div id="dropdownToggle" class="w-full bg-brand-black border border-gray-800 rounded-xl py-3 px-4 text-white font-bold cursor-pointer transition-all hover:border-gray-600 flex justify-between items-center h-full">
+                    <span id="dropdownText">@filters[currentFilter]</span>
+                    <i class="fa-solid fa-chevron-down text-brand-gray text-sm transition-transform duration-200" id="dropdownIcon"></i>
+                </div>
+                
+                <div id="dropdownMenu" class="absolute top-full right-0 mt-2 w-full bg-brand-dark border-2 border-gray-800 rounded-2xl shadow-2xl opacity-0 invisible transition-all duration-200 z-50 overflow-hidden transform origin-top px-1.5 py-1.5 scale-95">
+                    @foreach (var f in filters)
+                    {
+                        var isSelected = currentFilter == f.Key;
+                        <div class="dropdown-item px-4 py-2.5 rounded-xl cursor-pointer text-sm font-semibold transition-colors flex items-center justify-between @(isSelected ? "bg-brand-orange text-black" : "text-brand-gray hover:bg-gray-800 hover:text-white")" data-value="@f.Key">
+                            @f.Value
+                            @if (isSelected) { <i class="fa-solid fa-check"></i> }
+                        </div>
+                    }
+                </div>
+            </div>
+        </form>
+    </div>
+</section>
+
+<!-- Product Grid -->
+<section class="py-8 px-6 md:px-12 bg-brand-dark min-h-[50vh]">
+    <div class="max-w-[1440px] mx-auto" id="productsContainer">
+        @if (!Model.Any())
+        {
+            <div class="text-center py-20 bg-brand-black/30 rounded-[2rem] border border-gray-800">
+                <i class="fa-solid fa-utensils text-6xl text-brand-gray/20 mb-4"></i>
+                <h3 class="text-2xl font-bold text-white mb-2">Không tìm thấy món ăn nào</h3>
+                <p class="text-brand-gray">Vui lòng thử điều chỉnh lại bộ lọc hoặc từ khóa tìm kiếm của bạn.</p>
+                <button onclick="document.getElementById('searchInput').value=''; document.getElementById('filterInput').value='top-sales'; document.getElementById('menuFilterForm').submit();" class="mt-6 inline-block bg-gray-800 text-white px-6 py-2 rounded-full font-bold hover:bg-gray-700 transition">Xóa bộ lọc</button>
+            </div>
+        }
+        else
+        {
+            <!-- Compact 4-5-6 Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+                @foreach (var item in Model)
+                {
+                    var priceFormatted = item.Price.ToString("N0") + " đ";
+                    var rating = itemRatingsDict.ContainsKey(item.Id) ? itemRatingsDict[item.Id] : 5.0;
+                    var sold = totalSoldDict.ContainsKey(item.Id) ? totalSoldDict[item.Id] : 0;
+                    var imgUrl = string.IsNullOrEmpty(item.ImageUrl) ? "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=600&auto=format&fit=crop" : item.ImageUrl;
+                    var jsonProduct = System.Text.Json.JsonSerializer.Serialize(new { 
+                        id = item.Id, name = item.Name, price = item.Price, image = imgUrl 
+                    });
+
+                    <div class="product-card-container">
+                        <div class="product-card bg-brand-black rounded-2xl p-3 h-full flex flex-col border border-gray-800 relative z-10 transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_20px_rgba(0,0,0,0.5)] hover:border-gray-600">
+                            <!-- Image container flex-1 -->
+                            <div class="flex-1 w-full min-h-[10rem] mb-3 rounded-xl overflow-hidden relative group cursor-pointer" onclick='window.products = window.products || []; if(!window.products.find(p => p.id == @item.Id)) window.products.push(@Html.Raw(jsonProduct)); addToCart(@item.Id)'>
+                                <div class="absolute top-1.5 right-1.5 bg-black/80 backdrop-blur-md text-white text-[10px] font-bold px-1.5 py-0.5 rounded z-40 flex items-center gap-1 border border-white/10">
+                                    <i class="fa-solid fa-star text-brand-orange text-[8px]"></i> @rating.ToString("0.0")
+                                </div>
+                                <img src="@imgUrl" alt="@item.Name" class="absolute inset-0 w-full h-full object-cover opacity-90 transition-transform duration-500 group-hover:scale-105">
+                                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors z-20 flex items-center justify-center">
+                                    <div class="w-10 h-10 rounded-full bg-brand-orange text-black flex items-center justify-center opacity-0 group-hover:opacity-100 transform scale-50 group-hover:scale-100 transition-all duration-300">
+                                        <i class="fa-solid fa-cart-plus"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Content pinned bottom -->
+                            <div class="mt-auto pointer-events-none">
+                                <h3 class="font-bold text-sm md:text-base mb-1 truncate text-white" title="@item.Name">@item.Name</h3>
+                                <p class="text-brand-gray text-[10px] md:text-xs line-clamp-1 mb-2">@item.Store?.Name</p>
+                                
+                                <div class="flex items-end justify-between pt-2 border-t border-gray-800/80">
+                                    <span class="text-brand-orange font-black text-sm md:text-lg leading-none">@priceFormatted</span>
+                                    <span class="text-[9px] md:text-[10px] text-brand-gray font-bold"><i class="fa-solid fa-fire text-brand-orange/70"></i> Bán: @sold</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Pagination -->
+            @if (totalPages > 1)
+            {
+                <div class="flex justify-center items-center mt-12 gap-2">
+                    @if (currentPage > 1)
+                    {
+                        <button onclick="changePage(@(currentPage - 1))" class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-800 text-brand-gray flex items-center justify-center hover:bg-brand-orange hover:text-black hover:border-brand-orange transition-all">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                    }
+
+                    @for (int i = 1; i <= totalPages; i++)
+                    {
+                        if (i == 1 || i == totalPages || (i >= currentPage - 1 && i <= currentPage + 1))
+                        {
+                            if (i == currentPage)
+                            {
+                                <span class="w-10 h-10 rounded-xl bg-brand-orange text-black font-extrabold flex items-center justify-center shadow-[0_0_15px_rgba(255,107,0,0.3)]">@i</span>
+                            }
+                            else
+                            {
+                                <button onclick="changePage(@i)" class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-800 text-white font-bold flex items-center justify-center hover:bg-gray-800 hover:border-brand-orange transition-all">@i</button>
+                            }
+                        }
+                        else if (i == currentPage - 2 || i == currentPage + 2)
+                        {
+                            <span class="w-10 h-10 flex items-center justify-center text-brand-gray">...</span>
+                        }
+                    }
+
+                    @if (currentPage < totalPages)
+                    {
+                        <button onclick="changePage(@(currentPage + 1))" class="w-10 h-10 rounded-xl bg-gray-900 border border-gray-800 text-brand-gray flex items-center justify-center hover:bg-brand-orange hover:text-black hover:border-brand-orange transition-all">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    }
+                </div>
+            }
+        }
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('searchInput');
+            const filterInput = document.getElementById('filterInput');
+            const dropdownMenu = document.getElementById('dropdownMenu');
+            const dropdownToggle = document.getElementById('dropdownToggle');
+            const dropdownIcon = document.getElementById('dropdownIcon');
+            const dropdownText = document.getElementById('dropdownText');
+
+            function debounce(func, timeout = 300) {
+                let timer;
+                return (...args) => {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+                };
+            }
+
+            const performSmartSearch = debounce((page = 1) => {
+                const search = searchInput.value;
+                const filter = filterInput.value;
+
+                // Update hidden page input directly
+                document.querySelector('input[name="page"]').value = page;
+
+                const url = new URL(window.location.origin + window.location.pathname);
+                if (search) url.searchParams.set('search', search);
+                if (filter) url.searchParams.set('filter', filter);
+                url.searchParams.set('page', page);
+
+                // Update browser URL without reloading
+                window.history.replaceState({}, '', url);
+
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(response => response.text())
+                    .then(html => {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        
+                        const newContainer = doc.getElementById('productsContainer');
+                        const currentContainer = document.getElementById('productsContainer');
+                        if (newContainer && currentContainer) {
+                            currentContainer.innerHTML = newContainer.innerHTML;
+                        }
+                    });
+            }, 400); // 400ms debounce
+
+            searchInput.addEventListener('input', () => performSmartSearch(1));
+
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    performSmartSearch(1);
+                }
+            });
+
+            // Handle Page Change via AJAX
+            window.changePage = function(page) {
+                performSmartSearch(page);
+                window.scrollTo({ top: 300, behavior: 'smooth' }); // Scroll gracefully back up
+            };
+
+            // Dropdown UI logic
+            dropdownToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const isOpen = !dropdownMenu.classList.contains('opacity-0');
+                if (isOpen) {
+                    closeDropdown();
+                } else {
+                    openDropdown();
+                }
+            });
+
+            function openDropdown() {
+                dropdownMenu.classList.remove('opacity-0', 'invisible', 'scale-95');
+                dropdownMenu.classList.add('opacity-100', 'visible', 'scale-100');
+                dropdownIcon.classList.add('rotate-180');
+                dropdownToggle.classList.add('border-brand-orange');
+            }
+
+            function closeDropdown() {
+                dropdownMenu.classList.add('opacity-0', 'invisible', 'scale-95');
+                dropdownMenu.classList.remove('opacity-100', 'visible', 'scale-100');
+                dropdownIcon.classList.remove('rotate-180');
+                dropdownToggle.classList.remove('border-brand-orange');
+            }
+
+            // Options click listener setup (handling dynamically is easier, but standard queries work since dropdown isn't recreated)
+            document.querySelectorAll('.dropdown-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    
+                    // Update UI state securely
+                    document.querySelectorAll('.dropdown-item').forEach(i => {
+                        i.classList.remove('bg-brand-orange', 'text-black');
+                        i.classList.add('text-brand-gray', 'hover:bg-gray-800', 'hover:text-white');
+                        const icon = i.querySelector('i');
+                        if (icon) icon.remove();
+                    });
+                    
+                    item.classList.add('bg-brand-orange', 'text-black');
+                    item.classList.remove('text-brand-gray', 'hover:bg-gray-800', 'hover:text-white');
+                    item.innerHTML += ' <i class="fa-solid fa-check"></i>';
+                    
+                    dropdownText.innerText = item.innerText.trim();
+                    filterInput.value = item.getAttribute('data-value');
+                    closeDropdown();
+                    
+                    performSmartSearch(1);
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!dropdownToggle.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                    closeDropdown();
+                }
+            });
+        });
+    </script>
+}

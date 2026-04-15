@@ -1,0 +1,532 @@
+@model IEnumerable<Order>
+@{
+    Layout = "_ShipperLayout";
+    ViewData["Title"] = "Bảng điều khiển Tài xế";
+
+    var shipperUser = ViewBag.ShipperUser as ApplicationUser;
+    int totalCompleted = ViewBag.TotalCompleted ?? 0;
+    decimal totalIncome = ViewBag.TotalIncome ?? 0m;
+    double avgRating = ViewBag.AvgRating ?? 5.0;
+    int totalReviews = ViewBag.TotalReviews ?? 0;
+    double successRate = ViewBag.SuccessRate ?? 100.0;
+    decimal todayIncome = ViewBag.TodayIncome ?? 0m;
+    int todayCompleted = ViewBag.TodayCompleted ?? 0;
+    var deliveringOrders = ViewBag.DeliveringOrders as List<Order> ?? new List<Order>();
+    bool isOnline = ViewBag.IsOnline ?? false;
+
+    string GetStatusLabel(OrderStatus s) => s switch {
+        OrderStatus.SearchingShipper => "Chờ nhận",
+        OrderStatus.Accepted => "Đã nhận",
+        OrderStatus.Preparing => "Đang làm món",
+        OrderStatus.Delivering => "Đang giao",
+        OrderStatus.Completed => "Hoàn thành",
+        _ => s.ToString()
+    };
+    string GetStatusColor(OrderStatus s) => s switch {
+        OrderStatus.SearchingShipper => "text-purple-400 bg-purple-500/10 border-purple-500/20",
+        OrderStatus.Accepted => "text-cyan-400 bg-cyan-500/10 border-cyan-500/20",
+        OrderStatus.Preparing => "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
+        OrderStatus.Delivering => "text-orange-500 bg-orange-500/10 border-orange-500/20",
+        OrderStatus.Completed => "text-green-400 bg-green-500/10 border-green-500/20",
+        _ => "text-slate-400 bg-white/5 border-white/10"
+    };
+}
+
+<!-- Welcome Banner -->
+<div class="mb-8 p-8 bg-slate-900 border border-slate-700/50 rounded-[2.5rem] flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-xl fade-in" style="animation-delay: 0s;">
+    <div class="space-y-2">
+        <h2 class="text-3xl md:text-4xl font-black text-white tracking-tighter">
+            Xin chào, <span class="text-orange-500">@(shipperUser?.FullName ?? "Tài xế")</span>! 👋
+        </h2>
+        <div class="flex items-center gap-3 flex-wrap">
+            <span class="px-3 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full text-[10px] font-bold text-orange-500 uppercase tracking-wider">
+                <i class="fa-solid fa-motorcycle mr-1"></i>@(shipperUser?.ShipperCode ?? "SH-0000")
+            </span>
+            <span class="px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold text-slate-300 uppercase tracking-wider">
+                <i class="fa-solid fa-calendar-day mr-1"></i>@DateTime.Now.ToString("dddd, dd/MM/yyyy")
+            </span>
+        </div>
+    </div>
+
+    <!-- Online Toggle -->
+    <div class="flex items-center gap-4">
+        <div class="text-right">
+            <p class="text-xs font-bold text-slate-400 mb-1">Trạng thái</p>
+            <p id="onlineStatusText" class="text-sm font-black @(isOnline ? "text-green-400" : "text-red-400")">@(isOnline ? "Đang trực tuyến" : "Đang nghỉ")</p>
+        </div>
+        <button onclick="toggleOnline()" class="w-14 h-8 rounded-full relative transition-all duration-300 @(isOnline ? "bg-green-500" : "bg-slate-700") cursor-pointer shadow-lg hover:scale-105" id="onlineToggle">
+            <div class="absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-all duration-300 @(isOnline ? "left-7" : "left-1")" id="toggleDot"></div>
+        </button>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Total Completed -->
+    <div class="stat-card p-6 bg-slate-900 border border-slate-700/50 rounded-[2rem] hover:border-green-500/50 transition-all duration-300 shadow-lg fade-in" style="animation-delay: 0.1s;">
+        <div class="flex items-center justify-between mb-4">
+            <div class="w-12 h-12 rounded-2xl bg-green-500/20 border border-green-500/30 flex items-center justify-center">
+                <i class="fa-solid fa-circle-check text-green-400 text-lg"></i>
+            </div>
+            <span class="text-[9px] font-black text-green-400 uppercase tracking-widest">Hoàn thành</span>
+        </div>
+        <h3 class="text-3xl font-black text-white mb-1" id="statCompleted">@totalCompleted</h3>
+        <p class="text-[10px] text-slate-400 font-bold">đơn hàng đã giao</p>
+    </div>
+
+    <!-- Total Income -->
+    <div class="stat-card p-6 bg-slate-900 border border-slate-700/50 rounded-[2rem] hover:border-orange-500/50 transition-all duration-300 shadow-lg fade-in" style="animation-delay: 0.2s;">
+        <div class="flex items-center justify-between mb-4">
+            <div class="w-12 h-12 rounded-2xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
+                <i class="fa-solid fa-coins text-orange-500 text-lg"></i>
+            </div>
+            <span class="text-[9px] font-black text-orange-500 uppercase tracking-widest">Thu nhập</span>
+        </div>
+        <h3 class="text-3xl font-black text-white mb-1">@string.Format("{0:N0}", totalIncome)<span class="text-sm text-slate-400 ml-1">VND</span></h3>
+        <p class="text-[10px] text-slate-400 font-bold">Hôm nay: <span class="text-orange-500">+@string.Format("{0:N0}", todayIncome) VND</span></p>
+    </div>
+
+    <!-- Rating -->
+    <div class="stat-card p-6 bg-slate-900 border border-slate-700/50 rounded-[2rem] hover:border-yellow-500/50 transition-all duration-300 shadow-lg fade-in" style="animation-delay: 0.3s;">
+        <div class="flex items-center justify-between mb-4">
+            <div class="w-12 h-12 rounded-2xl bg-yellow-500/20 border border-yellow-500/30 flex items-center justify-center">
+                <i class="fa-solid fa-star text-yellow-400 text-lg"></i>
+            </div>
+            <span class="text-[9px] font-black text-yellow-400 uppercase tracking-widest">Đánh giá</span>
+        </div>
+        <h3 class="text-3xl font-black text-white mb-1">@avgRating<span class="text-sm text-slate-400 ml-1">/ 5.0</span></h3>
+        <p class="text-[10px] text-slate-400 font-bold">@totalReviews lượt đánh giá</p>
+    </div>
+
+    <!-- Success Rate -->
+    <div class="stat-card p-6 bg-slate-900 border border-slate-700/50 rounded-[2rem] hover:border-cyan-500/50 transition-all duration-300 shadow-lg fade-in" style="animation-delay: 0.4s;">
+        <div class="flex items-center justify-between mb-4">
+            <div class="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
+                <i class="fa-solid fa-bullseye text-cyan-400 text-lg"></i>
+            </div>
+            <span class="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Tỉ lệ</span>
+        </div>
+        <h3 class="text-3xl font-black text-white mb-1">@successRate<span class="text-sm text-slate-400 ml-1">%</span></h3>
+        <p class="text-[10px] text-slate-400 font-bold">tỉ lệ giao thành công</p>
+    </div>
+</div>
+
+<!-- Chart + Current Deliveries Row -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+    <!-- Chart -->
+    <div class="lg:col-span-2 p-6 bg-slate-900 border border-slate-700/50 rounded-[2.5rem] shadow-lg fade-in" style="animation-delay: 0.5s;">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+                <h3 class="text-lg font-black text-white">Biểu đồ hoạt động</h3>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Thống kê đơn hàng theo ngày</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="loadChart(7)" class="chart-btn active-chart-btn px-4 py-1.5 rounded-full text-[10px] font-bold bg-orange-500/10 text-orange-500 border border-orange-500/20 transition-all hover:bg-orange-500 hover:text-black" data-days="7">7 ngày</button>
+                <button onclick="loadChart(30)" class="chart-btn px-4 py-1.5 rounded-full text-[10px] font-bold bg-white/5 text-slate-400 border border-white/10 transition-all hover:bg-white/10" data-days="30">30 ngày</button>
+                <button onclick="loadChart(0)" class="chart-btn px-4 py-1.5 rounded-full text-[10px] font-bold bg-white/5 text-slate-400 border border-white/10 transition-all hover:bg-white/10" data-days="0">Tất cả</button>
+            </div>
+        </div>
+        <div class="h-[300px]">
+            <canvas id="shipperChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Đơn đang giao -->
+    <div class="p-6 bg-slate-900 border border-slate-700/50 rounded-[2.5rem] shadow-lg fade-in" style="animation-delay: 0.6s;">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-black text-white"><i class="fa-solid fa-truck-fast text-orange-500 mr-2"></i>Đang giao</h3>
+            <span class="px-3 py-1 bg-orange-500/10 text-orange-500 text-[10px] font-black rounded-full border border-orange-500/20">@deliveringOrders.Count</span>
+        </div>
+        
+        @if (deliveringOrders.Any())
+        {
+            <div class="space-y-3 max-h-[280px] overflow-y-auto pr-2" style="scrollbar-width: thin;">
+                @foreach (var order in deliveringOrders)
+                {
+                    <div class="p-4 bg-slate-950 border border-slate-700/50 rounded-2xl hover:border-orange-500/50 transition-all group cursor-pointer">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-orange-500 font-black text-xs">@order.OrderCode</span>
+                            <span class="px-2 py-0.5 rounded-full text-[9px] font-black border @GetStatusColor(order.Status)">@GetStatusLabel(order.Status)</span>
+                        </div>
+                        <div class="space-y-1 text-[10px] font-bold text-slate-300">
+                            <p class="truncate"><i class="fa-solid fa-store text-orange-500 mr-1.5 w-3"></i>@order.Store?.Name</p>
+                            <p class="truncate"><i class="fa-solid fa-location-dot text-blue-400 mr-1.5 w-3"></i>@order.DeliveryAddress</p>
+                        </div>
+                        <div class="flex items-center justify-between mt-3 pt-2 border-t border-slate-800">
+                            <span class="text-xs font-black text-white">@string.Format("{0:N0}", order.ShipperIncome) VND</span>
+                            <span class="text-[9px] text-slate-500"><i class="fa-solid fa-clock mr-1"></i>@order.CreatedAt.ToString("HH:mm")</span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="flex flex-col items-center justify-center h-[250px] opacity-50">
+                <i class="fa-solid fa-check-double text-4xl mb-3 text-slate-500"></i>
+                <p class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Chưa có đơn đang giao</p>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Available Orders Section -->
+<div class="p-8 bg-slate-900 border border-slate-700/50 rounded-[2.5rem] shadow-lg fade-in" style="animation-delay: 0.7s;">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div>
+            <h3 class="text-2xl font-black text-white">
+                <i class="fa-solid fa-fire text-orange-500 mr-2"></i>Đơn hàng <span class="text-orange-500">Đang nổ!</span>
+            </h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Các đơn hàng đang chờ bạn nhận</p>
+        </div>
+        <span class="px-4 py-2 bg-orange-500/10 text-orange-500 font-black text-sm rounded-full border border-orange-500/20">
+            @Model.Count() đơn
+        </span>
+    </div>
+
+    @if (!isOnline)
+    {
+        <div class="text-center py-16" id="offlineStateContainer">
+            <div class="w-24 h-24 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.2)]">
+                <i class="fa-solid fa-power-off text-4xl text-red-500"></i>
+            </div>
+            <h4 class="text-xl font-black text-white mb-2">Bạn đang ngoại tuyến</h4>
+            <p class="text-slate-400 text-sm">Hãy bật trạng thái Trực tuyến để có thể nhận đơn hàng mới xung quanh.</p>
+        </div>
+    }
+    else if (Model.Any())
+    {
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" id="orderGrid">
+            @foreach (var order in Model)
+            {
+                var itemCount = order.OrderItems?.Sum(oi => oi.Quantity) ?? 0;
+                <div onclick="viewMap('@order.OrderCode', @((order.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)), @((order.Store?.Longitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)))" class="p-6 bg-slate-950 border border-slate-700/80 rounded-[2rem] hover:border-orange-500/50 transition-all duration-300 cursor-pointer">
+                    
+                    <!-- Header -->
+                    <div class="flex items-center justify-between mb-5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center">
+                                <i class="fa-solid fa-bag-shopping text-orange-500"></i>
+                            </div>
+                            <div>
+                                <span class="text-orange-500 font-black text-sm">@order.OrderCode</span>
+                                <p class="text-[9px] text-slate-400 font-bold">@order.CreatedAt.ToString("HH:mm - dd/MM")</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xl font-black text-white shadow-sm">@string.Format("{0:N0}", order.ShipperIncome)</p>
+                            <p class="text-[9px] text-slate-400 font-bold uppercase">VND</p>
+                        </div>
+                    </div>
+
+                    <!-- Route Info -->
+                    <div class="space-y-3 mb-5">
+                        <div class="flex items-start gap-4">
+                            <div class="flex flex-col items-center mt-1">
+                                <div class="w-3 h-3 rounded-full bg-orange-500 border-[3px] border-orange-500/30"></div>
+                                <div class="w-0.5 h-8 bg-gradient-to-b from-orange-500 to-blue-500/50 my-1"></div>
+                                <div class="w-3 h-3 rounded-full bg-blue-500 border-[3px] border-blue-500/30"></div>
+                            </div>
+                            <div class="flex-1 space-y-3">
+                                <div>
+                                    <p class="text-[9px] text-orange-500 font-black uppercase tracking-wider mb-0.5">Lấy hàng</p>
+                                    <p class="text-sm font-bold text-white leading-tight">@(order.Store?.Name ?? "Cửa hàng")</p>
+                                    <p class="text-[11px] text-slate-400 line-clamp-1">@order.PickupAddress</p>
+                                </div>
+                                <div>
+                                    <p class="text-[9px] text-blue-400 font-black uppercase tracking-wider mb-0.5">Giao đến</p>
+                                    <p class="text-sm font-bold text-white leading-tight">@(order.User?.FullName ?? "Khách hàng")</p>
+                                    <p class="text-[11px] text-slate-400 line-clamp-1">@order.DeliveryAddress</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Info badges -->
+                    <div class="flex items-center gap-2 flex-wrap mb-5">
+                        <span class="px-2.5 py-1.5 bg-slate-800 border border-slate-700/50 rounded-lg text-[10px] font-bold text-slate-300">
+                            <i class="fa-solid fa-route mr-1.5 text-orange-500"></i>@(order.Distance > 0 ? $"{order.Distance:F1}km" : "~1km")
+                        </span>
+                        <span class="px-2.5 py-1.5 bg-slate-800 border border-slate-700/50 rounded-lg text-[10px] font-bold text-slate-300">
+                            <i class="fa-solid fa-box mr-1.5 text-orange-500"></i>@itemCount món
+                        </span>
+                        @if (order.PaymentMethod == PaymentMethod.Cash) {
+                            <span class="px-2.5 py-1.5 bg-green-500/10 border border-green-500/30 rounded-lg text-[10px] font-bold text-green-400">
+                                <i class="fa-solid fa-money-bill mr-1.5"></i>Tiền mặt
+                            </span>
+                        } else {
+                            <span class="px-2.5 py-1.5 bg-purple-500/10 border border-purple-500/30 rounded-lg text-[10px] font-bold text-purple-400">
+                                <i class="fa-solid fa-wallet mr-1.5"></i>Ví
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3 mt-auto">
+                        <button onclick="event.stopPropagation(); viewMap('@order.OrderCode', @((order.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)), @((order.Store?.Longitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)))" class="w-1/4 py-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-xs font-bold text-blue-400 hover:bg-blue-500 hover:text-black transition-all">
+                            <i class="fa-solid fa-map"></i>
+                        </button>
+                        <button onclick="event.stopPropagation(); skipOrder(this)" class="w-1/4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-slate-300 hover:bg-red-500/20 hover:text-red-400 transition-all">
+                            Bỏ qua
+                        </button>
+                        <button onclick="event.stopPropagation(); acceptOrder('@order.OrderCode', this)" class="w-2/4 py-3 bg-orange-500 text-black rounded-xl text-xs font-black hover:bg-orange-400 active:scale-95 transition-all shadow-lg hover:shadow-orange-500/50">
+                            Nhận đơn
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="text-center py-16">
+            <div class="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-700">
+                <i class="fa-solid fa-satellite-dish text-4xl text-slate-500"></i>
+            </div>
+            <h4 class="text-xl font-black text-white mb-2">Đang quét tín hiệu...</h4>
+            <p class="text-slate-400 text-sm">Chưa có đơn hàng nào quanh khu vực. Hãy giữ trạng thái trực tuyến.</p>
+        </div>
+    }
+</div>
+
+<!-- Map Modal -->
+<div id="mapModal" style="display:none; position:fixed; inset:0; z-index:1000; align-items:center; justify-content:center; pointer-events:none; background:rgba(0,0,0,0.85); backdrop-filter:blur(4px);">
+    <div style="position:absolute; inset:0; pointer-events:auto;" onclick="closeMap()"></div>
+    <div id="mapModalContent" style="position:relative; background:#0f172a; border:1px solid rgba(255,255,255,0.1); width:90%; max-width:800px; height:600px; border-radius:1.5rem; overflow:hidden; box-shadow:0 25px 50px rgba(0,0,0,0.7); pointer-events:auto; display:flex; flex-direction:column; transform:scale(0.95); opacity:0; transition:transform 0.3s ease, opacity 0.3s ease;">
+        <div style="padding:1rem 1.5rem; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; background:#020617;">
+            <h3 style="font-size:1.1rem; font-weight:900; color:white; margin:0;"><i class="fa-solid fa-map-location-dot" style="color:#f97316; margin-right:0.5rem;"></i>Bản đồ định vị shipper</h3>
+            <button onclick="closeMap()" style="width:2rem; height:2rem; border-radius:50%; background:rgba(255,255,255,0.1); border:none; color:white; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;" onmouseover="this.style.background='#ef4444'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div id="shipperMap" style="flex:1; width:100%; height:100%; background:#1e293b;"></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Global variables for Map
+        let mapInstance = null;
+        let mapCircle = null;
+        let mapMarker = null;
+
+        // Coordinates from Backend
+        const shipperLat = @( (shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture) );
+        const shipperLng = @( (shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture) );
+
+        // Load chart
+        document.addEventListener('DOMContentLoaded', () => {
+            loadChart(7);
+        });
+
+        // 1. Chart Logic
+        let shipperChart = null;
+        async function loadChart(days) {
+            document.querySelectorAll('.chart-btn').forEach(btn => {
+                btn.classList.remove('bg-orange-500/10', 'text-orange-500', 'border-orange-500/20');
+                btn.classList.add('bg-white/5', 'text-slate-400', 'border-white/10');
+            });
+            const activeBtn = document.querySelector(`.chart-btn[data-days="${days}"]`);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-white/5', 'text-slate-400', 'border-white/10');
+                activeBtn.classList.add('bg-orange-500/10', 'text-orange-500', 'border-orange-500/20');
+            }
+
+            const res = await fetch(`/Shipper/GetShipperChartData?id=@(shipperUser?.Id)&days=${days}`);
+            const data = await res.json();
+
+            const labels = data.map(d => d.displayDate);
+            const completed = data.map(d => d.completed);
+            const delivering = data.map(d => d.delivering);
+            const failed = data.map(d => d.failed);
+
+            if (shipperChart) shipperChart.destroy();
+
+            const ctx = document.getElementById('shipperChart').getContext('2d');
+            shipperChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Hoàn thành', data: completed, borderColor: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.1)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#22c55e' },
+                        { label: 'Đang giao', data: delivering, borderColor: '#f97316', backgroundColor: 'rgba(249, 115, 22, 0.1)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#f97316' },
+                        { label: 'Thất bại', data: failed, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.05)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#ef4444' }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 10, weight: 'bold' }, usePointStyle: true, pointStyle: 'circle' } } },
+                    scales: {
+                        x: { ticks: { color: '#64748b', font: { size: 9, weight: 'bold' } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { beginAtZero: true, ticks: { color: '#64748b', font: { size: 9, weight: 'bold' }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                    }
+                }
+            });
+        }
+
+        // 2. Toggle Online Status via AJAX
+        async function toggleOnline() {
+            try {
+                const res = await fetch('/Shipper/ToggleOnline', { method: 'POST' });
+                const data = await res.json();
+                
+                if (data.success) {
+                    const isOnline = data.isActive;
+                    
+                    // Update main Dashboard Toggle
+                    const toggle = document.getElementById('onlineToggle');
+                    const dot = document.getElementById('toggleDot');
+                    const text = document.getElementById('onlineStatusText');
+
+                    if (isOnline) {
+                        toggle.classList.replace('bg-slate-700', 'bg-green-500');
+                        dot.classList.replace('left-1', 'left-7');
+                        if (text) {
+                            text.classList.remove('text-red-400');
+                            text.classList.add('text-green-400');
+                            text.innerText = "Đang trực tuyến";
+                        }
+                    } else {
+                        toggle.classList.replace('bg-green-500', 'bg-slate-700');
+                        dot.classList.replace('left-7', 'left-1');
+                        if (text) {
+                            text.classList.remove('text-green-400');
+                            text.classList.add('text-red-400');
+                            text.innerText = "Đang nghỉ";
+                        }
+                    }
+
+                    // Update Global Layout Header Indicator
+                    const layoutDot = document.getElementById('layoutOnlineDot');
+                    const layoutText = document.getElementById('layoutOnlineText');
+                    
+                    if (isOnline) {
+                        layoutDot.className = "w-2.5 h-2.5 rounded-full bg-green-500 pulse-online";
+                        layoutText.className = "text-[10px] font-black uppercase tracking-wider text-green-400";
+                        layoutText.innerText = "Trực tuyến";
+                    } else {
+                        layoutDot.className = "w-2.5 h-2.5 rounded-full bg-red-500";
+                        layoutText.className = "text-[10px] font-black uppercase tracking-wider text-red-400";
+                        layoutText.innerText = "Ngoại tuyến";
+                    }
+                }
+            } catch (err) {
+                console.error("Toggle error", err);
+            }
+        }
+
+        // 3. Accept / Skip Order
+        async function acceptOrder(orderCode, btn) {
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i>Đang nhận...`;
+            btn.disabled = true;
+            try {
+                const res = await fetch('/Shipper/AcceptOrder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(orderCode)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    btn.innerHTML = `<i class="fa-solid fa-check mr-2"></i>Thành công!`;
+                    btn.classList.replace('bg-orange-500', 'bg-green-500');
+                    setTimeout(() => window.location.reload(), 1000); // Reload gracefully
+                } else {
+                    alert('Lỗi: ' + data.message);
+                    btn.innerText = "Nhận đơn";
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Đã xảy ra lỗi");
+                btn.innerText = "Nhận đơn";
+                btn.disabled = false;
+            }
+        }
+
+        function skipOrder(btn) {
+            const card = btn.closest('.p-6'); // card container
+            card.style.opacity = '0';
+            setTimeout(() => card.remove(), 300);
+        }
+
+        // 4. Map Modal Logic (Leaflet + OpenStreetMap)
+        function viewMap(orderCode, storeLat, storeLng) {
+            const modal = document.getElementById('mapModal');
+            const content = document.getElementById('mapModalContent');
+            modal.style.display = 'flex';
+            
+            // Animation pop
+            setTimeout(() => {
+                content.style.transform = 'scale(1)';
+                content.style.opacity = '1';
+            }, 20);
+
+            if (!mapInstance) {
+                // Initialize map
+                mapInstance = L.map('shipperMap').setView([shipperLat, shipperLng], 13);
+                
+                // Add Dark Matter tiles (premium look)
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                    maxZoom: 20
+                }).addTo(mapInstance);
+
+                // Add 5km transparent circle
+                mapCircle = L.circle([shipperLat, shipperLng], {
+                    color: '#f97316',
+                    fillColor: '#f97316',
+                    fillOpacity: 0.1,
+                    radius: 5000 // 5km
+                }).addTo(mapInstance);
+
+                // Custom Shipper Marker
+                const shipperIcon = L.divIcon({
+                    html: '<div class="w-8 h-8 bg-orange-500 border-2 border-white rounded-full flex items-center justify-center text-black shadow-[0_0_15px_rgba(249,115,22,0.8)]"><i class="fa-solid fa-motorcycle text-sm"></i></div>',
+                    className: 'dummy',
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16]
+                });
+                
+                L.marker([shipperLat, shipperLng], { icon: shipperIcon })
+                    .addTo(mapInstance)
+                    .bindPopup("<b class='text-orange-500'>Vị trí của bạn</b>")
+                    .openPopup();
+            }
+
+            // Remove old store marker if exists (clean up needed logic here, simplify for now)
+            if (mapMarker) { mapInstance.removeLayer(mapMarker); }
+
+            // Add Store Marker if coords valid
+            if (storeLat !== 0 && storeLng !== 0) {
+                const storeIcon = L.divIcon({
+                    html: '<div class="w-6 h-6 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center text-white"><i class="fa-solid fa-store text-xs"></i></div>',
+                    className: 'dummy',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                mapMarker = L.marker([storeLat, storeLng], { icon: storeIcon })
+                    .addTo(mapInstance)
+                    .bindPopup("<b>Điểm lấy hàng</b>");
+
+                // Auto fit bounds
+                const bounds = L.latLngBounds([[shipperLat, shipperLng], [storeLat, storeLng]]);
+                mapInstance.fitBounds(bounds, { padding: [50, 50] });
+            } else {
+                mapInstance.setView([shipperLat, shipperLng], 13);
+            }
+
+            // Fix map rendering bug in modal
+            setTimeout(() => { mapInstance.invalidateSize(); }, 300);
+        }
+
+        function closeMap() {
+            const modal = document.getElementById('mapModal');
+            const content = document.getElementById('mapModalContent');
+            content.style.transform = 'scale(0.95)';
+            content.style.opacity = '0';
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+    </script>
+}

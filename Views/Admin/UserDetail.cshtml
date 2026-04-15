@@ -1,0 +1,278 @@
+@model DeliveryHubWeb.Models.UserDetailViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Chi tiết Người dùng";
+
+    string GetStatusBadge(string status) => status switch {
+        "Completed" => "bg-green-500/10 text-green-500 border border-green-500/20|Thành công",
+        "Delivering" => "bg-brand-orange/10 text-brand-orange border border-brand-orange/20|Đang giao",
+        "Failed" or "Cancelled" => "bg-red-500/10 text-red-500 border border-red-500/20|Thất bại",
+        "SearchingShipper" or "Accepted" => "bg-pink-500/10 text-pink-500 border border-pink-500/20|Đang tìm",
+        _ => "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20|Chờ xử lý"
+    };
+
+    string GetRankIcon(string rank) {
+        if (rank == "Kim cương") return "fa-gem";
+        return "fa-medal";
+    }
+    string GetRankColor(string rank) {
+        if (rank == "Kim cương") return "text-blue-400";
+        if (rank == "Vàng") return "text-yellow-400";
+        if (rank == "Bạc") return "text-gray-300";
+        return "text-orange-400";
+    }
+}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="mb-8 mt-4 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+        <a href="/Admin/Users" class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all text-brand-gray group">
+            <i class="fa-solid fa-arrow-left text-xs group-hover:-translate-x-0.5 transition-transform"></i>
+        </a>
+        <h2 class="text-3xl font-black text-white tracking-tighter">Chi tiết <span class="text-brand-orange">Người dùng</span> - @Model.FullName</h2>
+    </div>
+    
+    <form id="timeFilterForm" method="get" class="flex items-center gap-3">
+        <label for="timeFilter" class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Thời gian</label>
+        <select name="timeFilter" id="timeFilter" onchange="this.form.submit()" class="bg-brand-dark/50 border border-white/10 text-white text-xs font-bold rounded-xl px-4 py-2 outline-none focus:border-brand-orange/50 transition-all cursor-pointer">
+            <option value="all" selected="@(ViewBag.CurrentTimeFilter == "all")">Toàn thời gian</option>
+            <option value="7days" selected="@(ViewBag.CurrentTimeFilter == "7days")">7 ngày qua</option>
+            <option value="1month" selected="@(ViewBag.CurrentTimeFilter == "1month")">1 tháng qua</option>
+            <option value="1year" selected="@(ViewBag.CurrentTimeFilter == "1year")">1 năm qua</option>
+        </select>
+    </form>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
+    <!-- Order Status Dashboard (Left - 1/3) -->
+    <div class="lg:col-span-1">
+        <div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 p-10 shadow-2xl relative overflow-hidden group h-full flex flex-col justify-between">
+            <div class="flex items-center gap-3 mb-8">
+                <i class="fa-solid fa-chart-pie text-brand-orange text-2xl"></i>
+                <h3 class="text-xl font-black text-white tracking-tighter">Trạng thái <span class="text-brand-orange">đơn hàng</span></h3>
+            </div>
+
+            <!-- Donut Chart Canvas -->
+            <div class="relative w-full aspect-square mb-8 p-4">
+                <canvas id="orderStatusChart"></canvas>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span class="text-3xl font-black text-white">@Model.TotalOrders</span>
+                    <span class="text-[10px] font-bold text-brand-gray uppercase tracking-widest">Tổng đơn</span>
+                </div>
+            </div>
+
+            <div class="space-y-4 pt-6 border-t border-white/5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                        <span class="text-xs font-bold text-brand-gray uppercase">Thành công</span>
+                    </div>
+                    <span class="text-sm font-black text-white">@Model.TotalCompletedOrders</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                        <span class="text-xs font-bold text-brand-gray uppercase">Thất bại</span>
+                    </div>
+                    <span class="text-sm font-black text-white">@Model.TotalFailedOrders</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-brand-orange"></span>
+                        <span class="text-xs font-bold text-brand-gray uppercase">Đang giao</span>
+                    </div>
+                    <span class="text-sm font-black text-white">@Model.TotalDeliveringOrders</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+                        <span class="text-xs font-bold text-brand-gray uppercase">Nhận đơn</span>
+                    </div>
+                    <span class="text-sm font-black text-white">@Model.TotalPendingOrders</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-pink-500"></span>
+                        <span class="text-xs font-bold text-brand-gray uppercase">Chờ vận chuyển</span>
+                    </div>
+                    <span class="text-sm font-black text-white">@Model.TotalSearchingShipperOrders</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-blue-500"></span>
+                        <span class="text-xs font-bold text-brand-gray uppercase">Đã hủy</span>
+                    </div>
+                    <span class="text-sm font-black text-white">@Model.TotalCancelledOrders</span>
+                </div>
+            </div>
+            
+            <div class="mt-8 pt-6 border-t border-white/5 grid grid-cols-2 gap-4">
+                   <div class="bg-white/5 p-4 rounded-2xl border border-white/5 text-center shadow-inner">
+                        <p class="text-[9px] text-brand-gray font-black uppercase mb-1 opacity-50 tracking-widest">Hạng</p>
+                        <p class="font-black @GetRankColor(Model.Rank) flex items-center justify-center gap-1">
+                            <i class="fa-solid @GetRankIcon(Model.Rank)"></i> @Model.Rank
+                        </p>
+                   </div>
+                   <div class="bg-white/5 p-4 rounded-2xl border border-white/5 text-center shadow-inner">
+                        <p class="text-[9px] text-brand-gray font-black uppercase mb-1 opacity-50 tracking-widest">Đã chi</p>
+                        <p class="text-[13px] font-black text-white">@Model.TotalSpent.ToString("N0") <span class="text-[9px] opacity-60">VND</span></p>
+                   </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Orders (Right - 2/3) -->
+    <div class="lg:col-span-2">
+        <div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl flex flex-col h-full">
+            <div class="p-10 border-b border-white/5 flex justify-between items-center">
+                <div class="space-y-1">
+                    <p class="text-xs font-black text-white uppercase tracking-[0.3em]">Các đơn hàng gần nhất</p>
+                </div>
+                <a href="/Admin/UserOrders/@Model.Id" class="px-6 py-2.5 rounded-xl bg-white/5 border border-white/10 text-[10px] font-black text-brand-orange uppercase tracking-widest hover:bg-brand-orange hover:text-black transition-all">Xem toàn bộ</a>
+            </div>
+
+            <div class="flex-1 overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="bg-white/[0.02] text-[10px] font-black text-brand-gray uppercase tracking-[0.2em] border-b border-white/5">
+                            <th class="py-6 px-10">Mã đơn</th>
+                            <th class="py-6 px-4">Điểm giao</th>
+                            <th class="py-6 px-4 text-right">Giá tiền</th>
+                            <th class="py-6 px-4 text-center">Trạng thái</th>
+                            <th class="py-6 px-4 text-center">Chi tiết</th>
+                            <th class="py-6 px-10 text-right">Thời gian</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        @foreach (var order in Model.RecentOrders) {
+                            <tr class="group hover:bg-white/[0.03] transition-all relative">
+                                <td class="py-6 px-10 relative">
+                                    <div class="absolute inset-y-4 left-0 w-1 bg-brand-orange scale-y-0 group-hover:scale-y-100 transition-transform rounded-r-full"></div>
+                                    <span class="text-[11px] font-black text-brand-orange tracking-tight">#@order.OrderCode</span>
+                                </td>
+                                <td class="py-6 px-4">
+                                    <p class="text-xs font-bold text-white max-w-[220px] truncate leading-relaxed">@order.DeliveryAddress</p>
+                                </td>
+                                <td class="py-6 px-4 text-right whitespace-nowrap">
+                                    <span class="text-[11px] font-black text-white">@order.TotalPrice.ToString("N0") <span class="text-[10px] opacity-40 ml-0.5">VND</span></span>
+                                </td>
+                                <td class="py-6 px-4">
+                                    <div class="flex justify-center">
+                                        <div class="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-tighter @(GetStatusBadge(order.Status).Split('|')[0])">
+                                            @(GetStatusBadge(order.Status).Split('|')[1])
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-6 px-4 text-center">
+                                    <button onclick="showOrderDetail(@order.Id)" class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-brand-gray hover:bg-brand-orange hover:text-black hover:border-brand-orange transition-all group/btn mx-auto">
+                                        <i class="fa-solid fa-eye text-sm"></i>
+                                    </button>
+                                </td>
+                                <td class="py-6 px-10 text-right">
+                                    <span class="text-[11px] font-bold text-brand-gray tracking-tight group-hover:text-white transition-colors">@order.Time</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (!Model.RecentOrders.Any()) {
+                    <div class="flex flex-col items-center justify-center p-24 text-center space-y-4">
+                        <div class="w-20 h-20 rounded-[2rem] bg-white/5 flex items-center justify-center text-brand-gray opacity-20 shadow-inner">
+                            <i class="fa-solid fa-box-open text-3xl"></i>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-xs font-black text-brand-gray uppercase tracking-[0.2em]">Danh sách trống</p>
+                            <p class="text-[10px] text-brand-gray/50 font-bold uppercase tracking-widest">Người dùng chưa có đơn hàng nào.</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@await Html.PartialAsync("_OrderDetailModal")
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,107,0,0.3); border-radius: 10px; }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script>
+    function showOrderDetail(id) {
+        const modal = document.getElementById('orderDetailModal');
+        const body = document.getElementById('modalBody');
+        const content = document.getElementById('modalContent');
+        
+        content.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-40 gap-4">
+                <div class="w-12 h-12 border-4 border-brand-orange/20 border-t-brand-orange rounded-full animate-spin"></div>
+                <p class="text-xs font-black text-brand-orange uppercase tracking-widest">Đang tải...</p>
+            </div>
+        `;
+        
+        modal.classList.remove('hidden');
+        if (typeof gsap !== 'undefined') {
+            gsap.to(body, { duration: 0.5, scale: 1, opacity: 1, ease: "back.out(1.2)" });
+        } else {
+            body.style.opacity = '1';
+            body.style.transform = 'scale(1)';
+        }
+
+        fetch(`/Admin/GetOrderDetailJson/${id}`)
+            .then(res => res.json())
+            .then(data => {
+                renderOrderDetail(data);
+            })
+            .catch(err => {
+                console.error("Error loading order detail:", err);
+                content.innerHTML = `<p class="p-20 text-center text-red-500 font-bold uppercase tracking-widest">Lỗi khi tải thông tin đơn hàng</p>`;
+            });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const ctx = document.getElementById('orderStatusChart').getContext('2d');
+        const data = {
+            labels: ['Thành công', 'Thất bại', 'Đang giao', 'Nhận đơn', 'Chờ vận chuyển', 'Đã hủy'],
+            datasets: [{
+                data: [@Model.TotalCompletedOrders, @Model.TotalFailedOrders, @Model.TotalDeliveringOrders, @Model.TotalPendingOrders, @Model.TotalSearchingShipperOrders, @Model.TotalCancelledOrders],
+                backgroundColor: [
+                    '#22c55e', // text-green-500
+                    '#ef4444', // text-red-500
+                    '#f97316', // text-brand-orange
+                    '#eab308', // text-yellow-500
+                    '#ec4899', // text-pink-500
+                    '#3b82f6'  // text-blue-500
+                ],
+                borderWidth: 0,
+                hoverOffset: 4,
+                cutout: '75%'
+            }]
+        };
+
+        const config = {
+            type: 'doughnut',
+            data: data,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: 12,
+                        titleFont: { size: 10, family: 'Inter' },
+                        bodyFont: { size: 12, family: 'Inter', weight: 'bold' },
+                        boxPadding: 4
+                    }
+                }
+            }
+        };
+
+        new Chart(ctx, config);
+    });
+</script>

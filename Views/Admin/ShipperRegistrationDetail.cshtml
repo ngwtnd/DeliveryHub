@@ -1,0 +1,203 @@
+@model DeliveryHubWeb.Models.ApplicationUser
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Duyệt hồ sơ Shipper";
+}
+
+<div class="mb-8 mt-4 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+        <a href="/Admin/AdminNotifications" class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all text-brand-gray group">
+            <i class="fa-solid fa-arrow-left text-xs group-hover:-translate-x-0.5 transition-transform"></i>
+        </a>
+        <h2 class="text-3xl font-black text-white tracking-tighter">Duyệt hồ sơ <span class="text-brand-orange">Shipper</span></h2>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
+    <!-- Profile Info (1/3) -->
+    <div class="lg:col-span-1 space-y-6">
+        <div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 p-10 flex flex-col items-center text-center shadow-2xl relative overflow-hidden group">
+            <div class="w-28 h-28 rounded-[2.5rem] p-1 bg-gradient-to-tr from-brand-orange to-orange-400 mb-6">
+                <img src="@Model.AvatarUrl" alt="@Model.FullName" class="w-full h-full object-cover rounded-[2.2rem]" onerror="this.src='/images/default-avatar.png'" />
+            </div>
+
+            <h3 class="text-2xl font-black text-white mb-1">@Model.FullName</h3>
+            <p class="text-brand-orange font-bold text-[10px] uppercase tracking-[0.2em] mb-4">CHỜ DUYỆT</p>
+
+            <div class="w-full space-y-4 pt-8 border-t border-white/5 text-left">
+                <div class="flex items-center gap-4">
+                    <div class="w-9 h-9 rounded-2xl bg-white/5 flex items-center justify-center text-brand-gray shadow-inner">
+                        <i class="fa-solid fa-envelope text-xs"></i>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-brand-gray font-black uppercase tracking-widest opacity-60">Email</p>
+                        <p class="text-[13px] font-bold text-white tracking-tight">@Model.Email</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="w-9 h-9 rounded-2xl bg-white/5 flex items-center justify-center text-brand-gray shadow-inner">
+                        <i class="fa-solid fa-phone text-xs"></i>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-brand-gray font-black uppercase tracking-widest opacity-60">Số điện thoại</p>
+                        <p class="text-[13px] font-bold text-white tracking-tight">@Model.PhoneNumber</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="w-9 h-9 rounded-2xl bg-white/5 flex items-center justify-center text-brand-gray shadow-inner">
+                        <i class="fa-solid fa-id-card text-xs"></i>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-brand-gray font-black uppercase tracking-widest opacity-60">Số CCCD</p>
+                        <p class="text-[13px] font-bold text-white tracking-tight">@Model.CitizenId</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="w-9 h-9 rounded-2xl bg-white/5 flex items-center justify-center text-brand-gray shadow-inner">
+                        <i class="fa-solid fa-motorcycle text-xs"></i>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-brand-gray font-black uppercase tracking-widest opacity-60">Phương tiện - @Model.VehicleType</p>
+                        <p class="text-[13px] font-bold text-white tracking-tight">@Model.Vehicle</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="w-9 h-9 rounded-2xl bg-white/5 flex items-center justify-center text-brand-gray shadow-inner">
+                        <i class="fa-solid fa-calendar-check text-xs"></i>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-brand-gray font-black uppercase tracking-widest opacity-60">Ngày đăng ký</p>
+                        <p class="text-[13px] font-bold text-white tracking-tight">@Model.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="w-full flex items-center gap-3 mt-8 pt-8 border-t border-white/5">
+                <button onclick="approveShipper('@Model.Id')" class="flex-1 py-4 px-4 bg-green-500/10 text-green-500 font-black text-[11px] uppercase tracking-widest rounded-2xl hover:bg-green-500 hover:text-white hover:scale-[1.02] active:scale-95 transition-all outline outline-1 outline-green-500/20"><i class="fa-solid fa-check mr-2"></i>Duyệt Shipper</button>
+                <button onclick="rejectShipper('@Model.Id')" class="flex-1 py-4 px-4 bg-red-500/10 text-red-500 font-black text-[11px] uppercase tracking-widest rounded-2xl hover:bg-red-500 hover:text-white hover:scale-[1.02] active:scale-95 transition-all outline outline-1 outline-red-500/20"><i class="fa-solid fa-xmark mr-2"></i>Từ chối</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Documents viewing (2/3) -->
+    <div class="lg:col-span-2 space-y-6">
+        <div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl p-10 h-full">
+            <h4 class="text-xl font-black text-white tracking-tighter mb-8"><i class="fa-solid fa-file-invoice text-brand-orange mr-3"></i>Hồ sơ giấy tờ</h4>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <p class="text-[11px] font-black text-brand-gray uppercase tracking-widest">Mặt trước CCCD</p>
+                    <div class="rounded-[2rem] border border-white/10 overflow-hidden group relative bg-brand-black/50 aspect-[4/3] flex items-center justify-center cursor-pointer" onclick="openImageModal('@Model.CitizenIdFrontImageUrl')">
+                        <img src="@Model.CitizenIdFrontImageUrl" onerror="this.src='/images/default-store.png'" class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500" />
+                        <div class="absolute inset-0 bg-brand-orange/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-sm">
+                            <div class="w-16 h-16 rounded-full bg-brand-orange flex items-center justify-center text-black shadow-2xl">
+                                <i class="fa-solid fa-magnifying-glass-plus text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <p class="text-[11px] font-black text-brand-gray uppercase tracking-widest">Mặt sau CCCD</p>
+                    <div class="rounded-[2rem] border border-white/10 overflow-hidden group relative bg-brand-black/50 aspect-[4/3] flex items-center justify-center cursor-pointer" onclick="openImageModal('@Model.CitizenIdBackImageUrl')">
+                        <img src="@Model.CitizenIdBackImageUrl" onerror="this.src='/images/default-store.png'" class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500" />
+                        <div class="absolute inset-0 bg-brand-orange/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-sm">
+                            <div class="w-16 h-16 rounded-full bg-brand-orange flex items-center justify-center text-black shadow-2xl">
+                                <i class="fa-solid fa-magnifying-glass-plus text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-4 md:col-span-2">
+                    <p class="text-[11px] font-black text-brand-gray uppercase tracking-widest">Bằng lái xe</p>
+                    <div class="rounded-[2rem] border border-white/10 overflow-hidden group relative bg-brand-black/50 aspect-[21/9] flex items-center justify-center cursor-pointer" onclick="openImageModal('@Model.DriverLicenseImageUrl')">
+                        <img src="@Model.DriverLicenseImageUrl" onerror="this.src='/images/default-store.png'" class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform duration-500" />
+                        <div class="absolute inset-0 bg-brand-orange/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity backdrop-blur-sm">
+                            <div class="w-16 h-16 rounded-full bg-brand-orange flex items-center justify-center text-black shadow-2xl">
+                                <i class="fa-solid fa-magnifying-glass-plus text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image View Modal -->
+<div id="imageModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
+    <div class="absolute inset-0 bg-black/90 backdrop-blur-md cursor-pointer" onclick="closeImageModal()"></div>
+    <div class="relative z-10 w-full max-w-6xl h-[90vh] flex items-center justify-center p-4">
+        <button onclick="closeImageModal()" class="absolute top-4 right-4 w-12 h-12 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors shadow-2xl z-20">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+        <img id="modalImage" src="" class="max-w-full max-h-full object-contain rounded-2xl shadow-2xl scale-95 transition-transform duration-300" />
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function openImageModal(src) {
+            const modal = document.getElementById('imageModal');
+            const img = document.getElementById('modalImage');
+            img.src = src;
+            modal.classList.remove('hidden');
+            
+            // Allow browser paint before applying opacity transition
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                img.classList.remove('scale-95');
+                img.classList.add('scale-100');
+            });
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            const img = document.getElementById('modalImage');
+            modal.classList.add('opacity-0');
+            img.classList.remove('scale-100');
+            img.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        async function approveShipper(id) {
+            const res = await window.showAdminConfirm('Duyệt Shipper', 'Bạn muốn duyệt hồ sơ này', 'success', 'Đồng ý', 'Hủy');
+            if (res.isConfirmed) {
+                try {
+                    const response = await fetch('/Admin/ApproveShipper/' + id, { method: 'POST' });
+                    const result = await response.json();
+                    if (result.success) {
+                        await window.showAdminAlert('Thành công!', 'Đã duyệt Shipper.', 'success');
+                        window.location.href = '/Admin/AdminNotifications';
+                    } else {
+                        await window.showAdminAlert('Lỗi!', result.message, 'error');
+                    }
+                } catch (e) {
+                    await window.showAdminAlert('Lỗi!', 'Không kết nối được server.', 'error');
+                }
+            }
+        }
+
+        async function rejectShipper(id) {
+            const res = await window.showAdminConfirm('Từ chối', 'Bạn có muốn từ chối hồ sơ này', 'error', 'Từ chối', 'Hủy');
+            if (res.isConfirmed) {
+                try {
+                    const response = await fetch('/Admin/RejectShipper/' + id, { method: 'POST' });
+                    const result = await response.json();
+                    if (result.success) {
+                        await window.showAdminAlert('Đã từ chối!', 'Hồ sơ đã bị xóa.', 'destructive-success');
+                        window.location.href = '/Admin/AdminNotifications';
+                    } else {
+                        await window.showAdminAlert('Lỗi!', result.message, 'error');
+                    }
+                } catch (e) {
+                    await window.showAdminAlert('Lỗi!', 'Không kết nối được server.', 'error');
+                }
+            }
+        }
+    </script>
+}

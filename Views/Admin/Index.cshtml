@@ -1,0 +1,680 @@
+@model IEnumerable<Order>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Thống kê hệ thống";
+    var stats = ViewBag.Stats;
+    var chartData = System.Text.Json.JsonSerializer.Serialize(ViewBag.ChartData);
+    var statusStats = System.Text.Json.JsonSerializer.Serialize(ViewBag.StatusStats);
+
+    string previousPeriodLabel = stats.SelectedDays == 1 ? "hôm qua" :
+                                 stats.SelectedDays == 7 ? "tuần trước" :
+                                 stats.SelectedDays == 30 ? "tháng trước" :
+                                 stats.SelectedDays == 365 ? "năm trước" : "kỳ trước";
+
+    string GetStatusLabel(OrderStatus status) => status switch {
+        OrderStatus.Pending => "Mới tạo",
+        OrderStatus.SearchingShipper => "Tìm shipper",
+        OrderStatus.Accepted => "Nhận đơn",
+        OrderStatus.Preparing => "Đang làm món",
+        OrderStatus.Delivering => "Đang giao",
+        OrderStatus.Completed => "Thành công",
+        OrderStatus.Cancelled => "Đã hủy",
+        OrderStatus.Failed => "Thất bại",
+        _ => status.ToString()
+    };
+
+    string GetStatusClass(OrderStatus status) => status switch {
+        OrderStatus.Pending => "bg-[#22D3EE]/10 text-[#22D3EE] border border-[#22D3EE]/20",
+        OrderStatus.SearchingShipper => "bg-[#A855F7]/10 text-[#A855F7] border border-[#A855F7]/20",
+        OrderStatus.Accepted => "bg-pink-500/10 text-pink-500 border border-pink-500/20",
+        OrderStatus.Preparing => "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20",
+        OrderStatus.Delivering => "bg-brand-orange/10 text-brand-orange border border-brand-orange/20",
+        OrderStatus.Completed => "bg-green-500/20 text-green-400 border border-green-500/20",
+        OrderStatus.Cancelled => "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+        OrderStatus.Failed => "bg-red-500/20 text-red-500 border border-red-500/20",
+        _ => "bg-gray-500/10 text-gray-500"
+    };
+}
+
+<!-- Filters & Quick Actions -->
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex flex-col md:flex-row justify-between items-start md:items-center gap-4 fade-in relative z-10 backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Tổng quan <span class="text-brand-orange">Dashboard</span></h2>
+        <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[10px] font-bold text-brand-orange uppercase tracking-wider">Thống kê</span>
+            <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Dữ liệu thống kê hoạt động <span class="text-white font-black">DeliveryHub</span></p>
+        </div>
+    </div>
+    
+    <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <form method="get" class="flex items-center gap-3 w-full md:w-auto">
+            @{
+                var storesList = ViewBag.Stores as IEnumerable<DeliveryHubWeb.Models.Store>;
+                string selectedStoreName = "Tất cả nhà hàng";
+                if (stats.SelectedStoreId != null && storesList != null) {
+                    var sStore = storesList.FirstOrDefault(s => s.Id == stats.SelectedStoreId);
+                    if (sStore != null) selectedStoreName = sStore.Name;
+                }
+
+                string selectedDaysLabel = stats.SelectedDays == 1 ? "Hôm nay" :
+                                         stats.SelectedDays == 7 ? "1 tuần qua" :
+                                         stats.SelectedDays == 30 ? "1 tháng qua" :
+                                         stats.SelectedDays == 365 ? "1 năm qua" : "Tất cả";
+            }
+
+            <div class="relative group dropdown-container min-w-[220px] z-50">
+                <input type="hidden" name="storeId" id="selectedStore" value="@stats.SelectedStoreId" />
+                <button type="button" class="dropdown-btn w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white hover:border-brand-orange outline-none transition-all cursor-pointer z-10 relative shadow-sm">
+                    <span class="dropdown-label">@selectedStoreName</span>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray group-hover/btn:text-brand-orange transition-colors"></i>
+                </button>
+                <div class="dropdown-options absolute top-full left-0 w-full mt-2 bg-brand-dark/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl py-2 z-[100] hidden overflow-hidden max-h-80 overflow-y-auto custom-scrollbar">
+                    <div class="option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-brand-orange/10 hover:text-brand-orange border-l-2 border-transparent hover:border-brand-orange transition-all" data-value="">
+                        Tất cả nhà hàng
+                    </div>
+                    @if(storesList != null) {
+                        foreach (var store in storesList)
+                        {
+                            <div class="option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-brand-orange/10 hover:text-brand-orange border-l-2 border-transparent hover:border-brand-orange transition-all @(stats.SelectedStoreId == store.Id ? "bg-brand-orange/5 text-brand-orange border-brand-orange" : "")" data-value="@store.Id">
+                                @store.Name
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <!-- Days Filter -->
+            <div class="relative group dropdown-container min-w-[160px] z-40">
+                <input type="hidden" name="days" id="selectedDays" value="@stats.SelectedDays" />
+                <button type="button" class="dropdown-btn w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white hover:border-brand-orange outline-none transition-all cursor-pointer z-10 relative shadow-sm">
+                    <span class="dropdown-label">@selectedDaysLabel</span>
+                    <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray group-hover/btn:text-brand-orange transition-colors"></i>
+                </button>
+                <div class="dropdown-options absolute top-full right-0 w-full mt-2 bg-brand-dark/95 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl py-2 z-[100] hidden overflow-hidden">
+                    <div class="option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-brand-orange/10 hover:text-brand-orange border-l-2 border-transparent hover:border-brand-orange transition-all @(stats.SelectedDays == 1 ? "bg-brand-orange/5 text-brand-orange border-brand-orange" : "")" data-value="1">Hôm nay</div>
+                    <div class="option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-brand-orange/10 hover:text-brand-orange border-l-2 border-transparent hover:border-brand-orange transition-all @(stats.SelectedDays == 7 ? "bg-brand-orange/5 text-brand-orange border-brand-orange" : "")" data-value="7">1 tuần qua</div>
+                    <div class="option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-brand-orange/10 hover:text-brand-orange border-l-2 border-transparent hover:border-brand-orange transition-all @(stats.SelectedDays == 30 ? "bg-brand-orange/5 text-brand-orange border-brand-orange" : "")" data-value="30">1 tháng qua</div>
+                    <div class="option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-brand-orange/10 hover:text-brand-orange border-l-2 border-transparent hover:border-brand-orange transition-all @(stats.SelectedDays == 365 ? "bg-brand-orange/5 text-brand-orange border-brand-orange" : "")" data-value="365">1 năm qua</div>
+                    <div class="option-item px-5 py-2.5 text-xs font-bold text-white cursor-pointer hover:bg-brand-orange/10 hover:text-brand-orange border-l-2 border-transparent hover:border-brand-orange transition-all @(stats.SelectedDays == 0 ? "bg-brand-orange/5 text-brand-orange border-brand-orange" : "")" data-value="0">Tất cả</div>
+                </div>
+            </div>
+
+            <button type="button" onclick="toggleRevenueMode()" class="w-10 h-10 bg-brand-orange text-black rounded-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-lg" title="Chuyển đổi Doanh thu / Thu nhập">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Stats Dashboard -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Total Orders -->
+    <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.1s">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="fa-solid fa-box text-6xl text-brand-orange"></i>
+        </div>
+        <div class="relative z-10">
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Tổng đơn hàng</p>
+            <h3 class="text-4xl font-extrabold mb-2">@stats.TotalOrders</h3>
+            @if (stats.SelectedDays > 0)
+            {
+                double tr = stats.CountTrend;
+                <div class="flex items-center gap-2 text-xs @(tr >= 0 ? "text-green-500" : "text-red-500") font-bold">
+                    <i class="fa-solid @(tr >= 0 ? "fa-caret-up" : "fa-caret-down")"></i>
+                    <span>@(tr > 0 ? "+" : "")@tr.ToString("F1")% so với @previousPeriodLabel</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Revenue -->
+    <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.2s">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="fa-solid fa-money-bill-trend-up text-6xl text-brand-orange"></i>
+        </div>
+        <div class="relative z-10 hidden-toggle" id="revenueContainer">
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2" id="revenueTitle">Tổng doanh thu (VND)</p>
+            <h3 class="text-3xl font-extrabold mb-2 transition-colors" id="revenueValue">@string.Format("{0:N0} VND", stats.TotalRevenue)</h3>
+            @if (stats.SelectedDays > 0)
+            {
+                <div class="flex items-center gap-2 text-xs font-bold" id="revenueTrendDiv">
+                    <i class="fa-solid" id="revenueTrendIcon"></i>
+                    <span id="revenueTrendText"></span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Shippers -->
+    <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.3s">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="fa-solid fa-person-biking text-6xl text-brand-orange"></i>
+        </div>
+        <div class="relative z-10">
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Shipper Hoạt động</p>
+            <h3 class="text-4xl font-extrabold mb-2">@stats.ActiveShippers</h3>
+            <div class="flex items-center gap-2 text-xs text-brand-orange font-bold">
+                <span class="w-1.5 h-1.5 rounded-full bg-brand-orange animate-pulse"></span>
+                <span>Đang trực tuyến</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Merchants -->
+    <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.4s">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="fa-solid fa-shop text-6xl text-brand-orange"></i>
+        </div>
+        <div class="relative z-10">
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Tổng số Nhà hàng</p>
+            <h3 class="text-4xl font-extrabold mb-2">@stats.TotalStores</h3>
+            <p class="text-xs text-brand-gray font-bold">@stats.TotalStores cửa hàng đối tác</p>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+    <!-- Revenue Growth -->
+    <div class="lg:col-span-2 bg-brand-dark p-8 rounded-[2.5rem] border border-white/5 fade-in" style="animation-delay: 0.5s">
+        <div class="flex justify-between items-center mb-6">
+            <h4 class="text-xl font-bold flex items-center gap-3">
+                <i class="fa-solid fa-chart-line text-brand-orange"></i>
+                Thống kê đơn hàng & Doanh thu
+            </h4>
+            <div class="flex gap-2">
+                <span class="flex items-center gap-2 text-[10px] font-bold text-brand-gray uppercase tracking-wider">
+                    <span class="w-2 h-2 rounded-full bg-brand-orange transition-colors" id="legendColor1"></span> <span id="legendText1">Doanh thu</span>
+                </span>
+                <span class="flex items-center gap-2 text-[10px] font-bold text-brand-gray uppercase tracking-wider ml-4">
+                    <span class="w-2 h-2 rounded-full bg-white transition-colors" id="legendColor2"></span> <span id="legendText2">Số đơn</span>
+                </span>
+            </div>
+        </div>
+        <div class="flex justify-start mb-4 gap-2">
+            <button onclick="changeChartType('line')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-brand-orange/20 text-brand-orange border border-brand-orange/50 hover:bg-brand-orange hover:text-black transition-all shadow-md" id="btnChart-line"><i class="fa-solid fa-chart-line"></i> Đường</button>
+            <button onclick="changeChartType('bar')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-white/5 border border-white/10 hover:bg-white/20 transition-all text-white" id="btnChart-bar"><i class="fa-solid fa-chart-column"></i> Cột</button>
+            <button onclick="changeChartType('radar')" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-white/5 border border-white/10 hover:bg-white/20 transition-all text-white" id="btnChart-radar"><i class="fa-solid fa-satellite-dish"></i> Radar</button>
+        </div>
+        <div class="h-[350px] w-full">
+            <canvas id="revenueChart"></canvas>
+        </div>
+        
+        <!-- Admin Breakdown Section (Hidden by default) -->
+        <div id="adminBreakdownSection" class="hidden mt-6 pt-6 border-t border-white/5 opacity-0 transform translate-y-2">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-blue-500/5 border border-blue-500/10 p-5 rounded-2xl">
+                    <h5 class="text-sm font-bold text-blue-400 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-arrow-down"></i> TỔNG THU VÀO: @string.Format("{0:N0} VND", stats.AdminGrossRevenue)
+                    </h5>
+                    <ul class="space-y-3">
+                        <li class="flex justify-between items-center text-sm">
+                            <span class="text-brand-gray">Hoa hồng nhà hàng (20%)</span>
+                            <span class="font-bold text-white">@string.Format("{0:N0} VND", stats.TotalCommission)</span>
+                        </li>
+                        <li class="flex justify-between items-center text-sm">
+                            <span class="text-brand-gray">Phí ship thu của khách</span>
+                            <span class="font-bold text-white">@string.Format("{0:N0} VND", stats.TotalShippingCollected)</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="bg-red-500/5 border border-red-500/10 p-5 rounded-2xl">
+                    <h5 class="text-sm font-bold text-red-500 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-arrow-up"></i> TỔNG CHI TRẢ: @string.Format("{0:N0} VND", stats.AdminTotalExpense)
+                    </h5>
+                    <ul class="space-y-3">
+                        <li class="flex justify-between items-center text-sm">
+                            <span class="text-brand-gray">Trả tiền công Shipper</span>
+                            <span class="font-bold text-white">@string.Format("{0:N0} VND", stats.TotalShipperPayout)</span>
+                        </li>
+                        <li class="flex justify-between items-center text-sm">
+                            <span class="text-brand-gray">Bù tiền khuyến mãi (Voucher)</span>
+                            <span class="font-bold text-white">@string.Format("{0:N0} VND", stats.TotalDiscount)</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Status Pie -->
+    <div class="bg-brand-dark p-8 rounded-[2.5rem] border border-white/5 fade-in" style="animation-delay: 0.6s">
+        <h4 class="text-xl font-bold mb-8 flex items-center gap-3">
+            <i class="fa-solid fa-chart-pie text-brand-orange"></i>
+            Trạng thái đơn hàng
+        </h4>
+        <div class="relative h-[250px] w-full flex justify-center items-center">
+            <canvas id="statusChart"></canvas>
+        </div>
+        <div class="mt-8 space-y-3" id="status-legend">
+            <!-- Render via JS -->
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders Table -->
+<div class="bg-brand-dark rounded-[2.5rem] border border-white/5 overflow-hidden fade-in" style="animation-delay: 0.7s">
+    <div class="p-8 border-b border-white/5 flex justify-between items-center">
+        <h4 class="text-xl font-bold">Đơn hàng mới nhất</h4>
+        <a href="@Url.Action("DashboardOrders", "Admin", new { days = stats.SelectedDays, storeId = stats.SelectedStoreId })" class="text-sm font-bold text-brand-orange hover:underline">Xem tất cả <i class="fa-solid fa-chevron-right ml-1"></i></a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left">
+            <thead>
+                <tr class="bg-white/5 text-[10px] font-extrabold text-brand-gray uppercase tracking-widest px-8">
+                    <th class="py-4 px-8">Mã đơn</th>
+                    <th class="py-4">Nhà hàng</th>
+                    <th class="py-4">Khách hàng</th>
+                    <th class="py-4">Tổng cộng</th>
+                    <th class="py-4">Trạng thái</th>
+                    <th class="py-4">Thời gian</th>
+                    <th class="py-4 text-center">Tùy chọn</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @foreach (var order in Model)
+                {
+                    var firstStore = order.OrderItems.FirstOrDefault()?.MenuItem?.Store;
+                    var storeName = firstStore?.Name ?? "Giao hàng";
+                    <tr class="hover:bg-white/[0.02] transition-colors group">
+                        <td class="py-4 px-8 font-bold text-brand-orange">#@order.OrderCode</td>
+                        <td>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center font-bold text-brand-orange">
+                                    @(storeName.Substring(0, 1))
+                                </div>
+                                <span class="font-bold text-sm">@storeName</span>
+                            </div>
+                        </td>
+                        <td>
+                            <p class="font-bold text-sm">@order.User?.FullName</p>
+                            <p class="text-[10px] text-brand-gray uppercase">@order.User?.Email</p>
+                        </td>
+                        <td class="font-bold text-brand-orange">@string.Format("{0:N0} VND", order.TotalPrice + order.ShippingFee)</td>
+                        <td>
+                            <span class="px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase @GetStatusClass(order.Status)">
+                                @GetStatusLabel(order.Status)
+                            </span>
+                        </td>
+                        <td class="text-xs text-brand-gray">@order.CreatedAt.ToString("dd/MM HH:mm")</td>
+                        <td class="py-4 text-center">
+                            <button onclick="showOrderDetail(@order.Id)" class="w-8 h-8 rounded-full bg-white/5 hover:bg-brand-orange hover:text-black transition-all">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<template id="orderData">
+    @foreach(var order in Model) {
+        <div data-id="@order.Id" 
+             data-code="@order.OrderCode"
+             data-customer="@order.User?.FullName"
+             data-merchant="@order.OrderItems.FirstOrDefault()?.MenuItem?.Store?.Name"
+             data-merchant-addr="@order.OrderItems.FirstOrDefault()?.MenuItem?.Store?.Address"
+             data-delivery-addr="@order.DeliveryAddress"
+             data-status="@order.Status"
+             data-price="@string.Format("{0:N0}", order.TotalPrice + order.ShippingFee)"
+             data-time1="@order.CreatedAt.ToString("HH:mm - dd/MM")"
+             data-time2="@(order.AcceptedAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-time3="@(order.PickedUpAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-time4="@((order.Status == OrderStatus.Completed ? order.CompletedAt : order.CancelledAt)?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-shipper-name="@(order.Shipper?.FullName ?? "")"
+             data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)[order.ShipperId] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
+             data-note="@order.Note">
+             <div class="items-json">
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(order.OrderItems.Select(oi => new { name = oi.MenuItem?.Name, qty = oi.Quantity, price = oi.Price })))
+             </div>
+        </div>
+    }
+</template>
+
+@await Html.PartialAsync("_OrderDetailModal")
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script>
+        const chartData = @Html.Raw(chartData);
+        const statusStats = @Html.Raw(statusStats);
+
+        let showAdminIncome = localStorage.getItem('adminDashboardShowIncome') === 'true';
+        const totalRevenueDisplay = '@Html.Raw(string.Format("{0:N0} VND", stats.TotalRevenue))';
+        const adminIncomeDisplay = '@Html.Raw(string.Format("{0:N0} VND", stats.AdminIncome))';
+        const isAdminIncomeNegative = @(stats.AdminIncome < 0 ? "true" : "false");
+
+        // Trends
+        const hasTrends = @(stats.SelectedDays > 0 ? "true" : "false");
+        const revTrendVal = @(((double)stats.RevenueTrend).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture));
+        const incTrendVal = @(((double)stats.AdminIncomeTrend).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture));
+
+        let chartInstance = null;
+
+        function updateChartData() {
+            if (!chartInstance) return;
+            
+            if (showAdminIncome) {
+                // Admin Mode: Blue = Income, Red = Expenses
+                chartInstance.data.datasets[0].label = 'Thu nhập (VND)';
+                chartInstance.data.datasets[0].data = chartData.map(d => d.AdminIncome);
+                chartInstance.data.datasets[0].borderColor = '#3b82f6';
+                chartInstance.data.datasets[0].backgroundColor = 'rgba(59, 130, 246, 0.1)';
+                
+                chartInstance.data.datasets[1].label = 'Chi trả (VND)';
+                chartInstance.data.datasets[1].data = chartData.map(d => d.AdminExpense);
+                chartInstance.data.datasets[1].borderColor = '#ef4444'; // Red
+                chartInstance.data.datasets[1].borderDash = []; // Solid line for expense maybe? Or keep dash
+                chartInstance.data.datasets[1].yAxisID = 'y'; // Use same scale
+                
+                document.getElementById('legendColor1').className = "w-2 h-2 rounded-full bg-blue-500 transition-colors";
+                document.getElementById('legendText1').innerText = "Thu nhập";
+                document.getElementById('legendColor2').className = "w-2 h-2 rounded-full bg-red-500 transition-colors";
+                document.getElementById('legendText2').innerText = "Chi trả";
+            } else {
+                // Revenue Mode: Orange = Revenue, White = Count
+                chartInstance.data.datasets[0].label = 'Doanh thu (VND)';
+                chartInstance.data.datasets[0].data = chartData.map(d => d.Revenue);
+                chartInstance.data.datasets[0].borderColor = '#FF6B00';
+                chartInstance.data.datasets[0].backgroundColor = 'rgba(255, 107, 0, 0.1)';
+                
+                chartInstance.data.datasets[1].label = 'Số đơn';
+                chartInstance.data.datasets[1].data = chartData.map(d => d.Count);
+                chartInstance.data.datasets[1].borderColor = '#ffffff';
+                chartInstance.data.datasets[1].borderDash = [5, 5];
+                chartInstance.data.datasets[1].yAxisID = 'y1';
+                
+                document.getElementById('legendColor1').className = "w-2 h-2 rounded-full bg-brand-orange transition-colors";
+                document.getElementById('legendText1').innerText = "Doanh thu";
+                document.getElementById('legendColor2').className = "w-2 h-2 rounded-full bg-white transition-colors";
+                document.getElementById('legendText2').innerText = "Số đơn";
+            }
+            if(chartInstance.config.type !== 'radar') {
+                chartInstance.data.datasets[0].yAxisID = 'y';
+                chartInstance.data.datasets[1].yAxisID = showAdminIncome ? 'y' : 'y1';
+            }
+            chartInstance.update();
+        }
+
+        function changeChartType(type) {
+            if(!chartInstance) return;
+            
+            // Xóa tất cả focus UI
+            ['line', 'bar', 'radar'].forEach(t => {
+                let btn = document.getElementById('btnChart-' + t);
+                if(btn) {
+                    btn.className = "px-3 py-1.5 text-xs font-bold rounded-lg bg-white/5 border border-white/10 hover:bg-white/20 transition-all text-white";
+                }
+            });
+            // Áp dụng focus
+            let activeBtn = document.getElementById('btnChart-' + type);
+            if(activeBtn) {
+                activeBtn.className = "px-3 py-1.5 text-xs font-bold rounded-lg bg-brand-orange/20 text-brand-orange border border-brand-orange/50 hover:bg-brand-orange hover:text-black transition-all shadow-md";
+            }
+
+            chartInstance.config.type = type;
+
+            if (type === 'radar') {
+                // Radar chart doesn't support multiple y-axes effectively in Chart.js
+                // we have to remove yAxisID for datasets
+                chartInstance.data.datasets.forEach(d => delete d.yAxisID);
+                chartInstance.options.scales.r = { grid: { color: 'rgba(255,255,255,0.1)' }, angleLines: { color: 'rgba(255,255,255,0.1)' }, pointLabels: { color: '#fff' }, ticks: { display: false } };
+                chartInstance.options.scales.x = { display: false };
+                chartInstance.options.scales.y = { display: false };
+                chartInstance.options.scales.y1 = { display: false };
+            } else {
+                // Restore scales for Line/Bar
+                chartInstance.options.scales.r = { display: false };
+                chartInstance.options.scales.x = { display: true, grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } };
+                chartInstance.options.scales.y = { display: true, position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#FF6B00', font: { size: 10 }, callback: v => (v / 1000) + 'k' } };
+                chartInstance.options.scales.y1 = { display: true, position: 'right', grid: { display: false }, ticks: { color: '#ffffff', font: { size: 10 } } };
+                
+                chartInstance.data.datasets[0].yAxisID = 'y';
+                chartInstance.data.datasets[1].yAxisID = showAdminIncome ? 'y' : 'y1';
+            }
+
+            chartInstance.update();
+        }
+
+        function updateRevenueDisplay() {
+            document.getElementById('revenueTitle').innerText = showAdminIncome ? "Tổng thu nhập Admin (VND)" : "Tổng doanh thu (VND)";
+            document.getElementById('revenueValue').innerText = showAdminIncome ? adminIncomeDisplay : totalRevenueDisplay;
+            
+            const valueEl = document.getElementById('revenueValue');
+            valueEl.classList.remove('text-yellow-400', 'text-red-500');
+            
+            if (showAdminIncome) {
+                if (isAdminIncomeNegative) {
+                    valueEl.classList.add('text-red-500');
+                } else {
+                    valueEl.classList.add('text-yellow-400');
+                }
+            }
+            
+            if (hasTrends) {
+                const trDiv = document.getElementById('revenueTrendDiv');
+                const tIcon = document.getElementById('revenueTrendIcon');
+                const tText = document.getElementById('revenueTrendText');
+                
+                let curTrend = showAdminIncome ? incTrendVal : revTrendVal;
+                
+                trDiv.className = "flex items-center gap-2 text-xs font-bold " + (curTrend >= 0 ? "text-green-500" : "text-red-500");
+                tIcon.className = "fa-solid " + (curTrend >= 0 ? "fa-caret-up" : "fa-caret-down");
+                tText.innerText = (curTrend > 0 ? "+" : "") + curTrend.toFixed(1) + "% so với @Html.Raw(previousPeriodLabel)";
+            }
+            
+            updateChartData();
+
+            const breakdownSection = document.getElementById('adminBreakdownSection');
+            if (showAdminIncome) {
+                breakdownSection.classList.remove('hidden');
+                gsap.to(breakdownSection, { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out' });
+            } else {
+                gsap.to(breakdownSection, { opacity: 0, y: 10, duration: 0.2, ease: 'power2.in', onComplete: () => {
+                    breakdownSection.classList.add('hidden');
+                }});
+            }
+        }
+
+        // Apply state immediately on load
+        updateRevenueDisplay();
+
+        function toggleRevenueMode() {
+            showAdminIncome = !showAdminIncome;
+            localStorage.setItem('adminDashboardShowIncome', showAdminIncome);
+            updateRevenueDisplay();
+            // Add a slight animation effect when toggled
+            gsap.fromTo("#revenueContainer", { opacity: 0.5, y: -5 }, { opacity: 1, y: 0, duration: 0.3 });
+        }
+
+        // Custom Dropdown JS Logic
+        document.querySelectorAll('.dropdown-btn').forEach(btn => {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const options = this.nextElementSibling;
+                document.querySelectorAll('.dropdown-options').forEach(opt => {
+                    if (opt !== options) opt.classList.add('hidden');
+                });
+                options.classList.toggle('hidden');
+            });
+        });
+
+        document.querySelectorAll('.option-item').forEach(item => {
+            item.addEventListener('click', function () {
+                const container = this.closest('.dropdown-container');
+                const btn = container.querySelector('.dropdown-btn');
+                const label = btn.querySelector('.dropdown-label');
+                const input = container.querySelector('input[type="hidden"]');
+                
+                label.innerText = this.innerText.trim();
+                input.value = this.dataset.value;
+                this.parentElement.classList.add('hidden');
+
+                // Submit form
+                input.closest('form').submit();
+            });
+        });
+
+        document.addEventListener('click', function () {
+            document.querySelectorAll('.dropdown-options').forEach(opt => {
+                opt.classList.add('hidden');
+            });
+        });
+
+        // Revenue Chart (Line Chart)
+        const ctxRev = document.getElementById('revenueChart').getContext('2d');
+        chartInstance = new Chart(ctxRev, {
+            type: 'line',
+            data: {
+                labels: chartData.map(d => new Date(d.Date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })),
+                datasets: [
+                    {
+                        label: 'Doanh thu (VND)',
+                        data: chartData.map(d => d.Revenue),
+                        borderColor: '#FF6B00',
+                        backgroundColor: 'rgba(255, 107, 0, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Số đơn',
+                        data: chartData.map(d => d.Count),
+                        borderColor: '#ffffff',
+                        borderDash: [5, 5],
+                        backgroundColor: 'transparent',
+                        tension: 0.1,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+                    y: { 
+                        position: 'left',
+                        grid: { color: 'rgba(255,255,255,0.05)' },
+                        ticks: { color: '#FF6B00', font: { size: 10 }, callback: v => (v / 1000) + 'k' }
+                    },
+                    y1: {
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: { color: '#ffffff', font: { size: 10 } }
+                    }
+                }
+            }
+        });
+        
+        // Ensure chart starts with the correct data
+        updateChartData();
+
+        // Status Chart (Doughnut)
+        const mappedStatusMap = {
+            "Pending": { label: "Mới tạo", color: "#22D3EE" },
+            "SearchingShipper": { label: "Tìm shipper", color: "#A855F7" },
+            "Accepted": { label: "Nhận đơn", color: "#ec4899" },
+            "Preparing": { label: "Đang làm món", color: "#eab308" },
+            "Delivering": { label: "Đang giao", color: "#FF6B00" },
+            "Completed": { label: "Thành công", color: "#22c55e" },
+            "Failed": { label: "Thất bại", color: "#ef4444" },
+            "Cancelled": { label: "Đã hủy", color: "#3b82f6" }
+        };
+
+        const chartStatuses = statusStats.map(d => ({
+            Status: mappedStatusMap[d.Status] ? mappedStatusMap[d.Status].label : d.Status,
+            Color: mappedStatusMap[d.Status] ? mappedStatusMap[d.Status].color : "#ffffff",
+            Count: d.Count 
+        }));
+
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: chartStatuses.map(d => d.Status),
+                datasets: [{
+                    data: chartStatuses.map(d => d.Count),
+                    backgroundColor: chartStatuses.map(d => d.Color),
+                    borderColor: '#0f172a',
+                    borderWidth: 5,
+                    cutout: '75%'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Custom Legend for status
+        const legendContainer = document.getElementById('status-legend');
+        chartStatuses.forEach((stat) => {
+            const item = document.createElement('div');
+            item.className = 'flex items-center justify-between';
+            item.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${stat.Color}"></span>
+                    <span class="text-xs font-bold text-brand-gray uppercase tracking-wider">${stat.Status}</span>
+                </div>
+                <span class="text-xs font-bold">${stat.Count}</span>
+            `;
+            legendContainer.appendChild(item);
+        });
+
+        function showOrderDetail(id) {
+            const dataDiv = document.querySelector(`template#orderData`).content.querySelector(`[data-id="${id}"]`);
+            if (!dataDiv) return;
+
+            const items = JSON.parse(dataDiv.querySelector('.items-json').innerText);
+            
+            const data = {
+                id: id,
+                code: dataDiv.dataset.code,
+                customer: dataDiv.dataset.customer,
+                merchant: dataDiv.dataset.merchant,
+                merchantAddr: dataDiv.dataset.merchantAddr,
+                deliveryAddr: dataDiv.dataset.deliveryAddr,
+                status: dataDiv.dataset.status,
+                totalPrice: dataDiv.dataset.price,
+                time1: dataDiv.dataset.time1,
+                time2: dataDiv.dataset.time2,
+                time3: dataDiv.dataset.time3,
+                time4: dataDiv.dataset.time4,
+                shipperName: dataDiv.dataset.shipperName,
+                shipperCode: dataDiv.dataset.shipperCode,
+                note: dataDiv.dataset.note,
+                items: items
+            };
+
+            if (typeof renderOrderDetail === 'function') {
+                renderOrderDetail(data);
+            }
+
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            modal.classList.remove('hidden');
+            if (typeof gsap !== 'undefined') {
+                gsap.set(body, { scale: 0.9, opacity: 0 });
+                gsap.to(body, { duration: 0.5, scale: 1, opacity: 1, ease: "back.out(1.2)" });
+            }
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            if (typeof gsap !== 'undefined') {
+                gsap.to(body, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
+                    modal.classList.add('hidden');
+                }});
+            } else {
+                modal.classList.add('hidden');
+            }
+        }
+    </script>
+}

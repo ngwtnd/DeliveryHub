@@ -1,0 +1,383 @@
+@model IEnumerable<DeliveryHubWeb.Models.UserViewModel>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý Người dùng";
+
+    string GetStatusClass(bool isActive) {
+        if (!isActive) return "bg-red-500/10 text-red-500 border border-red-500/20";
+        return "bg-green-500/10 text-green-500 border border-green-500/20";
+    }
+        
+    string GetStatusLabel(bool isActive) {
+        if (!isActive) return "Bị khóa";
+        return "Hoạt động";
+    }
+
+    string GetStatusDot(bool isActive) {
+        if (!isActive) return "bg-red-500";
+        return "bg-green-500";
+    }
+
+    string GetRankClass(string rank) {
+        switch (rank) {
+            case "Kim cương": return "text-blue-400";
+            case "Vàng": return "text-yellow-400";
+            case "Bạc": return "text-gray-300";
+            default: return "text-orange-400"; // Đồng
+        }
+    }
+
+    string GetRankIcon(string rank) {
+        if (rank == "Kim cương") return "fa-gem";
+        return "fa-medal";
+    }
+}
+
+<!-- GSAP for animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex justify-between items-center fade-in relative z-10 backdrop-blur-xl shadow-2xl flex-wrap gap-4">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Quản lý <span class="text-brand-orange">Người dùng</span></h2>
+        <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[10px] font-bold text-brand-orange uppercase tracking-wider">Dashboard</span>
+            <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1 flex gap-2">
+                <span>Tổng cộng <span class="text-white font-black">@ViewBag.TotalCount</span> tài khoản</span>
+                <span>&bull;</span>
+                <span><span class="text-green-500 font-black">@ViewBag.ActiveCount</span> Hoạt động</span>
+                <span>&bull;</span>
+                <span><span class="text-red-500 font-black">@ViewBag.LockedCount</span> Bị khóa</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form id="filterForm" method="get" class="flex flex-wrap items-center gap-4">
+        <input type="hidden" name="filter" id="currentFilter" value="@(ViewBag.CurrentFilter as string ?? "all")" />
+        <input type="hidden" name="page" id="currentPage" value="@ViewBag.CurrentPage" />
+
+        <!-- Filter Tabs -->
+        <div class="relative flex items-center bg-white/5 p-1.5 rounded-2xl border border-white/10">
+            <!-- Sliding Pill -->
+            <div id="filterPill" class="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0"></div>
+
+            <button id="btn-filter-all" type="button" onclick="setFilter('all')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Tất cả</button>
+            <button id="btn-filter-pending" type="button" onclick="setFilter('pending')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Bị khóa</button>
+            <button id="btn-filter-active" type="button" onclick="setFilter('active')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Hoạt động</button>
+        </div>
+
+        <div class="relative group">
+            <input type="text" name="search" id="searchInput" value="@ViewBag.SearchTerm" placeholder="Tìm tên, email, sđt..." 
+                   class="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-72 outline-none transition-all pl-12 group-focus-within:w-80" />
+            <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+        </div>
+
+        <button type="submit" class="h-12 px-8 bg-brand-orange text-black font-black text-xs rounded-2xl hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-orange/20">
+            <i class="fa-solid fa-filter mr-2"></i>LỌC
+        </button>
+    </form>
+</div>
+
+<div id="usersTableContainer">
+<!-- Users Table -->
+<div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.3)]">
+    <div class="overflow-x-auto lg:overflow-visible"> 
+        <table class="w-full text-left merchant-table border-collapse">
+            <thead>
+                <tr class="bg-white/[0.02] text-[10px] font-extrabold text-brand-gray uppercase tracking-[2px]">
+                    <th class="py-5 px-6 whitespace-nowrap text-center">Avatar</th>
+                    <th class="py-5 px-4">Thông tin</th>
+                    <th class="py-5 px-4">Mật khẩu</th>
+                    <th class="py-5 px-4">Số điện thoại</th>
+                    <th class="py-5 px-4">Ngày tạo</th>
+                    <th class="py-5 px-4">Hạng</th>
+                    <th class="py-5 px-4 text-center">Trạng thái</th>
+                    <th class="py-5 px-6 text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @foreach (var user in Model)
+                {
+                    <tr class="merchant-row group transition-all duration-300 hover:bg-white/[0.03]">
+                        <td class="py-5 px-6 text-center">
+                            <img src="@user.AvatarUrl" alt="Avatar" class="w-10 h-10 rounded-full mx-auto object-cover border-2 border-white/10 group-hover:border-brand-orange transition-colors" onerror="this.src='/images/default-avatar.png'"/>
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="flex flex-col">
+                                <span class="text-xs font-extrabold text-white">@user.FullName</span>
+                                <span class="text-[10px] font-bold text-brand-gray">@user.Email</span>
+                            </div>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-xs font-black tracking-widest text-brand-gray/50">********</span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-[11px] font-bold text-white">@user.PhoneNumber</span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-[11px] font-bold text-brand-gray">@user.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+                        </td>
+                        <td class="py-5 px-4 whitespace-nowrap">
+                            <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] w-fit">
+                                <i class="fa-solid @GetRankIcon(user.Rank) @GetRankClass(user.Rank) text-[12px]"></i>
+                                <div class="flex flex-col">
+                                    <span class="text-[10px] font-black uppercase text-white tracking-wider">@user.Rank</span>
+                                    <span class="text-[9px] font-bold text-brand-gray">@user.TotalCompletedOrders đơn</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="flex items-center justify-center gap-2 px-3 py-1.5 rounded-full w-fit mx-auto @GetStatusClass(user.IsActive)">
+                                <span class="w-1.5 h-1.5 rounded-full @GetStatusDot(user.IsActive)"></span>
+                                <span class="text-[10px] font-black uppercase tracking-tighter">@GetStatusLabel(user.IsActive)</span>
+                            </div>
+                        </td>
+                        <td class="py-5 px-6 text-center">
+                            <div class="flex items-center justify-center gap-3">
+                                <a href="@Url.Action("UserDetail", "Admin", new { id = user.Id })" class="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all hover:scale-110 shadow-lg" title="Lịch sử đơn hàng">
+                                    <i class="fa-solid fa-eye text-xs"></i>
+                                </a>
+                                <button onclick="openToggleLockModal('@user.Id', '@user.FullName', @(user.IsActive ? "true" : "false"))" class="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover/alert:bg-red-500 group-hover/alert:text-white hover:bg-red-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Khóa/Mở khóa">
+                                    <i class="fa-solid fa-triangle-exclamation text-xs text-red-500 group-hover:text-white transition-colors"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    @if (ViewBag.TotalPages > 1) {
+        <div id="paginationContainer" class="flex flex-col items-center gap-3 py-6 border-t border-white/5 bg-white/[0.02]">
+            <!-- Pagination Buttons -->
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="changePage(@(ViewBag.CurrentPage - 1))" 
+                   class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all @(ViewBag.CurrentPage <= 1 ? "opacity-30 pointer-events-none" : "")">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                
+                @for (int i = 1; i <= ViewBag.TotalPages; i++) {
+                    <button type="button" onclick="changePage(@i)" 
+                       class="w-10 h-10 rounded-xl border flex items-center justify-center text-xs font-bold transition-all @(i == ViewBag.CurrentPage ? "bg-brand-orange border-brand-orange text-black font-extrabold shadow-lg shadow-brand-orange/20" : "bg-white/5 border-white/5 text-white hover:border-brand-orange/50")">
+                        @i
+                    </button>
+                }
+
+                <button type="button" onclick="changePage(@(ViewBag.CurrentPage + 1))" 
+                   class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all @(ViewBag.CurrentPage >= ViewBag.TotalPages ? "opacity-30 pointer-events-none" : "")">
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Page Info -->
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-[0.2em]">
+                Trang <span class="text-white">@ViewBag.CurrentPage</span> / @ViewBag.TotalPages
+            </p>
+        </div>
+    }
+</div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const searchInput = document.getElementById('searchInput');
+        const currentFilterInput = document.getElementById('currentFilter');
+        const currentPageInput = document.getElementById('currentPage');
+
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        const runSmartSearch = () => {
+            const search = searchInput.value;
+            const filter = currentFilterInput.value;
+            const page = currentPageInput.value;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('search', search);
+            url.searchParams.set('filter', filter);
+            url.searchParams.set('page', page);
+            window.history.replaceState(null, '', url);
+
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(res => res.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newContent = doc.getElementById('usersTableContainer');
+                    if (newContent) {
+                        document.getElementById('usersTableContainer').innerHTML = newContent.innerHTML;
+                    }
+                });
+        };
+
+        window.updateTabStyles = (activeFilter) => {
+            const btnAll = document.getElementById('btn-filter-all');
+            const btnPending = document.getElementById('btn-filter-pending');
+            const btnActive = document.getElementById('btn-filter-active');
+            const pill = document.getElementById('filterPill');
+            
+            const btnTarget = activeFilter === 'all' ? btnAll : (activeFilter === 'pending' ? btnPending : btnActive);
+            
+            if (pill && btnTarget) {
+                let pillClass = "absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0";
+                if (activeFilter === 'all') {
+                    pillClass += " bg-white/10 shadow-lg shadow-white/5";
+                } else if (activeFilter === 'pending') {
+                    pillClass += " bg-red-500/10 border border-red-500/50 shadow-lg shadow-red-500/10";
+                } else if (activeFilter === 'active') {
+                    pillClass += " bg-green-500/10 border border-green-500/50 shadow-lg shadow-green-500/10";
+                }
+                pill.className = pillClass;
+                pill.style.left = btnTarget.offsetLeft + 'px';
+                pill.style.width = btnTarget.offsetWidth + 'px';
+            }
+            
+            const resetClass = "text-brand-gray hover:text-white";
+            
+            if(btnAll) btnAll.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'all' ? 'text-white' : resetClass}`;
+            if(btnPending) btnPending.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'pending' ? 'text-red-500' : resetClass}`;
+            if(btnActive) btnActive.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'active' ? 'text-green-500' : resetClass}`;
+        };
+
+        setTimeout(() => {
+            updateTabStyles(currentFilterInput.value || 'all');
+        }, 50);
+
+        window.setFilter = (filter) => {
+            currentFilterInput.value = filter;
+            currentPageInput.value = 1;
+            updateTabStyles(filter);
+            runSmartSearch();
+        };
+
+        window.changePage = (page) => {
+            currentPageInput.value = page;
+            runSmartSearch();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        if (searchInput) {
+            searchInput.addEventListener('input', debounce(runSmartSearch, 300));
+        }
+
+        const filterForm = document.getElementById('filterForm');
+        if (filterForm) {
+            filterForm.addEventListener('submit', function (e) {
+                e.preventDefault();
+                runSmartSearch();
+            });
+        }
+    });
+
+    // --- LOCK/UNLOCK USER LOGIC ---
+    let targetUserId = "";
+    let isCurrentlyActive = true;
+
+    window.openToggleLockModal = (id, name, isActive) => {
+        targetUserId = id;
+        isCurrentlyActive = isActive;
+        document.getElementById('lockUserName').innerText = name;
+        
+        const modal = document.getElementById('toggleLockModal');
+        const backdrop = modal.querySelector('.lock-backdrop');
+        const content = modal.querySelector('.lock-content');
+        
+        // Update text based on current status
+        const title = document.getElementById('lockModalTitle');
+        const icon = document.getElementById('lockModalIcon');
+        const confirmBtn = document.getElementById('confirmLockBtn');
+        const desc = document.getElementById('lockModalDesc');
+
+        if (isCurrentlyActive) {
+            title.innerText = "Khóa tài khoản?";
+            desc.innerHTML = `Bạn có chắc muốn tạm khóa tài khoản của <span id="lockUserName" class="text-white font-bold">${name}</span>?`;
+            icon.className = "fa-solid fa-user-slash text-4xl text-red-500";
+            icon.parentElement.className = "w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.3)]";
+            confirmBtn.className = "flex-1 py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-black shadow-lg shadow-red-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center h-[56px]";
+            confirmBtn.innerText = "Xác nhận khóa";
+        } else {
+            title.innerText = "Mở khóa tài khoản?";
+            desc.innerHTML = `Đồng ý khôi phục quyền truy cập cho <span id="lockUserName" class="text-white font-bold">${name}</span>?`;
+            icon.className = "fa-solid fa-user-check text-4xl text-green-500";
+            icon.parentElement.className = "w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-500/20 shadow-[0_0_50px_rgba(34,197,94,0.3)]";
+            confirmBtn.className = "flex-1 py-4 rounded-2xl bg-green-500 hover:bg-green-600 text-white font-black shadow-lg shadow-green-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center h-[56px]";
+            confirmBtn.innerText = "Mở khóa ngay";
+        }
+
+        modal.classList.remove('hidden');
+        gsap.to(backdrop, { duration: 0.3, opacity: 1 });
+        gsap.to(content, { duration: 0.4, scale: 1, opacity: 1, ease: "back.out(1.5)" });
+    };
+
+    window.closeToggleLockModal = () => {
+        const modal = document.getElementById('toggleLockModal');
+        const backdrop = modal.querySelector('.lock-backdrop');
+        const content = modal.querySelector('.lock-content');
+        
+        gsap.to(content, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in" });
+        gsap.to(backdrop, { duration: 0.3, opacity: 0, onComplete: () => {
+            modal.classList.add('hidden');
+            targetUserId = "";
+        }});
+    };
+
+    window.executeToggleLock = () => {
+        if(!targetUserId) return;
+        const btn = document.getElementById('confirmLockBtn');
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        btn.style.pointerEvents = 'none';
+
+        fetch('/Admin/ToggleUserLock/' + targetUserId, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    closeToggleLockModal();
+                    location.reload();
+                } else alert('Lỗi: ' + data.message);
+            })
+            .finally(() => {
+                btn.innerHTML = originalHtml;
+                btn.style.pointerEvents = 'auto';
+            });
+    };
+</script>
+
+<!-- Toggle Lock User Modal -->
+<div id="toggleLockModal" class="fixed inset-0 z-[200] flex items-center justify-center hidden">
+    <div class="lock-backdrop absolute inset-0 bg-brand-black/80 backdrop-blur-md opacity-0 cursor-pointer" onclick="closeToggleLockModal()"></div>
+    <div class="lock-content relative bg-brand-dark/95 border border-white/10 rounded-[2.5rem] w-full max-w-md mx-4 shadow-2xl overflow-hidden scale-90 opacity-0 text-center p-10">
+        <div id="lockIconContainer" class="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+            <i id="lockModalIcon" class="fa-solid fa-user-slash text-4xl text-red-500"></i>
+        </div>
+        <h3 id="lockModalTitle" class="text-2xl font-black text-white mb-2">Xác nhận thao tác</h3>
+        <p id="lockModalDesc" class="text-brand-gray text-sm mb-8 leading-relaxed">Đang tải...</p>
+        
+        <div class="flex items-center gap-4">
+            <button onclick="closeToggleLockModal()" class="flex-1 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all">
+                Từ chối
+            </button>
+            <button id="confirmLockBtn" onclick="executeToggleLock()" class="flex-1 py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-black shadow-lg shadow-red-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center h-[56px]">
+                Xác nhận
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,107,0,0.3); border-radius: 10px; }
+    .merchant-row { animation: slideIn 0.4s ease-out forwards; opacity: 0; }
+    @@keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    @for (int i = 0; i < Model.Count(); i++)
+    {
+        <text>.merchant-row:nth-child(@(i + 1)) { animation-delay: @(i * 0.05)s; }</text>
+    }
+</style>

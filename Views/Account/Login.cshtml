@@ -1,0 +1,158 @@
+@model dynamic
+@{
+    ViewData["Title"] = "Đăng nhập";
+}
+
+<section class="min-h-screen flex items-center justify-center pt-24 pb-12 px-6">
+    <!-- Background Decoration -->
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-orange/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+    <div class="relative w-full max-w-md">
+        <!-- Login Card -->
+        <div class="bg-brand-dark/80 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 md:p-10 shadow-2xl overflow-hidden">
+            
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center gap-1 mb-4">
+                    <span class="text-2xl font-bold">Delivery</span>
+                    <span class="bg-brand-orange text-brand-black px-2 py-0.5 rounded-lg text-xl font-bold leading-none tracking-tight">hub</span>
+                </div>
+                <h2 class="text-3xl font-extrabold text-white mb-2">Chào mừng trở lại</h2>
+                <p class="text-brand-gray">Đăng nhập để tiếp tục trải nghiệm</p>
+                
+                @if (TempData["SuccessMessage"] != null)
+                {
+                    <div class="mt-4 text-xs font-bold text-green-400 bg-green-500/10 p-3 rounded-xl border border-green-500/20">
+                        <i class="fa-solid fa-check-circle mr-1"></i> @TempData["SuccessMessage"]
+                    </div>
+                }
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div asp-validation-summary="All" class="mt-4 text-xs font-bold text-red-500 bg-red-500/10 p-3 rounded-xl border border-red-500/20"></div>
+                }
+            </div>
+
+            <!-- Vertical Form -->
+            <form asp-controller="Account" asp-action="Login" method="post" class="flex flex-col gap-6" id="login-form">
+                <div class="flex flex-col gap-2">
+                    <label class="text-sm font-bold text-brand-gray uppercase tracking-wider ml-1">Email / Tên đăng nhập</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <input type="email" name="email" id="email-input" 
+                               class="w-full bg-black/50 border border-white/10 text-white py-4 pl-12 pr-4 rounded-2xl focus:outline-none focus:border-brand-orange transition-all placeholder:text-gray-600" 
+                               placeholder="your@email.com" required>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between items-center px-1">
+                        <label class="text-sm font-bold text-brand-gray uppercase tracking-wider">Mật khẩu</label>
+                        <a href="#" class="text-xs text-brand-orange hover:underline">Quên mật khẩu?</a>
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <input type="password" name="password" id="password-input" 
+                               class="w-full bg-black/50 border border-white/10 text-white py-4 pl-12 pr-4 rounded-2xl focus:outline-none focus:border-brand-orange transition-all placeholder:text-gray-600" 
+                               placeholder="••••••••" required>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 px-1">
+                    <input type="checkbox" name="rememberMe" id="remember" class="w-4 h-4 rounded bg-brand-dark border-white/10 text-brand-orange focus:ring-brand-orange">
+                    <label for="remember" class="text-sm text-brand-gray cursor-pointer">Duy trì đăng nhập</label>
+                </div>
+
+                <button type="submit" class="w-full bg-brand-orange text-black font-extrabold py-4 rounded-2xl text-lg hover:shadow-[0_0_20px_rgba(255,107,0,0.4)] hover:scale-[1.02] active:scale-[0.98] transition-all mt-2">
+                    Đăng nhập hệ thống
+                </button>
+            </form>
+
+            <!-- Registration links -->
+            <div class="mt-6 text-center">
+                <p class="text-brand-gray text-xs mb-3">Bạn chưa có tài khoản?</p>
+                <div class="flex flex-wrap justify-center gap-2">
+                    <a href="@Url.Action("RegisterUser", "Account")" class="text-brand-orange font-bold text-xs uppercase tracking-widest bg-brand-orange/10 px-3 py-2 rounded-xl hover:bg-brand-orange/20 transition-all">
+                        <i class="fa-solid fa-user-plus mr-1"></i> Khách hàng
+                    </a>
+                    <a href="@Url.Action("RegisterShipper", "Account")" class="text-brand-orange font-bold text-xs uppercase tracking-widest bg-brand-orange/10 px-3 py-2 rounded-xl hover:bg-brand-orange/20 transition-all">
+                        <i class="fa-solid fa-motorcycle mr-1"></i> Shipper
+                    </a>
+                    <a href="@Url.Action("RegisterPartner", "Account")" class="text-brand-orange font-bold text-xs uppercase tracking-widest bg-brand-orange/10 px-3 py-2 rounded-xl hover:bg-brand-orange/20 transition-all">
+                        <i class="fa-solid fa-store mr-1"></i> Đối tác
+                    </a>
+                </div>
+            </div>
+
+            <!-- Demo Accounts Quick Login -->
+            <div class="mt-6 border-t border-white/5 pt-5">
+                <p class="text-center text-xs font-bold text-purple-400 uppercase tracking-widest mb-3">
+                    <i class="fa-solid fa-key mr-1"></i> Demo Accounts (Mật khẩu: Demo@2026)
+                </p>
+                <div class="space-y-2">
+                    <button onclick="quickLogin('admin@deliveryhub.vn')" class="w-full flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-purple-500/30 rounded-xl px-4 py-2.5 transition-all text-left group">
+                        <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-shield-halved text-red-400 text-xs"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-white text-xs font-bold group-hover:text-purple-300 transition-colors">Admin</p>
+                            <p class="text-gray-500 text-[10px]">admin@deliveryhub.vn</p>
+                        </div>
+                        <i class="fa-solid fa-arrow-right-to-bracket text-gray-600 group-hover:text-purple-400 text-xs transition-colors"></i>
+                    </button>
+
+                    <button onclick="quickLogin('partner.bundau@deliveryhub.vn')" class="w-full flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-purple-500/30 rounded-xl px-4 py-2.5 transition-all text-left group">
+                        <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-store text-blue-400 text-xs"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-white text-xs font-bold group-hover:text-purple-300 transition-colors">Partner (Đối tác)</p>
+                            <p class="text-gray-500 text-[10px]">partner.bundau@deliveryhub.vn</p>
+                        </div>
+                        <i class="fa-solid fa-arrow-right-to-bracket text-gray-600 group-hover:text-purple-400 text-xs transition-colors"></i>
+                    </button>
+
+                    <button onclick="quickLogin('shipper1@deliveryhub.vn')" class="w-full flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-purple-500/30 rounded-xl px-4 py-2.5 transition-all text-left group">
+                        <div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-motorcycle text-green-400 text-xs"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-white text-xs font-bold group-hover:text-purple-300 transition-colors">Shipper</p>
+                            <p class="text-gray-500 text-[10px]">shipper1@deliveryhub.vn</p>
+                        </div>
+                        <i class="fa-solid fa-arrow-right-to-bracket text-gray-600 group-hover:text-purple-400 text-xs transition-colors"></i>
+                    </button>
+
+                    <button onclick="quickLogin('user1@gmail.com')" class="w-full flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-purple-500/30 rounded-xl px-4 py-2.5 transition-all text-left group">
+                        <div class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-user text-orange-400 text-xs"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-white text-xs font-bold group-hover:text-purple-300 transition-colors">User (Khách hàng)</p>
+                            <p class="text-gray-500 text-[10px]">user1@gmail.com</p>
+                        </div>
+                        <i class="fa-solid fa-arrow-right-to-bracket text-gray-600 group-hover:text-purple-400 text-xs transition-colors"></i>
+                    </button>
+
+                    <button onclick="quickLogin('demo_rm@deliveryhub.vn')" class="w-full flex items-center gap-3 bg-white/5 hover:bg-white/10 border border-white/5 hover:border-purple-500/30 rounded-xl px-4 py-2.5 transition-all text-left group">
+                        <div class="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-utensils text-purple-400 text-xs"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-white text-xs font-bold group-hover:text-purple-300 transition-colors">Quản lý nhà hàng</p>
+                            <p class="text-gray-500 text-[10px]">demo_rm@deliveryhub.vn</p>
+                        </div>
+                        <i class="fa-solid fa-arrow-right-to-bracket text-gray-600 group-hover:text-purple-400 text-xs transition-colors"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+    function quickLogin(email) {
+        document.getElementById('email-input').value = email;
+        document.getElementById('password-input').value = 'Demo@2026';
+        document.getElementById('login-form').submit();
+    }
+</script>

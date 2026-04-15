@@ -1,0 +1,700 @@
+@model IEnumerable<DeliveryHubWeb.Models.Store>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý Đối tác";
+    var branchCounts = ViewBag.BranchCounts as Dictionary<string, int> ?? new Dictionary<string, int>();
+    var partnerCodes = ViewBag.PartnerCodes as Dictionary<string, string> ?? new Dictionary<string, string>();
+
+    string GetStatusClass(bool isOpen) => isOpen 
+        ? "bg-green-500/10 text-green-500 border border-green-500/20" 
+        : "bg-red-500/10 text-red-500 border border-red-500/20";
+        
+    string GetStatusLabel(bool isOpen) => isOpen ? "Đang hoạt động" : "Ngưng hoạt động";
+}
+
+<!-- GSAP for animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex justify-between items-center fade-in relative z-10 backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Quản lý <span class="text-brand-orange">Đối tác</span></h2>
+        <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[10px] font-bold text-brand-orange uppercase tracking-wider">Dashboard</span>
+            <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1 flex gap-2">
+                <span>Tổng cộng <span id="totalCountSpan" class="text-white font-black">@ViewBag.TotalItems</span> đối tác</span>
+                <span>&bull;</span>
+                <span id="activeBranchesSpan">
+                    @if (ViewBag.OpenBranches == ViewBag.TotalBranches)
+                    {
+                        <span class="text-green-500 font-black">@ViewBag.OpenBranches/@ViewBag.TotalBranches</span>
+                    }
+                    else
+                    {
+                        <span class="text-red-500 font-black">@ViewBag.OpenBranches</span><span class="text-green-500 font-black">/@ViewBag.TotalBranches</span>
+                    }
+                </span> 
+                cửa hàng đang hoạt động
+            </p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <form id="filterForm" method="get" class="flex items-center gap-4">
+        <!-- Sliding Pill Filter -->
+        <div class="relative flex items-center bg-white/5 p-1.5 rounded-2xl border border-white/10">
+            <input type="hidden" name="active" id="selectedActive" value="@ViewBag.SelectedActive" />
+            <div id="statusPill" class="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0 @(ViewBag.SelectedActive == null ? "bg-white/10 shadow-lg shadow-white/5" : (ViewBag.SelectedActive == true ? "bg-green-500/10 border border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-red-500/10 border border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]"))"></div>
+            
+            <button type="button" onclick="changeStatus('', this)" data-color="text-white" data-pill="bg-white/10 shadow-lg shadow-white/5" class="filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 @(ViewBag.SelectedActive == null ? "active text-white" : "text-brand-gray hover:text-white")">Tất cả</button>
+            <button type="button" onclick="changeStatus('true', this)" data-color="text-green-500" data-pill="bg-green-500/10 border border-green-500/50 shadow-[0_0_15px_rgba(34,197,94,0.2)]" class="filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 @(ViewBag.SelectedActive == true ? "active text-green-500" : "text-brand-gray hover:text-white")">Đang hoạt động</button>
+            <button type="button" onclick="changeStatus('false', this)" data-color="text-red-500" data-pill="bg-red-500/10 border border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]" class="filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-300 @(ViewBag.SelectedActive == false ? "active text-red-500" : "text-brand-gray hover:text-white")">Ngừng hoạt động</button>
+        </div>
+
+        <div class="relative group">
+            <input type="text" name="search" id="searchInput" value="@ViewBag.SearchTerm" placeholder="Tìm tên quán, SĐT..." 
+                   class="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-72 outline-none transition-all pl-12 group-focus-within:w-80" />
+            <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+        </div>
+
+        <button type="submit" class="h-12 px-8 bg-brand-orange text-black font-black text-xs rounded-2xl hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-orange/20">
+            <i class="fa-solid fa-filter mr-2"></i>LỌC
+        </button>
+    </form>
+</div>
+
+<!-- Merchant Table -->
+<div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.3)]">
+    <div class="overflow-x-auto lg:overflow-visible"> 
+        <table class="w-full text-left merchant-table border-collapse">
+            <thead>
+                <tr class="bg-white/[0.02] text-[10px] font-extrabold text-brand-gray uppercase tracking-[2px]">
+                    <th class="py-5 px-6 whitespace-nowrap">Mã đối tác</th>
+                    <th class="py-5 px-4">Tên nhà hàng</th>
+                    <th class="py-5 px-4">Chủ sở hữu</th>
+                    <th class="py-5 px-4">Email</th>
+                    <th class="py-5 px-4">Số điện thoại</th>
+                    <th class="py-5 px-4 text-center">Chi nhánh</th>
+                    <th class="py-5 px-4">Trạng thái</th>
+                    <th class="py-5 px-6 text-center">Tùy chọn</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @foreach (var store in Model)
+                {
+                    bool isOwnerActive = store.Owner != null && store.Owner.IsActive;
+                    <tr class="merchant-row group transition-all duration-300 @(!isOwnerActive ? "bg-red-500/[0.05] hover:bg-red-500/[0.08]" : "hover:bg-white/[0.03]")">
+                        <td class="py-5 px-6">
+                            <span class="text-[10px] font-bold text-brand-orange bg-brand-orange/10 px-2.5 py-1.5 rounded-lg border border-brand-orange/20 whitespace-nowrap">
+                                @(partnerCodes.ContainsKey(store.OwnerId) ? partnerCodes[store.OwnerId] : $"DT-{store.Id:D3}")
+                            </span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-xl bg-white/5 min-w-[40px] flex items-center justify-center overflow-hidden border border-white/5 shadow-md">
+                                    @if (!string.IsNullOrEmpty(store.ImageUrl)) {
+                                        <img src="@store.ImageUrl" class="w-full h-full object-cover" alt="logo" />
+                                    } else {
+                                        <i class="fa-solid fa-store text-brand-gray"></i>
+                                    }
+                                </div>
+                                <span class="text-white font-black text-xs tracking-wider block line-clamp-2 leading-tight">@store.Name</span>
+                            </div>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-xs font-extrabold text-white">@store.Owner?.FullName</span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-[11px] font-bold text-brand-gray">@store.Owner?.Email</span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="text-[11px] font-bold text-white">@store.Owner?.PhoneNumber</span>
+                        </td>
+                        <td class="py-5 px-4 text-center">
+                            <span class="px-2.5 py-1 rounded-lg bg-white/5 text-xs font-black text-brand-orange border border-white/5">
+                                @(branchCounts.ContainsKey(store.OwnerId) ? branchCounts[store.OwnerId] : 1)
+                            </span>
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="flex items-center gap-2 px-3 py-1.5 rounded-full w-fit @GetStatusClass(isOwnerActive)">
+                                <span class="w-1.5 h-1.5 rounded-full @(isOwnerActive ? "bg-green-500" : "bg-red-500")"></span>
+                                <span class="text-[10px] font-black uppercase tracking-tighter">@GetStatusLabel(isOwnerActive)</span>
+                            </div>
+                        </td>
+                        <td class="py-5 px-8 text-center">
+                            <div class="flex items-center justify-center gap-3">
+                                <button onclick="openMerchantDetails('@store.OwnerId', '@store.Owner?.FullName')" 
+                                        class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all hover:scale-110 shadow-lg" title="Xem chi tiết">
+                                    <i class="fa-solid fa-eye text-sm"></i>
+                                </button>
+                                @if (isOwnerActive)
+                                {
+                                    <button onclick="openSuspendModal('@store.OwnerId', '@store.Owner?.FullName')" class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group hover:bg-red-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Cảnh báo ngưng hợp tác">
+                                        <i class="fa-solid fa-triangle-exclamation text-sm text-red-500 group-hover:text-white"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button onclick="openRestoreModal('@store.OwnerId', '@store.Owner?.FullName')" class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group hover:bg-green-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Khôi phục hoạt động">
+                                        <i class="fa-solid fa-check text-sm text-green-500 group-hover:text-white"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    @if (ViewBag.TotalPages > 1) {
+        <div id="paginationContainer" class="flex flex-col items-center gap-3 py-6 border-t border-white/5 bg-white/[0.02]">
+            <!-- Pagination Buttons -->
+            <div class="flex items-center gap-2">
+                <button onclick="changePage(@(ViewBag.CurrentPage - 1))" 
+                        class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all @(ViewBag.CurrentPage <= 1 ? "opacity-30 pointer-events-none" : "")">
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                </button>
+                
+                @for (int i = 1; i <= ViewBag.TotalPages; i++) {
+                    <button onclick="changePage(@i)" 
+                            class="w-10 h-10 rounded-xl border flex items-center justify-center text-xs font-bold transition-all @(i == ViewBag.CurrentPage ? "bg-brand-orange border-brand-orange text-black font-extrabold shadow-lg shadow-brand-orange/20" : "bg-white/5 border-white/5 text-white hover:border-brand-orange/50")">
+                        @i
+                    </button>
+                }
+
+                <button onclick="changePage(@(ViewBag.CurrentPage + 1))" 
+                        class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all @(ViewBag.CurrentPage >= ViewBag.TotalPages ? "opacity-30 pointer-events-none" : "")">
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Page Info -->
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-[0.2em]">
+                Trang <span class="text-white">@ViewBag.CurrentPage</span> / @ViewBag.TotalPages
+            </p>
+        </div>
+    }
+</div>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,107,0,0.3); border-radius: 10px; }
+    .merchant-row { animation: slideIn 0.4s ease-out forwards; opacity: 0; }
+    @@keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+    @for (int i = 0; i < Model.Count(); i++)
+    {
+        <text>.merchant-row:nth-child(@(i + 1)) { animation-delay: @(i * 0.05)s; }</text>
+    }
+</style>
+
+<!-- Merchant Detail Modal -->
+<div id="detailModal" class="fixed inset-0 z-[200] flex items-center justify-center hidden">
+    <!-- Backdrop -->
+    <div class="modal-backdrop absolute inset-0 bg-brand-black/40 backdrop-blur-sm opacity-0 cursor-pointer" onclick="closeModal()"></div>
+    
+    <!-- Modal Content -->
+    <div class="modal-content relative bg-brand-dark/95 border border-white/10 rounded-[2.5rem] w-full max-w-2xl mx-4 shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden scale-90 opacity-0">
+        <!-- Header -->
+        <div class="p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+            <div>
+                <h3 class="text-2xl font-black text-white">Danh sách <span class="text-brand-orange">Chi nhánh</span></h3>
+                <p id="ownerNameDetail" class="text-brand-gray text-xs font-bold uppercase tracking-widest mt-1">Merchant: ---</p>
+            </div>
+            <button onclick="closeModal()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </div>
+        
+        <!-- Branch List Container -->
+        <div id="branchesContainer" class="p-8">
+            <div class="flex flex-col items-center justify-center py-12 gap-4 text-brand-gray">
+                <i class="fa-solid fa-circle-notch fa-spin text-3xl"></i>
+                <p class="text-xs font-bold uppercase tracking-widest">Đang tải dữ liệu...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const filterForm = document.getElementById('filterForm');
+            const selectedActive = document.getElementById('selectedActive');
+            
+            // --- FILTER PILL LOGIC ---
+            function initPill() {
+                const activeBtn = document.querySelector('.filter-tab.active');
+                if (activeBtn) updatePillUI(activeBtn);
+            }
+
+            if (document.fonts) {
+                document.fonts.ready.then(initPill);
+            } else {
+                window.addEventListener('load', initPill);
+            }
+            window.addEventListener('resize', initPill);
+
+            window.changeStatus = function(val, btnElem) {
+                selectedActive.value = val;
+                
+                // Update UI visually
+                document.querySelectorAll('.filter-tab').forEach(b => {
+                    const cClass = b.getAttribute('data-color');
+                    if (cClass) b.classList.remove('active', cClass);
+                    b.classList.add('text-brand-gray');
+                });
+                
+                btnElem.classList.remove('text-brand-gray');
+                btnElem.classList.add('active', btnElem.getAttribute('data-color'));
+                
+                updatePillUI(btnElem);
+
+                // Trigger smart search
+                performSmartSearch();
+            };
+
+            function updatePillUI(btnElem) {
+                const pill = document.getElementById('statusPill');
+                if (!pill) return;
+                const pillClasses = btnElem.getAttribute('data-pill');
+                pill.className = `absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0 ${pillClasses}`;
+                pill.style.left = btnElem.offsetLeft + 'px';
+                pill.style.width = btnElem.offsetWidth + 'px';
+            }
+
+            // --- SMART LIVE SEARCH LOGIC ---
+            const searchInput = document.getElementById('searchInput');
+            const tableBody = document.querySelector('.merchant-table tbody');
+            const totalCountSpan = document.querySelector('p.text-brand-gray.text-sm.mt-1 span.text-white.font-bold');
+
+            function debounce(func, timeout = 300) {
+                let timer;
+                return (...args) => {
+                    clearTimeout(timer);
+                    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+                };
+            }
+
+            const performSmartSearch = debounce(() => {
+                const search = searchInput.value;
+                const active = selectedActive.value;
+
+                // Reset về trang 1 khi tìm kiếm mới
+                const url = new URL(window.location.origin + window.location.pathname);
+                url.searchParams.set('search', search);
+                if (active) url.searchParams.set('active', active);
+                url.searchParams.set('page', '1');
+
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(response => response.text())
+                    .then(html => {
+                        updateUI(html);
+                    });
+            });
+
+            window.changePage = (page) => {
+                const search = searchInput.value;
+                const active = selectedActive.value;
+                const url = new URL(window.location.origin + window.location.pathname);
+                url.searchParams.set('search', search);
+                if (active) url.searchParams.set('active', active);
+                url.searchParams.set('page', page);
+
+                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(response => response.text())
+                    .then(html => {
+                        updateUI(html);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    });
+            };
+
+            function updateUI(html) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Update table body
+                const newBody = doc.querySelector('.merchant-table tbody');
+                if (newBody) tableBody.innerHTML = newBody.innerHTML;
+                
+                // Update total count
+                const newTotal = doc.getElementById('totalCountSpan');
+                if (newTotal) document.getElementById('totalCountSpan').innerText = newTotal.innerText;
+
+                const newActiveBranches = doc.getElementById('activeBranchesSpan');
+                if (newActiveBranches) document.getElementById('activeBranchesSpan').innerHTML = newActiveBranches.innerHTML;
+
+                // Update pagination
+                const newPagination = doc.getElementById('paginationContainer');
+                const oldPagination = document.getElementById('paginationContainer');
+                if (newPagination) {
+                    if (oldPagination) oldPagination.outerHTML = newPagination.outerHTML;
+                    else document.querySelector('.overflow-x-auto').insertAdjacentHTML('afterend', newPagination.outerHTML);
+                } else if (oldPagination) {
+                    oldPagination.remove();
+                }
+
+                gsap.from(".merchant-row", { 
+                    duration: 0.4, 
+                    opacity: 0, 
+                    x: -20, 
+                    stagger: 0.05, 
+                    ease: "power2.out" 
+                });
+            }
+
+            searchInput.addEventListener('input', performSmartSearch);
+
+            // Auto-open modal or highlight store if redirected
+            const urlParams = new URLSearchParams(window.location.search);
+            const openId = urlParams.get('openPartnerId');
+            const openName = urlParams.get('openPartnerName');
+            const highlightStoreId = urlParams.get('highlightStoreId');
+            
+            if (openId) {
+                // If we don't have openPartnerName, try to find it in the table
+                let ownerName = openName;
+                let foundInTable = false;
+                if (!ownerName) {
+                    const rows = document.querySelectorAll('tr[data-owner-id]');
+                    for (const row of rows) {
+                        if (row.getAttribute('data-owner-id') === openId) {
+                            ownerName = row.querySelector('td:nth-child(2) span').textContent;
+                            foundInTable = true;
+                            break;
+                        }
+                    }
+                } else {
+                    foundInTable = true; // We assume they are approved if name is explicitly given
+                }
+                
+                setTimeout(() => {
+                    if (foundInTable) {
+                        openMerchantDetails(openId, ownerName || "Đối tác", highlightStoreId);
+                    } else {
+                        // If not found in the table, it must be a pending registration awaiting approval
+                        showPartnerRegistrationModal(openId);
+                    }
+                    // Clear URL params without reloading to keep it clean
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }, 500);
+            }
+        });
+
+        // --- MODAL LOGIC ---
+        function openMerchantDetails(ownerId, ownerName, highlightStoreId = null) {
+            const modal = document.getElementById('detailModal');
+            const backdrop = modal.querySelector('.modal-backdrop');
+            const content = modal.querySelector('.modal-content');
+            const container = document.getElementById('branchesContainer');
+            const ownerSpan = document.getElementById('ownerNameDetail');
+
+            ownerSpan.innerText = `Merchant: ${ownerName}`;
+            modal.classList.remove('hidden');
+
+            // Animation IN
+            gsap.to(backdrop, { duration: 0.3, opacity: 1 });
+            gsap.fromTo(content, { opacity: 0, scale: 0.8, y: 20 }, { duration: 0.4, opacity: 1, scale: 1, y: 0, ease: "back.out(1.7)" });
+
+            // AJAX Fetch branches
+            let url = `/Admin/MerchantStores?ownerId=${ownerId}`;
+            if (highlightStoreId) url += `&highlightStoreId=${highlightStoreId}`;
+
+            fetch(url)
+                .then(r => r.text())
+                .then(html => {
+                    container.innerHTML = html;
+                    
+                    // If highlighted, scroll to it and auto-open registration modal
+                    if (highlightStoreId) {
+                        setTimeout(() => {
+                            const highlightEl = document.getElementById(`store-row-${highlightStoreId}`);
+                            if (highlightEl) {
+                                highlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }, 300);
+                    }
+                })
+                .catch(err => {
+                    container.innerHTML = `<p class="text-red-500 font-bold text-center py-10">Lỗi: Không thể tải dữ liệu.</p>`;
+                });
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('detailModal');
+            const backdrop = modal.querySelector('.modal-backdrop');
+            const content = modal.querySelector('.modal-content');
+
+            gsap.to(content, { duration: 0.3, opacity: 0, scale: 0.8, y: 20 });
+            gsap.to(backdrop, { duration: 0.3, opacity: 0, onComplete: () => {
+                modal.classList.add('hidden');
+                document.getElementById('branchesContainer').innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-12 gap-4 text-brand-gray">
+                        <i class="fa-solid fa-circle-notch fa-spin text-3xl"></i>
+                        <p class="text-xs font-bold uppercase tracking-widest">Đang tải dữ liệu...</p>
+                    </div>
+                `;
+            }});
+        }
+
+        window.openRestoreModal = async (ownerId, partnerName) => {
+            const res = await window.showAdminConfirm(
+                'Khôi phục hoạt động',
+                `Đồng ý đưa đối tác ${partnerName} và tất cả chi nhánh trở lại hoạt động bình thường`,
+                'success',
+                'Đồng ý', 'Từ chối'
+            );
+            if (res.isConfirmed) {
+                try {
+                    const result = await fetch('@Url.Action("RestorePartner", "Admin")?ownerId=' + ownerId, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json());
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", "Đã khôi phục hoạt động.", "success");
+                        const searchInput = document.getElementById('searchInput');
+                        if (searchInput) searchInput.dispatchEvent(new Event('input')); 
+                        else window.location.reload();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+
+        window.openSuspendModal = async (ownerId, partnerName) => {
+            const res = await window.showAdminConfirm(
+                'Ngừng hợp tác',
+                `Đối tác ${partnerName} và tất cả chi nhánh sẽ bị đưa vào trạng thái Ngưng hoạt động.`,
+                'error',
+                'Đồng ý', 'Từ chối'
+            );
+            if (res.isConfirmed) {
+                try {
+                    const result = await fetch('@Url.Action("SuspendPartner", "Admin")?ownerId=' + ownerId, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json());
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", "Đã ngưng hoạt động đối tác.", "destructive-success");
+                        const searchInput = document.getElementById('searchInput');
+                        if (searchInput) searchInput.dispatchEvent(new Event('input')); 
+                        else window.location.reload();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+
+        // --- PARTNER REGISTRATION LOGIC ---
+        function checkHashForRegistration() {
+            const hash = window.location.hash;
+            if (hash && hash.startsWith('#partner-')) {
+                const id = hash.replace('#partner-', '');
+                showPartnerRegistrationModal(id);
+            } else if (hash && hash.startsWith('#store-')) {
+                const id = hash.replace('#store-', '');
+                showStoreRegistrationModal(id);
+            }
+        }
+
+        window.addEventListener('hashchange', checkHashForRegistration);
+        // (Removed broken redundant block)
+
+
+        let selectedStoreId = "";
+
+        window.showStoreRegistrationModal = (id) => {
+            const modal = document.getElementById('storeRegistrationModal');
+            const backdrop = document.getElementById('storeRegBackdrop');
+            const content = document.getElementById('storeRegContent');
+            const container = document.getElementById('storeRegBody');
+
+            const statusText = document.getElementById('storeModalStatus');
+
+            modal.classList.remove('hidden');
+            gsap.to(backdrop, { duration: 0.3, opacity: 1 });
+            gsap.to(content, { duration: 0.4, scale: 1, opacity: 1, ease: "back.out(1.5)" });
+
+            fetch(`/Admin/GetStoreRegistrationJson/${id}`)
+                .then(res => {
+                    if(!res.ok) throw new Error("Not found");
+                    return res.json();
+                })
+                .then(data => {
+                    if (data.isAlreadyActive) {
+                        statusText.innerText = 'Đã Phê Duyệt';
+                        statusText.className = 'text-green-500 text-[10px] font-black uppercase tracking-[0.3em] mt-1';
+                        
+                        container.innerHTML = `
+                            <div class="flex flex-col items-center justify-center py-16 gap-6 text-center">
+                                <div class="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/20 shadow-[0_0_50px_rgba(34,197,94,0.1)]">
+                                    <i class="fa-solid fa-store text-4xl text-green-500"></i>
+                                </div>
+                                <div class="space-y-2">
+                                    <h4 class="text-xl font-black text-white px-8">Chi nhánh này đã được duyệt và đang hoạt động</h4>
+                                    <p class="text-brand-gray text-xs font-bold uppercase tracking-widest">Tên quán: ${data.name}</p>
+                                </div>
+                                <button onclick="window.location.href='/Admin/StoreDetail/${id}'" class="px-8 py-3 rounded-xl bg-brand-orange text-black font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">Xem chi tiết chi nhánh</button>
+                            </div>
+                        `;
+                        return;
+                    } else {
+                        statusText.innerText = 'Chờ Xét Duyệt';
+                        statusText.className = 'text-brand-orange text-[10px] font-black uppercase tracking-[0.3em] mt-1';
+                    }
+                    let html = `
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                            <div class="bg-white/[0.02] p-6 rounded-3xl border border-white/5 flex flex-col gap-4">
+                                <h4 class="text-sm font-black text-brand-orange uppercase tracking-widest border-b border-white/10 pb-2">Thông tin chủ sở hữu</h4>
+                                <div class="flex items-center gap-4">
+                                    <img src="${data.ownerAvatarUrl || '/images/default-avatar.png'}" class="w-16 h-16 rounded-xl object-cover border border-white/10">
+                                    <div>
+                                        <p class="font-black text-white text-lg">${data.ownerFullName}</p>
+                                        <p class="text-xs text-brand-gray font-bold">${data.ownerEmail}</p>
+                                        <p class="text-xs text-brand-gray font-bold">${data.ownerPhone}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white/[0.02] p-6 rounded-3xl border border-white/5 flex flex-col gap-4">
+                                <h4 class="text-sm font-black text-brand-orange uppercase tracking-widest border-b border-white/10 pb-2">Thông tin chi nhánh (Mới)</h4>
+                                <div class="flex items-start gap-4">
+                                    <img src="${data.avatarUrl || '/images/default-store.png'}" class="w-16 h-16 rounded-xl object-cover border border-white/10 shrink-0">
+                                    <div class="flex-1">
+                                        <p class="font-black text-white text-lg leading-tight mb-1">${data.name}</p>
+                                        <p class="text-[11px] text-brand-gray font-bold line-clamp-2 leading-relaxed"><i class="fa-solid fa-location-dot text-brand-orange mr-1"></i>${data.address || 'Chưa cập nhật địa chỉ'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    html += `
+                    <div class="flex gap-4 justify-end border-t border-white/10 pt-6 mt-6">
+                        <button onclick="handleRejectStore('${data.id}')" class="px-6 py-3 rounded-xl bg-red-500/10 text-red-500 uppercase tracking-widest text-xs font-black hover:bg-red-500 hover:text-white transition-all">Từ chối (Xóa)</button>
+                        <button onclick="handleApproveStore('${data.id}')" class="px-6 py-3 rounded-xl bg-green-500/10 text-green-500 uppercase tracking-widest text-xs font-black shadow-lg shadow-green-500/20 hover:bg-green-500 hover:text-white transition-all">Đồng ý phê duyệt</button>
+                    </div>`;
+                    container.innerHTML = html;
+                })
+                .catch(err => {
+                    container.innerHTML = `<p class="p-20 text-center text-red-500 font-bold uppercase tracking-widest">Không tìm thấy dữ liệu hoặc đã xóa</p>`;
+                });
+        };
+
+        window.closeStoreRegistrationModal = () => {
+            const modal = document.getElementById('storeRegistrationModal');
+            const backdrop = document.getElementById('storeRegBackdrop');
+            const content = document.getElementById('storeRegContent');
+            
+            gsap.to(content, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in" });
+            gsap.to(backdrop, { duration: 0.3, opacity: 0, onComplete: () => {
+                modal.classList.add('hidden');
+                history.replaceState(null, null, ' ');
+            }});
+        };
+
+        window.handleApproveStore = async (id) => {
+            const res = await window.showAdminConfirm(
+                'Duyệt chi nhánh này',
+                'Đồng ý cho phép chi nhánh này bắt đầu hoạt động trên hệ thống',
+                'success',
+                'Đồng ý', 'Từ chối'
+            );
+            if (res.isConfirmed) {
+                try {
+                    const result = await fetch('/Admin/ApproveStore/' + id, { method: 'POST' }).then(r => r.json());
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", "Đã duyệt chi nhánh.", "success");
+                        window.location.href = '/Admin/StoreDetail/' + id;
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+
+        window.handleRejectStore = async (id) => {
+            const res = await window.showAdminConfirm(
+                'Từ chối chi nhánh',
+                'Hành động này sẽ xóa vĩnh viễn hồ sơ đăng ký chi nhánh này',
+                'error',
+                'Đồng ý xóa', 'Từ chối'
+            );
+            if (res.isConfirmed) {
+                try {
+                    const result = await fetch('/Admin/RejectStore/' + id, { method: 'POST' }).then(r => r.json());
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", "Đã xóa hồ sơ đăng ký chi nhánh.", "destructive-success");
+                        location.reload();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+        window.handleSuspendStore = async (id) => {
+            const res = await window.showAdminConfirm(
+                'Đình chỉ chi nhánh',
+                'Hành động này sẽ khóa chi nhánh và không cho phép hoạt động',
+                'error',
+                'Đồng ý khóa', 'Hủy'
+            );
+            if (res.isConfirmed) {
+                try {
+                    const result = await fetch('/Admin/SuspendStore/' + id, { method: 'POST' }).then(r => r.json());
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", "Đã khóa chi nhánh thành công.", "success");
+                        location.reload();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+
+        window.handleRestoreStore = async (id) => {
+            const res = await window.showAdminConfirm(
+                'Mở khóa chi nhánh',
+                'Đồng ý cho phép chi nhánh này hoạt động trở lại',
+                'success',
+                'Đồng ý', 'Hủy'
+            );
+            if (res.isConfirmed) {
+                try {
+                    const result = await fetch('/Admin/RestoreStore/' + id, { method: 'POST' }).then(r => r.json());
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", "Đã mở khóa chi nhánh.", "success");
+                        location.reload();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+    </script>
+}
+
+
+
+<!-- Branch Registration Modal -->
+<div id="storeRegistrationModal" class="fixed inset-0 z-[200] flex items-center justify-center hidden">
+    <div id="storeRegBackdrop" class="absolute inset-0 bg-brand-black/80 backdrop-blur-md opacity-0 cursor-pointer" onclick="closeStoreRegistrationModal()"></div>
+    <div id="storeRegContent" class="relative bg-brand-dark/95 border border-white/10 rounded-[3rem] w-full max-w-3xl mx-4 shadow-[0_0_150px_rgba(0,0,0,0.5)] overflow-hidden scale-90 opacity-0">
+        <div class="p-10 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+            <div>
+                <h3 class="text-3xl font-black text-white italic">Hồ Sơ Đăng Ký <span class="text-brand-orange">Chi Nhánh</span></h3>
+                <p id="storeModalStatus" class="text-brand-orange text-[10px] font-black uppercase tracking-[0.3em] mt-1">Chờ xét duyệt</p>
+            </div>
+            <button onclick="closeStoreRegistrationModal()" class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+        <div id="storeRegBody" class="p-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            <div class="flex items-center justify-center p-20">
+                <i class="fa-solid fa-circle-notch fa-spin text-4xl text-brand-orange"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+

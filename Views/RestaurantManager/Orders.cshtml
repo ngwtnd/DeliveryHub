@@ -1,0 +1,191 @@
+@model IEnumerable<DeliveryHubWeb.Models.Order>
+@{
+    Layout = "~/Views/Shared/_RestaurantManagerLayout.cshtml";
+    ViewData["Title"] = "Quản lý Đơn hàng";
+
+    // Helper function for Status Labels
+    string GetStatusLabel(DeliveryHubWeb.Models.OrderStatus status) => status switch {
+        DeliveryHubWeb.Models.OrderStatus.Pending => "Xác nhận",
+        DeliveryHubWeb.Models.OrderStatus.Preparing => "Đang chuẩn bị",
+        DeliveryHubWeb.Models.OrderStatus.SearchingShipper or DeliveryHubWeb.Models.OrderStatus.Accepted => "Chờ shipper",
+        DeliveryHubWeb.Models.OrderStatus.Delivering => "Đang giao",
+        DeliveryHubWeb.Models.OrderStatus.Completed => "Thành công",
+        DeliveryHubWeb.Models.OrderStatus.Cancelled => "Đã hủy",
+        DeliveryHubWeb.Models.OrderStatus.Failed => "Thất bại",
+        _ => status.ToString()
+    };
+
+    string GetStatusClass(DeliveryHubWeb.Models.OrderStatus status) => status switch {
+        DeliveryHubWeb.Models.OrderStatus.Pending => "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20",
+        DeliveryHubWeb.Models.OrderStatus.Preparing => "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20",
+        DeliveryHubWeb.Models.OrderStatus.SearchingShipper or DeliveryHubWeb.Models.OrderStatus.Accepted => "bg-pink-500/10 text-pink-500 border border-pink-500/20",
+        DeliveryHubWeb.Models.OrderStatus.Delivering => "bg-brand-orange/10 text-brand-orange border border-brand-orange/20",
+        DeliveryHubWeb.Models.OrderStatus.Completed => "bg-green-500/20 text-green-400 border border-green-500/20",
+        DeliveryHubWeb.Models.OrderStatus.Cancelled => "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+        DeliveryHubWeb.Models.OrderStatus.Failed => "bg-red-500/20 text-red-500 border border-red-500/20",
+        _ => "bg-gray-500/10 text-gray-500"
+    };
+}
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex flex-col md:flex-row justify-between items-center gap-6 fade-in relative z-10 backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Danh sách <span class="text-brand-orange">Đơn hàng</span></h2>
+        <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Quản lý và cập nhật trạng thái đơn hàng của chi nhánh</p>
+    </div>
+
+    <div class="flex items-center gap-4 w-full md:w-auto">
+        <div class="relative group flex-1 md:flex-none">
+            <input type="text" id="tableSearch" placeholder="Tìm mã đơn hoặc tên khách..." 
+                   class="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-full md:w-80 outline-none transition-all pl-12" />
+            <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+        </div>
+    </div>
+</div>
+
+<div class="bg-brand-dark rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl fade-in" style="animation-delay: 0.2s">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse" id="ordersTable">
+            <thead>
+                <tr class="bg-white/[0.02] text-[10px] font-extrabold text-brand-gray uppercase tracking-[2px]">
+                    <th class="py-6 px-8">Mã đơn</th>
+                    <th class="py-6 px-4">Khách hàng</th>
+                    <th class="py-6 px-4">Địa chỉ giao</th>
+                    <th class="py-6 px-4 text-right">Tổng cộng</th>
+                    <th class="py-6 px-4">Trạng thái</th>
+                    <th class="py-6 px-4 text-center">Hành động</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @foreach (var order in Model)
+                {
+                    <tr class="group hover:bg-white/[0.02] transition-all order-row">
+                        <td class="py-5 px-8">
+                            <span class="text-brand-orange font-black text-xs tracking-wider">#@order.OrderCode</span>
+                            <p class="text-[9px] text-brand-gray font-bold uppercase mt-1">@order.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</p>
+                        </td>
+                        <td class="py-5 px-4">
+                            <div class="space-y-1">
+                                <p class="text-white text-sm font-black">@(order.User?.FullName ?? "Khách lẻ")</p>
+                                <p class="text-brand-gray text-[10px] font-bold">@order.User?.PhoneNumber</p>
+                            </div>
+                        </td>
+                        <td class="py-5 px-4">
+                            <p class="text-brand-gray text-xs font-bold truncate max-w-[200px]" title="@order.DeliveryAddress">@order.DeliveryAddress</p>
+                        </td>
+                        <td class="py-5 px-4 text-right font-black text-sm text-white">
+                            @string.Format("{0:N0}", order.TotalPrice + order.ShippingFee)đ
+                        </td>
+                        <td class="py-5 px-4">
+                            <span class="px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider @GetStatusClass(order.Status)">
+                                @GetStatusLabel(order.Status)
+                            </span>
+                        </td>
+                        <td class="py-5 px-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button onclick="viewOrderDetail(@order.Id)" class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-gray hover:bg-brand-orange hover:text-black transition-all group/btn" title="Chi tiết">
+                                    <i class="fa-solid fa-eye text-xs"></i>
+                                </button>
+                                @if(order.Status == DeliveryHubWeb.Models.OrderStatus.Pending) {
+                                    <button onclick="updateStatus(@order.Id, 'Accepted')" class="px-3 h-10 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-black hover:bg-green-500 hover:text-white transition-all">XÁC NHẬN</button>
+                                } else if(order.Status == DeliveryHubWeb.Models.OrderStatus.Accepted) {
+                                    <button onclick="updateStatus(@order.Id, 'Preparing')" class="px-3 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-[10px] font-black hover:bg-yellow-500 hover:text-white transition-all">LÀM MÓN</button>
+                                } else if(order.Status == DeliveryHubWeb.Models.OrderStatus.Preparing) {
+                                     <button onclick="updateStatus(@order.Id, 'SearchingShipper')" class="px-3 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-500 text-[10px] font-black hover:bg-pink-500 hover:text-white transition-all">GỌI SHIPPER</button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<template id="orderData">
+    @foreach(var order in Model) {
+        <div data-id="@order.Id" 
+             data-code="@order.OrderCode"
+             data-customer="@order.User?.FullName"
+             data-merchant="@order.Store?.Name"
+             data-merchant-addr="@order.Store?.Address"
+             data-delivery-addr="@order.DeliveryAddress"
+             data-status="@order.Status"
+             data-price="@string.Format("{0:N0}", order.TotalPrice + order.ShippingFee)"
+             data-time1="@order.CreatedAt.ToString("HH:mm - dd/MM")"
+             data-time2="@(order.AcceptedAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-time3="@(order.PickedUpAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-time4="@((order.Status == DeliveryHubWeb.Models.OrderStatus.Completed ? order.CompletedAt : order.CancelledAt)?.ToString("HH:mm - dd/MM") ?? "--:--")"
+             data-shipper-name="@(order.Shipper?.FullName ?? "")"
+             data-shipper-code=""
+             data-note="@order.Note">
+             <div class="items-json">
+                @Html.Raw(System.Text.Json.JsonSerializer.Serialize(order.OrderItems.Select(oi => new { name = oi.MenuItem?.Name, qty = oi.Quantity, price = oi.Price })))
+             </div>
+        </div>
+    }
+</template>
+
+@await Html.PartialAsync("_OrderDetailModal")
+
+@section Scripts {
+    <script>
+        function viewOrderDetail(id) {
+            const dataDiv = document.querySelector(`template#orderData`).content.querySelector(`[data-id="${id}"]`);
+            if (!dataDiv) return;
+
+            const items = JSON.parse(dataDiv.querySelector('.items-json').innerText);
+            
+            const data = {
+                id: id,
+                code: dataDiv.dataset.code,
+                customer: dataDiv.dataset.customer,
+                merchant: dataDiv.dataset.merchant,
+                merchantAddr: dataDiv.dataset.merchantAddr,
+                deliveryAddr: dataDiv.dataset.deliveryAddr,
+                status: dataDiv.dataset.status,
+                totalPrice: dataDiv.dataset.price,
+                time1: dataDiv.dataset.time1,
+                time2: dataDiv.dataset.time2,
+                time3: dataDiv.dataset.time3,
+                time4: dataDiv.dataset.time4,
+                shipperName: dataDiv.dataset.shipperName,
+                shipperCode: dataDiv.dataset.shipperCode,
+                note: dataDiv.dataset.note,
+                items: items
+            };
+
+            if (typeof renderOrderDetail === 'function') {
+                renderOrderDetail(data);
+            }
+
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            modal.classList.remove('hidden');
+            gsap.set(body, { scale: 0.9, opacity: 0 });
+            gsap.to(body, { duration: 0.4, scale: 1, opacity: 1, ease: "back.out(1.2)" });
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('orderDetailModal');
+            const body = document.getElementById('modalBody');
+            gsap.to(body, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
+                modal.classList.add('hidden');
+            }});
+        }
+
+        async function updateStatus(id, status) {
+            // Reusing Partner logic logic for now, but should ideally have dedicated RM endpoint
+            // Actually, I'll need to add update methods to RestaurantManagerController
+            alert('Cập nhật đơn #' + id + ' sang ' + status);
+            // location.reload();
+        }
+
+        document.getElementById('tableSearch').addEventListener('keyup', function() {
+            let val = this.value.toLowerCase();
+            let rows = document.querySelectorAll('#ordersTable tbody tr');
+            rows.forEach(row => {
+                row.style.display = row.innerText.toLowerCase().includes(val) ? '' : 'none';
+            });
+        });
+    </script>
+}

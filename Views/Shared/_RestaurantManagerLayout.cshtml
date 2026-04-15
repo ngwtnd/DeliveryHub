@@ -1,0 +1,166 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+
+@{
+    var user = await UserManager.GetUserAsync(User);
+    var managerName = user?.FullName ?? "Quản lý";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Restaurant Manager</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'brand-orange': '#FF6B00',
+                        'brand-dark': '#0f172a',
+                        'brand-black': '#020617',
+                        'brand-gray': '#94a3b8',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #020617; color: white; }
+        .sidebar { transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 80px; overflow: hidden; }
+        .sidebar.expanded { width: 260px; }
+        .sidebar-label { opacity: 0; transition: opacity 0.2s; white-space: nowrap; pointer-events: none; }
+        .sidebar.expanded .sidebar-label { opacity: 1; pointer-events: auto; }
+        .nav-item { transition: all 0.2s; position: relative; }
+        .nav-item:hover { background: rgba(255, 107, 0, 0.1); color: #FF6B00; }
+        
+        .nav-item.active-dashboard { background: #FF6B00; color: black; font-weight: 700; box-shadow: 0 4px 15px rgba(255,107,0,0.3); }
+        .nav-item.active-dashboard i { color: black; }
+        
+        .nav-item.active-general { background: white; color: #FF6B00; font-weight: 800; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+        .nav-item.active-general i { color: #FF6B00; }
+
+        .main-content { transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin-left: 80px; }
+        .sidebar.expanded + .main-content { margin-left: 260px; }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+        .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+    @RenderSection("Styles", required: false)
+</head>
+<body class="overflow-x-hidden">
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar fixed top-0 left-0 h-screen bg-brand-dark border-r border-white/5 z-50 flex flex-col pt-4 overflow-y-auto no-scrollbar shadow-2xl">
+        <div class="flex items-center px-6 mb-10 h-10 w-full overflow-hidden">
+            <button id="sidebar-toggle" class="text-2xl text-brand-orange hover:scale-110 transition-transform focus:outline-none min-w-[32px]">
+                <i class="fa-solid fa-bars-staggered"></i>
+            </button>
+            <div class="sidebar-label ml-4 flex items-center gap-1">
+                <span class="text-xl font-extrabold text-white">Delivery</span>
+                <span class="bg-brand-orange text-black px-1.5 py-0.5 rounded-lg text-sm font-bold">hub</span>
+            </div>
+        </div>
+
+        <nav class="flex-1 px-3 space-y-2">
+            @{
+                var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "Index";
+            }
+            <a href="/RestaurantManager" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Index" ? "active-dashboard" : "")">
+                <i class="fa-solid fa-gauge-high text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Dashboard</span>
+            </a>
+            
+            <div class="sidebar-label px-4 text-[10px] font-bold text-brand-gray uppercase tracking-[2px] mt-6 mb-2">Vận hành</div>
+            <a href="/RestaurantManager/Orders" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Orders" ? "active-general" : "")">
+                <i class="fa-solid fa-receipt text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Đơn hàng</span>
+            </a>
+            <a href="/RestaurantManager/Menu" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Menu" ? "active-general" : "")">
+                <i class="fa-solid fa-utensils text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Thực đơn</span>
+            </a>
+
+            <div class="sidebar-label px-4 text-[10px] font-bold text-brand-gray uppercase tracking-[2px] mt-6 mb-2">Cá nhân</div>
+            <a href="/Account/Profile" class="nav-item flex items-center h-12 rounded-xl px-4 group @(currentAction == "Profile" ? "active-general" : "opacity-70")">
+                <i class="fa-solid fa-user-gear text-xl min-w-[24px]"></i>
+                <span class="sidebar-label ml-4">Hồ sơ</span>
+            </a>
+        </nav>
+
+        <div class="px-3 pb-6 mt-auto">
+            <form asp-controller="Account" asp-action="Logout" method="post">
+                <button type="submit" class="nav-item flex items-center h-12 w-full rounded-xl px-4 text-red-500 hover:bg-red-500/10 transition-all">
+                    <i class="fa-solid fa-right-from-bracket text-xl min-w-[24px]"></i>
+                    <span class="sidebar-label ml-4 font-bold">Đăng xuất</span>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content min-h-screen">
+        <header class="h-20 bg-brand-black/50 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 px-8 flex items-center justify-between">
+            <div>
+                <h1 class="text-xl font-bold">@ViewData["Title"]</h1>
+                <nav class="flex text-[10px] uppercase font-bold text-brand-gray gap-2 tracking-widest mt-1">
+                    <a href="/" class="hover:text-brand-orange transition-colors">Home</a>
+                    <span>/</span>
+                    <span class="text-white">Store Management</span>
+                </nav>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <!-- Profile -->
+                <a href="/Account/Profile" class="flex items-center gap-3 pl-6 border-l border-white/10 group cursor-pointer hover:bg-white/5 py-1.5 px-3 rounded-2xl transition-all">
+                    <div class="text-right">
+                        <p class="text-sm font-extrabold leading-none mb-1 group-hover:text-brand-orange transition-colors">@managerName</p>
+                        <p class="text-[10px] text-brand-gray uppercase font-bold tracking-tighter">Quản lý chi nhánh</p>
+                    </div>
+                    @if(!string.IsNullOrEmpty(user?.AvatarUrl)) {
+                        <img src="@user.AvatarUrl" class="w-10 h-10 rounded-xl object-cover shadow-[0_0_15px_rgba(255,107,0,0.3)] group-hover:scale-110 transition-transform" />
+                    } else {
+                        <div class="w-10 h-10 rounded-xl bg-brand-orange flex items-center justify-center text-black font-extrabold shadow-[0_0_15px_rgba(255,107,0,0.3)] group-hover:scale-110 transition-transform">
+                            QL
+                        </div>
+                    }
+                </a>
+            </div>
+        </header>
+
+        <div class="p-8">
+            @RenderBody()
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('sidebar-toggle');
+        
+        if (localStorage.getItem('restaurant-manager-sidebar-expanded') === 'true') {
+            sidebar.classList.add('expanded');
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('expanded');
+            localStorage.setItem('restaurant-manager-sidebar-expanded', sidebar.classList.contains('expanded'));
+        });
+    </script>
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

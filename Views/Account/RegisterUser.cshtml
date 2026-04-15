@@ -1,0 +1,99 @@
+@model dynamic
+@{
+    ViewData["Title"] = "Đăng ký tài khoản";
+}
+
+<section class="min-h-screen flex items-center justify-center pt-24 pb-12 px-6">
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-brand-orange/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+    <div class="relative w-full max-w-md">
+        <div class="bg-brand-dark/80 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 md:p-10 shadow-2xl overflow-hidden">
+            
+            <div class="text-center mb-6">
+                <div class="inline-flex items-center gap-1 mb-4">
+                    <span class="text-2xl font-bold">Delivery</span>
+                    <span class="bg-brand-orange text-brand-black px-2 py-0.5 rounded-lg text-xl font-bold leading-none tracking-tight">hub</span>
+                </div>
+                <h2 class="text-2xl font-extrabold text-white mb-2">Đăng ký tài khoản</h2>
+                <p class="text-brand-gray text-sm">Tạo tài khoản miễn phí để đặt hàng</p>
+
+                @if (!ViewData.ModelState.IsValid)
+                {
+                    <div asp-validation-summary="All" class="mt-4 text-xs font-bold text-red-500 bg-red-500/10 p-3 rounded-xl border border-red-500/20"></div>
+                }
+            </div>
+
+            <form asp-controller="Account" asp-action="RegisterUser" method="post" class="flex flex-col gap-5">
+                <!-- Họ tên -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-bold text-brand-gray uppercase tracking-wider ml-1">Họ và tên *</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <input type="text" name="fullName" 
+                               class="w-full bg-black/50 border border-white/10 text-white py-3.5 pl-12 pr-4 rounded-2xl focus:outline-none focus:border-brand-orange transition-all placeholder:text-gray-600" 
+                               placeholder="VD: Nguyễn Văn A" required>
+                    </div>
+                </div>
+
+                <!-- Email -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-bold text-brand-gray uppercase tracking-wider ml-1">Email *</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <input type="email" name="email" 
+                               class="w-full bg-black/50 border border-white/10 text-white py-3.5 pl-12 pr-4 rounded-2xl focus:outline-none focus:border-brand-orange transition-all placeholder:text-gray-600" 
+                               placeholder="your@email.com" required>
+                    </div>
+                </div>
+
+                <!-- Mật khẩu -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-bold text-brand-gray uppercase tracking-wider ml-1">Mật khẩu * (tối thiểu 6 ký tự)</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <input type="password" name="password" 
+                               class="w-full bg-black/50 border border-white/10 text-white py-3.5 pl-12 pr-4 rounded-2xl focus:outline-none focus:border-brand-orange transition-all placeholder:text-gray-600" 
+                               placeholder="••••••••" required minlength="6">
+                    </div>
+                </div>
+
+                <!-- Số điện thoại -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-bold text-brand-gray uppercase tracking-wider ml-1">Số điện thoại *</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <input type="tel" name="phoneNumber" 
+                               class="w-full bg-black/50 border border-white/10 text-white py-3.5 pl-12 pr-4 rounded-2xl focus:outline-none focus:border-brand-orange transition-all placeholder:text-gray-600" 
+                               placeholder="0909 xxx xxx" required>
+                    </div>
+                </div>
+
+                <!-- Địa chỉ (optional) -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-xs font-bold text-brand-gray uppercase tracking-wider ml-1">Địa chỉ giao hàng</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-location-dot absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                        <input type="text" name="address" 
+                               class="w-full bg-black/50 border border-white/10 text-white py-3.5 pl-12 pr-4 rounded-2xl focus:outline-none focus:border-brand-orange transition-all placeholder:text-gray-600" 
+                               placeholder="VD: Vinhomes Central Park, Bình Thạnh">
+                    </div>
+                </div>
+
+                <!-- Bonus info -->
+                <div class="bg-green-500/10 border border-green-500/20 rounded-2xl p-4 text-center">
+                    <i class="fa-solid fa-gift text-green-400 text-xl mb-2"></i>
+                    <p class="text-green-400 text-sm font-bold">🎁 Đăng ký ngay - nhận 500.000đ vào ví!</p>
+                </div>
+
+                <button type="submit" class="w-full bg-brand-orange text-black font-extrabold py-4 rounded-2xl text-lg hover:shadow-[0_0_20px_rgba(255,107,0,0.4)] hover:scale-[1.02] active:scale-[0.98] transition-all">
+                    Đăng ký ngay
+                </button>
+            </form>
+
+            <p class="text-center text-brand-gray text-xs mt-6">
+                Đã có tài khoản? 
+                <a href="@Url.Action("Login", "Account")" class="text-brand-orange font-bold hover:underline">Đăng nhập</a>
+            </p>
+        </div>
+    </div>
+</section>

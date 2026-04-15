@@ -1,0 +1,244 @@
+@using System.Text.Json
+@model IEnumerable<DeliveryHubWeb.Models.Order>
+@{
+    ViewData["Title"] = "Thống kê Chi nhánh";
+    Layout = "~/Views/Shared/_RestaurantManagerLayout.cshtml";
+
+    var store = ViewBag.Store as DeliveryHubWeb.Models.Store;
+    var selectedTime = ViewBag.SelectedTimeRange as string ?? "7days";
+    var statusStats = ViewBag.StatusStats as IEnumerable<dynamic>;
+    var chartData = ViewBag.ChartData as IEnumerable<dynamic>;
+
+    var totalRevenue = (decimal)(ViewBag.TotalRevenue ?? 0m);
+    var totalOrders = (int)(ViewBag.TotalOrders ?? 0);
+
+    // Helpers
+    string GetStatusLabel(DeliveryHubWeb.Models.OrderStatus status) => status switch {
+        DeliveryHubWeb.Models.OrderStatus.Pending => "Mới tạo",
+        DeliveryHubWeb.Models.OrderStatus.SearchingShipper => "Tìm shipper",
+        DeliveryHubWeb.Models.OrderStatus.Accepted => "Nhận đơn",
+        DeliveryHubWeb.Models.OrderStatus.Preparing => "Đang làm món",
+        DeliveryHubWeb.Models.OrderStatus.Delivering => "Đang giao",
+        DeliveryHubWeb.Models.OrderStatus.Completed => "Thành công",
+        DeliveryHubWeb.Models.OrderStatus.Cancelled => "Đã hủy",
+        DeliveryHubWeb.Models.OrderStatus.Failed => "Thất bại",
+        _ => status.ToString()
+    };
+
+    string GetStatusClass(DeliveryHubWeb.Models.OrderStatus status) => status switch {
+        DeliveryHubWeb.Models.OrderStatus.Pending => "bg-[#22D3EE]/10 text-[#22D3EE] border-[#22D3EE]/30",
+        DeliveryHubWeb.Models.OrderStatus.SearchingShipper => "bg-[#A855F7]/10 text-[#A855F7] border-[#A855F7]/30",
+        DeliveryHubWeb.Models.OrderStatus.Accepted => "bg-pink-500/10 text-pink-500 border-pink-500/30",
+        DeliveryHubWeb.Models.OrderStatus.Preparing => "bg-yellow-500/10 text-yellow-500 border-yellow-500/30",
+        DeliveryHubWeb.Models.OrderStatus.Delivering => "bg-brand-orange/10 text-brand-orange border-brand-orange/30",
+        DeliveryHubWeb.Models.OrderStatus.Completed => "bg-green-500/20 text-green-400 border-green-500/30",
+        _ => "bg-gray-500/10 text-gray-500 border-gray-500/30"
+    };
+
+    string GetStatusDotClass(DeliveryHubWeb.Models.OrderStatus status) => status switch {
+        DeliveryHubWeb.Models.OrderStatus.Pending => "bg-[#22D3EE]",
+        DeliveryHubWeb.Models.OrderStatus.SearchingShipper => "bg-[#A855F7]",
+        DeliveryHubWeb.Models.OrderStatus.Accepted => "bg-pink-500",
+        DeliveryHubWeb.Models.OrderStatus.Preparing => "bg-yellow-500",
+        DeliveryHubWeb.Models.OrderStatus.Delivering => "bg-brand-orange",
+        DeliveryHubWeb.Models.OrderStatus.Completed => "bg-green-400",
+        _ => "bg-gray-500"
+    };
+}
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex flex-col md:flex-row justify-between items-start md:items-center gap-6 fade-in relative z-10 backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Chào mừng, <span class="text-brand-orange">@store?.Name</span></h2>
+        <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Dữ liệu thống kê hoạt động từ chi nhánh của bạn</p>
+    </div>
+
+    <!-- Time Filter -->
+    <form id="filterForm" method="get" class="flex items-center gap-4">
+        <select name="timeRange" onchange="this.form.submit()" class="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white focus:border-brand-orange/50 outline-none cursor-pointer hover:bg-white/10 transition-all">
+            <!option value="today" @(selectedTime == "today" ? "selected" : "")>Hôm nay</!option>
+            <!option value="7days" @(selectedTime == "7days" ? "selected" : "")>7 ngày qua</!option>
+            <!option value="1month" @(selectedTime == "1month" ? "selected" : "")>1 tháng qua</!option>
+            <!option value="all" @(selectedTime == "all" ? "selected" : "")>Toàn thời gian</!option>
+        </select>
+    </form>
+</div>
+
+<!-- Quick Stats -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 fade-in">
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-brand-orange/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-brand-orange/15 transition-all"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest">Đơn hàng</h3>
+            <i class="fa-solid fa-box text-brand-orange/20 text-4xl"></i>
+        </div>
+        <div class="text-4xl font-black text-white mb-2">@totalOrders</div>
+    </div>
+    
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-green-500/15 transition-all"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest">Doanh thu</h3>
+            <i class="fa-solid fa-money-bill-wave text-green-500/20 text-4xl"></i>
+        </div>
+        <div class="text-4xl font-black text-white mb-2">@totalRevenue.ToString("N0")<span class="text-sm ml-1 text-brand-gray font-normal">đ</span></div>
+    </div>
+
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-blue-500/15 transition-all"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest">Trạng thái</h3>
+            <i class="fa-solid fa-store @(store?.IsOpen == true ? "text-green-500/20" : "text-red-500/20") text-4xl"></i>
+        </div>
+        <div class="flex items-center gap-3">
+             <div class="text-3xl font-black text-white">@(store?.IsOpen == true ? "MỞ CỬA" : "ĐÓNG CỬA")</div>
+             <button onclick="toggleStoreStatus()" class="px-3 py-1 bg-white/5 hover:bg-brand-orange hover:text-black rounded-lg text-[10px] font-black transition-all">ĐỔI</button>
+        </div>
+    </div>
+
+    <div class="bg-brand-orange rounded-[2rem] p-6 shadow-xl text-black relative overflow-hidden flex flex-col justify-center">
+        <h3 class="font-bold mb-4 uppercase tracking-wider text-xs border-b border-black/10 pb-2">Top món ăn</h3>
+        <div class="space-y-3">
+            @{
+                var topItems = ViewBag.TopItems as Dictionary<int, int>;
+                if (topItems != null && topItems.Any())
+                {
+                    foreach(var item in topItems)
+                    {
+                        var menuItem = store?.MenuItems.FirstOrDefault(m => m.Id == item.Key);
+                        <div class="flex justify-between items-center text-sm font-bold">
+                            <span class="truncate pr-2">@(menuItem?.Name ?? "Món ăn #" + item.Key)</span>
+                            <span>@item.Value <span class="text-[10px] uppercase opacity-70">bán</span></span>
+                        </div>
+                    }
+                } else {
+                    <div class="text-sm font-semibold opacity-70">Chưa có dữ liệu</div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 fade-in">
+    <!-- Revenue Chart -->
+    <div class="lg:col-span-2 bg-brand-dark border border-white/5 rounded-[2rem] p-6 shadow-xl">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-line text-brand-orange"></i> Doanh thu chi nhánh</h3>
+        </div>
+        <div class="h-[300px] w-full">
+            <canvas id="mainChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Status Pie -->
+    <div class="bg-brand-dark border border-white/5 rounded-[2rem] p-6 shadow-xl flex flex-col">
+        <h3 class="font-bold text-white mb-6 flex items-center gap-2"><i class="fa-solid fa-chart-pie text-brand-orange"></i> Trạng thái đơn</h3>
+        <div class="flex-1 flex items-center justify-center min-h-[220px]">
+            <canvas id="statusChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Orders -->
+<div class="bg-brand-dark border border-white/5 rounded-[2rem] overflow-hidden shadow-xl fade-in">
+    <div class="p-6 border-b border-white/5 flex justify-between items-center">
+        <h3 class="text-xl font-bold text-white">Đơn hàng mới</h3>
+        <a href="/RestaurantManager/Orders" class="text-brand-orange text-sm font-bold hover:text-white transition-colors">Xem tất cả <i class="fa-solid fa-arrow-right ml-1"></i></a>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="border-b border-white/5 bg-white/5">
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Mã Đơn</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Khách hàng</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Tổng cộng</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Trạng thái</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest">Thời gian</th>
+                    <th class="p-4 text-[10px] font-bold text-brand-gray uppercase tracking-widest text-center">Tùy chọn</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @foreach(var order in Model) {
+                    <tr class="hover:bg-white/[0.02] transition-colors group">
+                        <td class="p-4 font-bold text-brand-orange">#@order.OrderCode</td>
+                        <td class="p-4">
+                            <div class="font-bold text-white text-sm">@(order.User?.FullName ?? "Khách hàng")</div>
+                        </td>
+                        <td class="p-4 font-black">@((order.TotalPrice + order.ShippingFee).ToString("N0"))đ</td>
+                        <td class="p-4">
+                            <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase border @GetStatusClass(order.Status)">
+                                @GetStatusLabel(order.Status)
+                            </span>
+                        </td>
+                        <td class="p-4 text-sm text-brand-gray">@order.CreatedAt.ToString("HH:mm dd/MM")</td>
+                        <td class="p-4 text-center">
+                            <button onclick="showOrderDetail(@order.Id)" class="w-8 h-8 mx-auto rounded-lg bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all">
+                                <i class="fa-solid fa-eye text-xs"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@await Html.PartialAsync("_OrderDetailModal")
+
+@section Scripts {
+    <script>
+        async function toggleStoreStatus() {
+            const res = await fetch('/RestaurantManager/ToggleStoreStatus', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) location.reload();
+        }
+
+        const chartData = @Html.Raw(JsonSerializer.Serialize(chartData));
+        const labels = chartData.map(d => new Date(d.Date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }));
+        const revenueData = chartData.map(d => d.Revenue);
+
+        new Chart(document.getElementById('mainChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Doanh thu',
+                    data: revenueData,
+                    borderColor: '#FF6B00',
+                    backgroundColor: 'rgba(255, 107, 0, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+
+        const statusStats = @Html.Raw(JsonSerializer.Serialize(statusStats));
+        new Chart(document.getElementById('statusChart').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: statusStats.map(s => s.Status),
+                datasets: [{
+                    data: statusStats.map(s => s.Count),
+                    backgroundColor: ['#22D3EE', '#A855F7', '#ec4899', '#eab308', '#FF6B00', '#4ade80', '#60a5fa', '#ef4444'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: { legend: { display: false } }
+            }
+        });
+    </script>
+}

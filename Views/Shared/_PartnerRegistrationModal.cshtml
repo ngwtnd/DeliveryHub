@@ -1,0 +1,177 @@
+<!-- GLOBAL Partner Registration Modal -->
+<div id="partnerRegistrationModal" class="fixed inset-0 z-[1000] flex items-center justify-center hidden" style="backdrop-filter: blur(5px);">
+    <div class="absolute inset-0 bg-brand-black/80 cursor-pointer" id="partnerRegBackdrop" onclick="closePartnerRegistrationModal()"></div>
+    <div id="partnerRegContent" class="relative bg-brand-dark/95 border border-brand-orange/30 rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar shadow-[0_0_100px_rgba(255,107,0,0.2)] scale-90 opacity-0">
+        <div class="sticky top-0 z-10 bg-brand-dark/95 backdrop-blur-md p-8 border-b border-white/5 flex items-center justify-between">
+            <div>
+                <h3 class="text-2xl font-black text-white">Hồ Sơ Đăng Ký Hội Viên Đối Tác</h3>
+                <p id="partnerModalStatus" class="text-brand-orange text-xs font-bold uppercase tracking-widest mt-1">Chờ Xét Duyệt</p>
+            </div>
+            <button onclick="closePartnerRegistrationModal()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </div>
+        <div id="partnerRegBody" class="p-8">
+            <div class="flex flex-col items-center justify-center py-20 gap-4 text-brand-gray">
+                <i class="fa-solid fa-circle-notch fa-spin text-3xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.showPartnerRegistrationModal = function(id) {
+        const modal = document.getElementById('partnerRegistrationModal');
+        const backdrop = document.getElementById('partnerRegBackdrop');
+        const content = document.getElementById('partnerRegContent');
+        const container = document.getElementById('partnerRegBody');
+        const statusText = document.getElementById('partnerModalStatus');
+        
+        modal.classList.remove('hidden');
+        if (window.gsap) {
+            gsap.to(backdrop, { duration: 0.3, opacity: 1 });
+            gsap.to(content, { duration: 0.4, scale: 1, opacity: 1, ease: "back.out(1.5)" });
+        } else {
+            backdrop.style.opacity = '1';
+            content.style.opacity = '1';
+            content.style.transform = 'scale(1)';
+        }
+
+        fetch(`/Admin/GetPartnerRegistrationJson/${id}`)
+            .then(res => {
+                if(!res.ok) throw new Error("Not found");
+                return res.json();
+            })
+            .then(data => {
+                if (data.isAlreadyApproved) {
+                    statusText.innerText = 'Đã Phê Duyệt';
+                    statusText.className = 'text-green-500 text-xs font-bold uppercase tracking-widest mt-1';
+                    
+                    container.innerHTML = `
+                        <div class="flex flex-col items-center justify-center py-16 gap-6 text-center">
+                            <div class="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/20 shadow-[0_0_50px_rgba(34,197,94,0.1)]">
+                                <i class="fa-solid fa-check-double text-4xl text-green-500"></i>
+                            </div>
+                            <div class="space-y-2">
+                                <h4 class="text-xl font-black text-white px-8">Đối tác này đã được duyệt và đang hoạt động</h4>
+                                <p class="text-brand-gray text-xs font-bold uppercase tracking-widest">Tài khoản: ${data.fullName}</p>
+                            </div>
+                            <button onclick="window.location.href='/Admin/Merchants?openPartnerId=${id}'" class="px-8 py-3 rounded-xl bg-brand-orange text-black font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all">Xem chi tiết đối tác</button>
+                        </div>
+                    `;
+                    return;
+                } else {
+                    statusText.innerText = 'Chờ Xét Duyệt';
+                    statusText.className = 'text-brand-orange text-xs font-bold uppercase tracking-widest mt-1';
+                }
+                
+                let html = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                        <div class="bg-white/[0.02] p-6 rounded-3xl border border-white/5 flex flex-col gap-4">
+                            <h4 class="text-sm font-black text-brand-orange uppercase tracking-widest border-b border-white/10 pb-2">Thông tin chủ quản</h4>
+                            <div class="flex items-center gap-4">
+                                <img src="${data.avatarUrl || '/images/default-avatar.png'}" class="w-16 h-16 rounded-xl object-cover border border-white/10">
+                                <div>
+                                    <p class="font-black text-white text-lg">${data.fullName}</p>
+                                    <p class="text-xs text-brand-gray font-bold">${data.email}</p>
+                                    <p class="text-xs text-brand-gray font-bold">${data.phoneNumber}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white/[0.02] p-6 rounded-3xl border border-white/5 flex flex-col gap-4">
+                            <h4 class="text-sm font-black text-brand-orange uppercase tracking-widest border-b border-white/10 pb-2">Thông tin chi nhánh (Ban đầu)</h4>
+                            <div class="flex items-start gap-4">
+                                <img src="${data.shopAvatarUrl || '/images/default-store.png'}" class="w-16 h-16 rounded-xl object-cover border border-white/10">
+                                <div>
+                                    <p class="font-black text-white text-lg">${data.storeName}</p>
+                                    <p class="text-xs text-brand-gray font-bold">${data.storeAddress}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                if (!data.isApproved) {
+                    html += `
+                    <div class="flex gap-4 justify-end border-t border-white/10 pt-6 mt-6">
+                        <button onclick="handleRejectPartner('${data.id}')" class="px-6 py-3 rounded-xl bg-red-500/10 text-red-500 uppercase tracking-widest text-xs font-black hover:bg-red-500 hover:text-white transition-all">Từ chối (Xóa Toàn Bộ)</button>
+                        <button onclick="handleApprovePartner('${data.id}')" class="px-6 py-3 rounded-xl bg-green-500/10 text-green-500 uppercase tracking-widest text-xs font-black shadow-lg shadow-green-500/20 hover:bg-green-500 hover:text-white transition-all">Đồng ý hợp tác</button>
+                    </div>`;
+                } else {
+                    html += `<div class="bg-green-500/10 text-green-500 p-4 rounded-xl text-center font-bold text-xs uppercase tracking-widest">Tài khoản này đã được duyệt</div>`;
+                }
+                container.innerHTML = html;
+            })
+            .catch(err => {
+                container.innerHTML = `<p class="p-20 text-center text-red-500 font-bold uppercase tracking-widest">Không tìm thấy dữ liệu hoặc đã xóa</p>`;
+            });
+    }
+    
+    window.closePartnerRegistrationModal = function() {
+        const modal = document.getElementById('partnerRegistrationModal');
+        const backdrop = document.getElementById('partnerRegBackdrop');
+        const content = document.getElementById('partnerRegContent');
+        
+        if (window.gsap) {
+            gsap.to(content, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in" });
+            gsap.to(backdrop, { duration: 0.3, opacity: 0, onComplete: () => {
+                modal.classList.add('hidden');
+            }});
+        } else {
+            modal.classList.add('hidden');
+        }
+    }
+
+    if (!window.handleApprovePartner) {
+        window.handleApprovePartner = async (id) => {
+            const res = await window.showAdminConfirm(
+                'Hợp tác kinh doanh',
+                'Đồng ý phê duyệt đối tác này tham gia vào hệ thống DeliveryHub',
+                'success',
+                'Đồng ý', 'Từ chối'
+            );
+            if (res.isConfirmed) {
+                try {
+                    const result = await fetch('/Admin/ApprovePartner/' + id, { method: 'POST' }).then(r => r.json());
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", "Đã phê duyệt đối tác.", "success");
+                        closePartnerRegistrationModal();
+                        // if we're on a page with loadData (like AdminNotifications), reload it
+                        if (typeof loadData === 'function') loadData(currentPage);
+                        // if we're on a page with loadNotifications, refresh header
+                        if (typeof loadNotifications === 'function') loadNotifications();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+    }
+
+    if (!window.handleRejectPartner) {
+        window.handleRejectPartner = async (id) => {
+            const res = await window.showAdminConfirm(
+                'Từ chối đối tác',
+                'Mọi thông tin đăng ký sẽ bị xóa. Bạn có chắc muốn từ chối hồ sơ này',
+                'error',
+                'Đồng ý xóa', 'Quay lại'
+            );
+            if (res.isConfirmed) {
+                try {
+                    const result = await fetch('/Admin/RejectPartner/' + id, { method: 'POST' }).then(r => r.json());
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", "Đã từ chối đối tác.", "destructive-success");
+                        closePartnerRegistrationModal();
+                        if (typeof loadData === 'function') loadData(currentPage);
+                        else location.reload();
+                        
+                        if (typeof loadNotifications === 'function') loadNotifications();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+    }
+</script>

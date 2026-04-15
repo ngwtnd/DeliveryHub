@@ -1,0 +1,198 @@
+@model DeliveryHubWeb.Models.Store
+@using System.Text.Json
+@{
+    Layout = "~/Views/Shared/_RestaurantManagerLayout.cshtml";
+    ViewData["Title"] = "Quản lý Thực đơn";
+
+    var categories = Model.MenuItems.Select(m => m.Category).Distinct().OrderBy(c => c).ToList();
+    if (!categories.Contains("Món chính")) categories.Insert(0, "Món chính");
+    
+    var itemSalesCounts = ViewBag.ItemSalesCounts as Dictionary<int, int> ?? new Dictionary<int, int>();
+    var itemRatings = ViewBag.ItemRatings as Dictionary<int, (int Count, double Avg)> ?? new Dictionary<int, (int Count, double Avg)>();
+    var topItems = ViewBag.TopItems as Dictionary<int, int> ?? new Dictionary<int, int>();
+}
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex flex-col md:flex-row justify-between items-center gap-6 fade-in relative z-10 backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Quản lý <span class="text-brand-orange">Thực đơn</span></h2>
+        <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Chỉnh sửa món ăn, giá cả và tình trạng khả dụng</p>
+    </div>
+
+    <div class="flex items-center gap-4">
+        <button onclick="openMenuModal()" class="bg-brand-orange text-black font-extrabold px-6 py-3 rounded-2xl hover:bg-white transition-all shadow-[0_0_15px_rgba(255,107,0,0.3)] flex items-center gap-2">
+            <i class="fa-solid fa-plus"></i> THÊM MÓN MỚI
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 fade-in">
+    <div class="bg-brand-dark/50 backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl group">
+        <h3 class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mb-1">Tổng số món</h3>
+        <div class="text-3xl font-black text-white">@Model.MenuItems.Count <span class="text-sm font-normal text-brand-gray ml-1">món</span></div>
+    </div>
+    <div class="bg-brand-dark/50 backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl group">
+        <h3 class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mb-1">Đang kinh doanh</h3>
+        <div class="text-3xl font-black text-white">@Model.MenuItems.Count(m => m.IsAvailable) <span class="text-sm font-normal text-brand-gray ml-1">món</span></div>
+    </div>
+    <div class="bg-brand-dark/50 backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl group">
+        <h3 class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mb-1">Đánh giá TB</h3>
+        <div class="text-3xl font-black text-white">@Model.Rating <i class="fa-solid fa-star text-sm text-brand-orange"></i></div>
+    </div>
+</div>
+
+<!-- Categories & Items -->
+<div class="space-y-12 mb-20 fade-in">
+    @foreach(var cat in categories) {
+        var itemsInCat = Model.MenuItems.Where(m => m.Category == cat).ToList();
+        <div class="category-section">
+            <div class="flex items-center gap-4 mb-6">
+                <h3 class="text-xl font-black text-white uppercase tracking-wider">@cat</h3>
+                <div class="h-px flex-1 bg-white/5"></div>
+                <span class="text-[10px] font-bold text-brand-gray bg-white/5 px-2 py-1 rounded">@itemsInCat.Count món</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                @foreach(var item in itemsInCat) {
+                     var salesCount = itemSalesCounts.ContainsKey(item.Id) ? itemSalesCounts[item.Id] : 0;
+                     var rating = itemRatings.ContainsKey(item.Id) ? itemRatings[item.Id] : (Count: 0, Avg: 5.0);
+                     <div class="bg-brand-dark/40 border border-white/5 rounded-[2.5rem] p-5 flex gap-5 hover:border-brand-orange/30 transition-all group relative">
+                        <div class="w-24 h-24 rounded-2xl overflow-hidden shadow-lg flex-shrink-0 relative">
+                            <img src="@(!string.IsNullOrEmpty(item.ImageUrl) ? item.ImageUrl : "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=500&auto=format&fit=crop")" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                            @if(!item.IsAvailable) {
+                                <div class="absolute inset-0 bg-black/60 flex items-center justify-center">
+                                    <span class="text-[9px] font-black text-white bg-red-600 px-2 py-1 rounded">HẾT</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="flex-1 flex flex-col justify-between overflow-hidden">
+                            <div>
+                                <h4 class="font-bold text-white text-base truncate">@item.Name</h4>
+                                <p class="text-[11px] text-brand-gray line-clamp-2 mt-0.5">@item.Description</p>
+                            </div>
+                            <div class="flex items-end justify-between mt-2">
+                                <div>
+                                    <div class="text-brand-orange font-black text-lg">@item.Price.ToString("N0")đ</div>
+                                    <div class="text-[10px] text-brand-gray font-bold">Bán: @salesCount | <i class="fa-solid fa-star text-brand-orange"></i> @rating.Avg.ToString("0.0")</div>
+                                </div>
+                                <div class="flex gap-1">
+                                    <button onclick='openMenuModal(@JsonSerializer.Serialize(item))' class="w-8 h-8 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center hover:bg-white/10 transition-all">
+                                        <i class="fa-solid fa-pen text-[10px]"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                     </div>
+                }
+                @if(!itemsInCat.Any()) {
+                    <div class="col-span-full py-10 text-center border-2 border-dashed border-white/5 rounded-[2rem] text-brand-gray text-xs font-bold uppercase tracking-widest">
+                        Chưa có món nào trong danh mục này
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Add/Edit Menu Item Modal -->
+<div id="menuModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-brand-black/80 backdrop-blur-sm" onclick="closeMenuModal()"></div>
+    <div class="relative bg-brand-dark border border-white/10 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden fade-in">
+        <div class="p-8 border-b border-white/5 bg-white/5">
+            <h3 id="modalTitle" class="text-2xl font-black text-white">Thêm món mới</h3>
+        </div>
+        <form id="menuForm" onsubmit="saveMenuItem(event)" class="p-8 space-y-6">
+            <input type="hidden" id="itemId" name="id" value="0" />
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2 space-y-2">
+                    <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest ml-1">Tên món ăn</label>
+                    <input type="text" name="name" id="itemName" required class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all" />
+                </div>
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest ml-1">Giá bán (VNĐ)</label>
+                    <input type="number" name="price" id="itemPrice" required class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all" />
+                </div>
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest ml-1">Danh mục</label>
+                    <select name="category" id="itemCategory" class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all">
+                        @foreach(var c in categories) {
+                            <option value="@c">@c</option>
+                        }
+                        <option value="Khác">Khác</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="space-y-2">
+                 <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest ml-1">Mô tả món ăn</label>
+                 <textarea name="description" id="itemDescription" rows="3" class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all"></textarea>
+            </div>
+
+            <div class="flex items-center justify-between p-4 bg-white/5 rounded-2xl">
+                <span class="text-xs font-bold text-white">Trạng thái khả dụng (Còn hàng)</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name="isAvailable" id="itemAvailable" checked class="sr-only peer">
+                    <div class="w-11 h-6 bg-brand-gray/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-orange"></div>
+                </label>
+            </div>
+
+            <div class="flex gap-3 pt-4">
+                <button type="button" onclick="closeMenuModal()" class="flex-1 px-6 py-4 rounded-2xl border border-white/10 text-white font-bold hover:bg-white/5 transition-all">Hủy</button>
+                <button type="submit" class="flex-1 px-6 py-4 rounded-2xl bg-brand-orange text-black font-black hover:bg-white shadow-[0_0_15px_rgba(255,107,0,0.3)] transition-all">LƯU THAY ĐỔI</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function openMenuModal(item = null) {
+            const modal = document.getElementById('menuModal');
+            const title = document.getElementById('modalTitle');
+            const form = document.getElementById('menuForm');
+            
+            if (item) {
+                title.innerText = "Chỉnh sửa món ăn";
+                document.getElementById('itemId').value = item.Id;
+                document.getElementById('itemName').value = item.Name;
+                document.getElementById('itemPrice').value = item.Price;
+                document.getElementById('itemCategory').value = item.Category;
+                document.getElementById('itemDescription').value = item.Description;
+                document.getElementById('itemAvailable').checked = item.IsAvailable;
+            } else {
+                title.innerText = "Thêm món mới";
+                form.reset();
+                document.getElementById('itemId').value = 0;
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeMenuModal() {
+            document.getElementById('menuModal').classList.add('hidden');
+        }
+
+        async function saveMenuItem(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            formData.set('isAvailable', document.getElementById('itemAvailable').checked);
+
+            try {
+                const res = await fetch('/RestaurantManager/SaveMenuItem', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Lỗi: Không thể lưu món ăn.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Lỗi hệ thống.');
+            }
+        }
+    </script>
+}

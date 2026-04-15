@@ -1,0 +1,228 @@
+<div id="orderDetailModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-brand-black/80 backdrop-blur-md" onclick="closeModal()"></div>
+    <div id="modalBody" class="relative w-full max-w-2xl bg-brand-dark border border-white/10 rounded-[2.5rem] shadow-2xl p-0 transform scale-90 opacity-0 overflow-hidden min-h-[400px]">
+        @* Close Button *@
+        <button onclick="closeModal()" class="absolute top-6 right-6 text-brand-gray hover:text-white transition-colors z-[110]">
+            <i class="fa-solid fa-xmark text-2xl"></i>
+        </button>
+
+        @* Dynamic Content Container *@
+        <div id="modalContent">
+            @* This part will be populated by GSAP or AJAX *@
+        </div>
+    </div>
+</div>
+
+<script>
+
+    function renderOrderDetail(data) {
+        const totalQty = data.items.reduce((sum, item) => sum + item.qty, 0);
+        
+        document.getElementById('modalContent').innerHTML = `
+            <div class="p-8">
+                <div class="flex items-center gap-4 mb-8">
+                    <div class="w-16 h-16 rounded-2xl bg-brand-orange/10 flex items-center justify-center text-brand-orange shadow-inner">
+                        <i class="fa-solid fa-receipt text-3xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl font-black text-white tracking-tighter">#${data.code}</h3>
+                        <p class="text-brand-gray text-[11px] font-black uppercase tracking-[0.2em] mt-1">Khách hàng: <span class="text-white">${data.customer}</span></p>
+                    </div>
+                </div>
+
+                <div class="relative mb-16 px-4">
+                    <div class="absolute top-5 left-[12.5%] right-[12.5%] h-[2px] bg-white/10 z-0"></div>
+                    <div id="timelineProgress" class="absolute top-5 left-[12.5%] h-[2px] z-0 transition-all duration-700 shadow-[0_0_10px_rgba(0,0,0,0.2)]" style="width: 0%"></div>
+                    <div class="flex justify-between items-start">
+                        ${[1,2,3,4].map(i => {
+                            const labels = ["Mới tạo", "Nhận đơn", "Đang giao", 
+                                (data.status === "Failed" ? "Thất bại" : (data.status === "Cancelled" ? "Đã hủy" : "Thành công"))];
+                            
+                            let timeToDisplay = "--:--";
+                            if (i === 1) timeToDisplay = data.time1;
+                            else if (i === 2) timeToDisplay = data.time2;
+                            else if (i === 3) timeToDisplay = data.time3;
+                            else if (i === 4) timeToDisplay = data.time4;
+                            
+                            // Customer info for Step 1
+                            let extraHtml = "";
+                            if (i === 1 && data.customer) {
+                                extraHtml = `
+                                    <div class="mt-1 flex flex-col items-center">
+                                        <p class="text-[9px] text-white font-black uppercase tracking-tighter">${data.customer}</p>
+                                    </div>
+                                `;
+                            }
+
+                            // Shipper info for Step 2 (Nhận đơn)
+                            if (i === 2 && data.shipperName) {
+                                extraHtml = `
+                                    <div class="mt-1 flex flex-col items-center">
+                                        <p class="text-[9px] text-white font-black uppercase tracking-tighter">${data.shipperName}</p>
+                                        <p class="text-[8px] text-brand-orange font-bold uppercase tracking-widest">${data.shipperCode || ''}</p>
+                                    </div>
+                                `;
+                            }
+
+                            return `
+                                <div class="relative z-10 flex flex-col items-center w-1/4">
+                                    <div id="step-${i}" class="w-10 h-10 rounded-full bg-brand-dark border-2 border-white/10 flex items-center justify-center text-brand-gray font-black text-sm transition-all duration-500 shadow-xl">${i}</div>
+                                    <div class="text-center mt-3">
+                                        <p class="text-[10px] font-black uppercase text-brand-gray whitespace-nowrap tracking-tighter step-label">${labels[i-1]}</p>
+                                        ${extraHtml}
+                                        <p class="text-[9px] text-brand-gray/50 font-bold mt-0.5">${timeToDisplay}</p>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <div class="bg-white/[0.03] p-6 rounded-[2rem] border border-white/5 shadow-inner group/addr hover:bg-white/[0.05] transition-all">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-8 h-8 rounded-xl bg-brand-orange/10 flex items-center justify-center text-brand-orange"><i class="fa-solid fa-store text-[10px]"></i></div>
+                                <p class="text-[10px] font-black text-brand-orange uppercase tracking-[0.2em]">Cửa hàng</p>
+                            </div>
+                            <p class="text-[13px] font-black text-white leading-tight uppercase tracking-wide">${data.merchant}</p>
+                            <p class="text-[10px] text-brand-gray/70 mt-2 font-bold leading-relaxed">${data.merchantAddr}</p>
+                        </div>
+                        <div class="bg-white/[0.03] p-6 rounded-[2rem] border border-white/5 shadow-inner group/addr hover:bg-white/[0.05] transition-all">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400"><i class="fa-solid fa-location-dot text-[10px]"></i></div>
+                                <p class="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em]">Giao đến</p>
+                            </div>
+                            <p class="text-[13px] font-black text-white leading-tight uppercase tracking-wide">${data.deliveryAddr}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white/[0.03] p-6 rounded-[3rem] border border-white/5 flex flex-col shadow-inner">
+                        <div class="flex items-center justify-between mb-4 px-2">
+                             <p class="text-[10px] font-black text-brand-gray uppercase tracking-[0.2em]">Nội dung hàng</p>
+                             <span class="px-2.5 py-1 rounded-lg bg-brand-orange/10 text-brand-orange text-[9px] font-black uppercase">SL: ${totalQty}</span>
+                        </div>
+                        <div class="flex-1 space-y-3 max-h-[160px] overflow-y-auto pr-2 custom-scrollbar">
+                            ${data.items.map((i, idx) => `
+                                <div class="flex flex-col gap-1.5 p-4 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all">
+                                    <div class="flex items-start gap-3">
+                                        <span class="text-[11px] font-black text-brand-orange opacity-40">${(idx + 1).toString().padStart(2, '0')}.</span>
+                                        <span class="text-[11px] font-bold text-white tracking-wide">${i.name}</span>
+                                    </div>
+                                    <div class="flex justify-between items-center pl-7">
+                                        <span class="text-[11px] font-black text-brand-orange">${(i.price * i.qty).toLocaleString()}đ</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        ${(data.note && data.note.trim() !== "") ? `
+                        <div class="mt-4 p-4 rounded-2xl bg-brand-orange/5 border border-brand-orange/20 shadow-inner">
+                            <p class="text-[10px] font-black text-brand-orange uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
+                                <i class="fa-solid fa-comment-dots text-[9px]"></i> Ghi chú
+                            </p>
+                            <p class="text-[11px] text-white/80 font-medium leading-relaxed italic">
+                                "${data.note}"
+                            </p>
+                        </div>
+                        ` : ''}
+
+                        <div class="mt-6 pt-5 border-t border-white/5 flex justify-between items-center px-2">
+                            <p class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Tổng tiền</p>
+                            <div class="text-right">
+                                <p class="text-2xl font-black text-brand-orange tracking-tighter">${data.totalPrice}<span class="text-[10px] ml-1 opacity-50">VND</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Timeline Logic
+        let progressPc = 0; 
+        resetTimeline();
+        const status = data.status;
+        const line = document.getElementById('timelineProgress');
+        
+        // Remove old color classes
+        line.classList.remove('bg-brand-orange', 'bg-green-500', 'bg-red-500', 'bg-blue-500', 'bg-pink-500', 'bg-[#22D3EE]', 'bg-[#A855F7]', 'bg-yellow-500');
+
+        if (status === "Completed") { 
+            progressPc = 100; 
+            highlightSteps([1, 2, 3, 4], "green");
+            line.classList.add('bg-green-500');
+        } else if (status === "Failed" || status === "Cancelled") { 
+            progressPc = 100; 
+            const col = status === "Failed" ? "red" : "blue";
+            highlightSteps([1, 2, 3, 4], col);
+            line.classList.add('bg-' + (status === "Failed" ? 'red-500' : 'blue-500'));
+        } else if (status === "Delivering") { 
+            progressPc = 66.66; 
+            highlightSteps([1, 2, 3], "orange");
+            line.classList.add('bg-brand-orange');
+        } else if (status === "Accepted" || status === "Preparing") { 
+            progressPc = 33.33; 
+            const col = status === "Accepted" ? "pink" : "yellow";
+            highlightSteps([1, 2], col);
+            if (col === "pink") line.classList.add('bg-pink-500');
+            else line.classList.add('bg-yellow-500');
+        } else if (status === "SearchingShipper") { 
+            progressPc = 0; 
+            highlightSteps([1], "purple");
+            line.classList.add('bg-[#A855F7]');
+        } else { 
+            progressPc = 0; 
+            highlightSteps([1], "cyan");
+            line.classList.add('bg-[#22D3EE]');
+        }
+
+        line.style.width = `calc(${progressPc}% * 0.75)`;
+    }
+
+    function resetTimeline() {
+        for(let i=1; i<=4; i++) {
+            const el = document.getElementById(`step-${i}`);
+            if (el) {
+                el.className = "w-10 h-10 rounded-full bg-brand-dark border-2 border-white/10 flex items-center justify-center text-brand-gray font-black text-sm transition-all duration-500 shadow-xl";
+                const label = el.parentElement.querySelector('.step-label');
+                if (label) label.className = "text-[10px] font-black uppercase text-brand-gray whitespace-nowrap tracking-tighter step-label";
+            }
+        }
+    }
+
+    function highlightSteps(steps, color) {
+        const colors = {
+            green: "border-green-500 text-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]",
+            red: "border-red-500 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]",
+            blue: "border-blue-500 text-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.4)]",
+            orange: "border-brand-orange text-brand-orange shadow-[0_0_20px_rgba(255,107,0,0.4)]",
+            pink: "border-pink-500 text-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.4)]",
+            yellow: "border-yellow-500 text-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.4)]",
+            cyan: "border-[#22D3EE] text-[#22D3EE] shadow-[0_0_20px_rgba(34,211,238,0.4)]",
+            purple: "border-[#A855F7] text-[#A855F7] shadow-[0_0_20px_rgba(168,85,247,0.4)]"
+        };
+        const textColors = {
+            green: "text-green-500", red: "text-red-500", blue: "text-blue-500", 
+            orange: "text-brand-orange", pink: "text-pink-500", yellow: "text-yellow-500",
+            cyan: "text-[#22D3EE]", purple: "text-[#A855F7]"
+        };
+
+        steps.forEach(s => {
+            const el = document.getElementById(`step-${s}`);
+            if (el) {
+                el.className = `w-10 h-10 rounded-full bg-brand-dark border-2 flex items-center justify-center font-black text-sm transition-all duration-500 shadow-xl ${colors[color]}`;
+                const label = el.parentElement.querySelector('.step-label');
+                if (label) label.classList.add(textColors[color]);
+            }
+        });
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('orderDetailModal');
+        const body = document.getElementById('modalBody');
+        gsap.to(body, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
+            modal.classList.add('hidden');
+        }});
+    }
+</script>
+

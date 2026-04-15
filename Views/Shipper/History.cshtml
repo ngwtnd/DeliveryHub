@@ -1,0 +1,103 @@
+@model IEnumerable<Order>
+@{
+    Layout = "~/Views/Shared/_ShipperLayout.cshtml";
+    ViewData["Title"] = "Lịch sử giao";
+    var filter = ViewBag.Filter as string ?? "all";
+    var completed = Model.Where(o => o.Status == OrderStatus.Completed).ToList();
+    var cancelled = Model.Where(o => o.Status == OrderStatus.Cancelled || o.Status == OrderStatus.Failed).ToList();
+    var totalEarned = completed.Sum(o => o.ShipperIncome);
+}
+
+<style>
+    .history-card { background:#0f172a; border:1px solid rgba(255,255,255,0.07); border-radius:1.25rem; transition:border-color 0.2s,box-shadow 0.2s; }
+    .history-card:hover { border-color:rgba(249,115,22,0.4); box-shadow:0 4px 20px rgba(249,115,22,0.06); }
+    .filter-btn { padding:0.5rem 1.25rem; border-radius:0.75rem; font-size:0.75rem; font-weight:700; cursor:pointer; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#94a3b8; transition:all 0.2s; text-decoration:none; display:inline-block; }
+    .filter-btn.active { background:#f97316; color:black; border-color:#f97316; box-shadow:0 4px 15px rgba(249,115,22,0.3); }
+    .filter-btn:hover:not(.active) { background:rgba(255,255,255,0.08); color:white; }
+    .timeline-line { position:absolute; left:1.125rem; top:0; bottom:0; width:2px; background:linear-gradient(to bottom, rgba(249,115,22,0.3), rgba(59,130,246,0.1)); }
+    .status-badge-done { background:rgba(34,197,94,0.12); border:1px solid rgba(34,197,94,0.25); color:#4ade80; border-radius:999px; padding:0.25rem 0.75rem; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; }
+    .status-badge-fail { background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.25); color:#f87171; border-radius:999px; padding:0.25rem 0.75rem; font-size:0.65rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; }
+</style>
+
+<div class="max-w-5xl mx-auto space-y-6">
+    <!-- Header -->
+    <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.07); padding:2rem; border-radius:2rem; display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:1rem;">
+        <div>
+            <h2 style="font-size:1.75rem; font-weight:900; color:white; margin:0;">
+                <i class="fa-solid fa-clock-rotate-left" style="color:#f97316; margin-right:0.5rem;"></i>Lịch sử giao hàng
+            </h2>
+            <p style="color:#64748b; font-size:0.8rem; font-weight:600; margin:0.35rem 0 0;">Tổng <strong style="color:#f97316;">@completed.Count</strong> đơn hoàn thành &bull; Thu nhập <strong style="color:#22c55e;">@string.Format("{0:N0}", totalEarned) VND</strong></p>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <a href="/Shipper/History?filter=today" class="filter-btn @(filter=="today"?"active":"")">Hôm nay</a>
+            <a href="/Shipper/History?filter=week" class="filter-btn @(filter=="week"?"active":"")">7 ngày</a>
+            <a href="/Shipper/History?filter=month" class="filter-btn @(filter=="month"?"active":"")">Tháng này</a>
+            <a href="/Shipper/History?filter=all" class="filter-btn @(filter=="all"?"active":"")">Tất cả</a>
+        </div>
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div style="text-align:center; padding:5rem 1rem; background:#0f172a; border:1px solid rgba(255,255,255,0.06); border-radius:2rem;">
+            <i class="fa-solid fa-box-open" style="font-size:3rem; color:#1e293b; display:block; margin-bottom:1rem;"></i>
+            <h4 style="color:white; font-weight:900; margin:0 0 0.5rem;">Chưa có đơn nào</h4>
+            <p style="color:#64748b; font-size:0.8rem;">Bắt đầu nhận đơn để xem lịch sử tại đây.</p>
+        </div>
+    }
+    else
+    {
+        <div style="position:relative; padding-left:2.75rem;">
+            <div class="timeline-line"></div>
+
+            @foreach (var order in Model)
+            {
+                bool isDone = order.Status == OrderStatus.Completed;
+                var dotColor = isDone ? "#22c55e" : "#ef4444";
+                var time = isDone
+                    ? (order.CompletedAt?.ToString("HH:mm dd/MM/yyyy") ?? order.CreatedAt.ToString("HH:mm dd/MM/yyyy"))
+                    : (order.CancelledAt?.ToString("HH:mm dd/MM/yyyy") ?? order.CreatedAt.ToString("HH:mm dd/MM/yyyy"));
+
+                <div style="position:relative; margin-bottom:1.25rem;">
+                    <!-- Timeline dot -->
+                    <div style="position:absolute; left:-2.075rem; top:1.25rem; width:1.125rem; height:1.125rem; border-radius:50%; background:@dotColor; border:3px solid #020617; box-shadow:0 0 0 3px @(dotColor)33; z-index:1;"></div>
+
+                    <div class="history-card" style="padding:1.25rem 1.5rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;">
+                            <div style="display:flex; align-items:center; gap:0.75rem;">
+                                <span style="font-size:0.85rem; font-weight:900; color:#f97316;">@order.OrderCode</span>
+                                <span class="@(isDone ? "status-badge-done" : "status-badge-fail")">
+                                    @(isDone ? "Hoàn thành" : (order.Status == OrderStatus.Cancelled ? "Bị hủy" : "Thất bại"))
+                                </span>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:1rem;">
+                                <span style="font-size:0.7rem; color:#64748b; font-weight:600;">
+                                    <i class="fa-solid fa-clock" style="margin-right:4px;"></i>@time
+                                </span>
+                                <span style="font-size:1.1rem; font-weight:900; color:@(isDone?"#22c55e":"#64748b");">
+                                    @(isDone ? "+" : "")@string.Format("{0:N0}", order.ShipperIncome) <span style="font-size:0.65rem;">VND</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; flex-wrap:wrap; gap:1.5rem; font-size:0.75rem;">
+                            <div>
+                                <p style="color:#f97316; font-weight:800; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.1em; margin:0 0 2px;">Cửa hàng</p>
+                                <p style="color:white; font-weight:700; margin:0;">@(order.Store?.Name ?? "Không rõ")</p>
+                                <p style="color:#64748b; margin:0; font-size:0.65rem;">@order.PickupAddress</p>
+                            </div>
+                            <div>
+                                <p style="color:#3b82f6; font-weight:800; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.1em; margin:0 0 2px;">Giao đến</p>
+                                <p style="color:white; font-weight:700; margin:0;">@(order.User?.FullName ?? "Khách hàng")</p>
+                                <p style="color:#64748b; margin:0; font-size:0.65rem;">@order.DeliveryAddress</p>
+                            </div>
+                            <div>
+                                <p style="color:#64748b; font-weight:800; font-size:0.6rem; text-transform:uppercase; letter-spacing:0.1em; margin:0 0 2px;">Khoảng cách</p>
+                                <p style="color:white; font-weight:700; margin:0;">@(order.Distance > 0 ? $"{order.Distance:F1} km" : "~1 km")</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
