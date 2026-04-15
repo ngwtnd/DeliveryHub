@@ -5,12 +5,25 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Database & Identity
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+var connectionUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+string connectionString;
+
+if (!string.IsNullOrEmpty(connectionUrl))
+{
+    // Parse Railway's postgresql:// URL
+    var databaseUri = new Uri(connectionUrl);
+    var userInfo = databaseUri.UserInfo.Split(':');
+    
+    connectionString = $"Host={databaseUri.Host};Port={databaseUri.Port};Database={databaseUri.LocalPath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Prefer;Trust Server Certificate=true;";
+}
+else
+{
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+}
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options => {
     options.Password.RequireDigit = false;
@@ -40,12 +53,9 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     try {
         var _context = services.GetRequiredService<ApplicationDbContext>();
-        string checkPartnerCodeSql = @"
-            IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'PartnerCode')
-            BEGIN
-                ALTER TABLE [AspNetUsers] ADD [PartnerCode] nvarchar(max) NULL;
-            END";
-        await _context.Database.ExecuteSqlRawAsync(checkPartnerCodeSql);
+        
+        // Auto-run migrations on startup (important for Railway)
+        await _context.Database.MigrateAsync();
         
         await DbInitializer.Initialize(services);
     } catch (Exception ex) {
