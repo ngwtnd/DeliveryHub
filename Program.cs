@@ -77,3 +77,4 @@ app.MapHub<DeliveryHubWeb.Hubs.ChatHub>("/chatHub");
 
 app.Run("http://localhost:8080");
 
+app.Urls.Add("http://0.0.0.0:8080");

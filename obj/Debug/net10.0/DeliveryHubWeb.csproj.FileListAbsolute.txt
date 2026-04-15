@@ -586,3 +586,4 @@ C:\Users\Ngoc Dieu\OneDrive\Pictures\Delivery hub\DeliveryHubWeb\obj\Debug\net10
 C:\Users\Ngoc Dieu\OneDrive\Pictures\Delivery hub\DeliveryHubWeb\obj\Debug\net10.0\DeliveryHubWeb.pdb
 C:\Users\Ngoc Dieu\OneDrive\Pictures\Delivery hub\DeliveryHubWeb\obj\Debug\net10.0\DeliveryHubWeb.genruntimeconfig.cache
 C:\Users\Ngoc Dieu\OneDrive\Pictures\Delivery hub\DeliveryHubWeb\obj\Debug\net10.0\ref\DeliveryHubWeb.dll
+C:\Users\Ngoc Dieu\OneDrive\Pictures\Delivery hub\DeliveryHubWeb\obj\Debug\net10.0\DeliveryHubWeb.sourcelink.json
