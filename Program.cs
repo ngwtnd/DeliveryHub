@@ -5,12 +5,10 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionUrl = Environment.GetEnvironmentVariable("DATABASE_URL") 
-    ?? builder.Configuration.GetConnectionString("DefaultConnection");
-
+var connectionUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
 string connectionString;
 
-if (!string.IsNullOrEmpty(connectionUrl) && connectionUrl.StartsWith("postgres", StringComparison.OrdinalIgnoreCase))
+if (!string.IsNullOrEmpty(connectionUrl))
 {
     // Parse Railway's postgresql:// URL
     var databaseUri = new Uri(connectionUrl);
@@ -20,7 +18,8 @@ if (!string.IsNullOrEmpty(connectionUrl) && connectionUrl.StartsWith("postgres",
 }
 else
 {
-    connectionString = connectionUrl ?? throw new InvalidOperationException("Connection string not found.");
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 }
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
