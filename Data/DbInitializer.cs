@@ -343,8 +343,17 @@ namespace DeliveryHubWeb.Data
             await context.SaveChangesAsync();
 
             // Cập nhật ManagedStoreId cho RestaurantManager demo
-            var demoRm = await EnsureUser("demo_rm@deliveryhub.vn", "Demo QL Nhà Hàng", UserRole.RestaurantManager, "0999000005",
-                managedStoreId: s1.Id);
+            var demoRm = await EnsureUser("demo_rm@deliveryhub.vn", "Demo QL Nhà Hàng", UserRole.RestaurantManager, "0999000005", managedStoreId: s1.Id);
+            
+            // Create Restaurant Managers for all other branches
+            var allStoresList = new[] { s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12 };
+            int rmCounter = 1;
+            foreach(var store in allStoresList)
+            {
+                var namePrefix = store.Name.Length > 15 ? store.Name.Substring(0, 15) : store.Name;
+                await EnsureUser($"rm_branch{store.Id}@deliveryhub.vn", $"QL {namePrefix}", UserRole.RestaurantManager, $"0988{rmCounter:D6}", managedStoreId: store.Id);
+                rmCounter++;
+            }
 
             // ==========================================
             // 7. MENU ITEMS (realistic Vietnamese menus)
@@ -513,8 +522,8 @@ namespace DeliveryHubWeb.Data
                 await context.SaveChangesAsync();
             }
 
-            // Tạo 80 orders
-            for (int i = 1; i <= 80; i++)
+            // Tạo 150 orders
+            for (int i = 1; i <= 150; i++)
             {
                 var ordCode = $"DH-2026-{i:D3}";
                 if (await context.Orders.AnyAsync(o => o.OrderCode == ordCode)) continue;
@@ -528,15 +537,15 @@ namespace DeliveryHubWeb.Data
                 var dist = Math.Round(Haversine(store.Latitude, store.Longitude, delivery.lat, delivery.lng), 1);
                 var shippingFee = CalcShippingFee(dist);
 
-                // Chọn status
+                // Chọn status - Tăng Pending/SearchingShipper để test Gom Đơn
                 OrderStatus status;
-                if (i <= 3) status = OrderStatus.Pending;
-                else if (i <= 8) status = OrderStatus.SearchingShipper;
-                else if (i == 9) status = OrderStatus.Accepted;
-                else if (i == 10) status = OrderStatus.Preparing;
-                else if (i <= 13) status = OrderStatus.Delivering;
-                else if (i <= 70) status = OrderStatus.Completed;
-                else if (i <= 75) status = OrderStatus.Cancelled;
+                if (i <= 15) status = OrderStatus.Pending;
+                else if (i <= 35) status = OrderStatus.SearchingShipper;
+                else if (i <= 40) status = OrderStatus.Accepted;
+                else if (i <= 50) status = OrderStatus.Preparing;
+                else if (i <= 65) status = OrderStatus.Delivering;
+                else if (i <= 140) status = OrderStatus.Completed;
+                else if (i <= 145) status = OrderStatus.Cancelled;
                 else status = OrderStatus.Failed;
 
                 var shipper = (status >= OrderStatus.Accepted && status != OrderStatus.Cancelled)
