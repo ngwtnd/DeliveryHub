@@ -372,7 +372,7 @@ namespace DeliveryHubWeb.Data
             // 10. ORDERS & STATISTICS (Enhanced for PostgreSQL)
             // ==========================================
             var currentOrderCount = await context.Orders.CountAsync();
-            if (currentOrderCount < 100)
+            if (currentOrderCount < 1000)
             {
                 // Reset orders to ensure quality demo data
                 context.BatchOrderItems.RemoveRange(context.BatchOrderItems);
@@ -490,7 +490,7 @@ namespace DeliveryHubWeb.Data
                     var dist = Math.Round(Haversine(store.Latitude, store.Longitude, delivery.lat, delivery.lng), 1);
                     var shippingFee = CalcShippingFee(dist);
 
-                    OrderStatus status = (OrderStatus)rng.Next(0, 5); // Pending -> Delivering
+                    OrderStatus status = i <= 20 ? OrderStatus.SearchingShipper : (OrderStatus)rng.Next(0, 5); // Đảm bảo có ít nhất 20 đơn đang chờ shipper nhận để làm chức năng gom đơn
                     ApplicationUser? shipper = status >= OrderStatus.Accepted ? shipperList[rng.Next(shipperList.Count)] : null;
 
                     var order = new Order {

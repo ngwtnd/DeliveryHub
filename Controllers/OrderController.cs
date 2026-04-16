@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using DeliveryHubWeb.Hubs;
 
 namespace DeliveryHubWeb.Controllers
 {
@@ -14,12 +16,14 @@ namespace DeliveryHubWeb.Controllers
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IMapService _mapService;
+        private readonly IHubContext<OrderHub> _hubContext;
 
-        public OrderController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IMapService mapService)
+        public OrderController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, IMapService mapService, IHubContext<OrderHub> hubContext)
         {
             _context = context;
             _userManager = userManager;
             _mapService = mapService;
+            _hubContext = hubContext;
         }
 
         [HttpGet]
@@ -68,6 +72,9 @@ namespace DeliveryHubWeb.Controllers
 
             _context.Orders.Add(order);
             await _context.SaveChangesAsync();
+
+            // Phát tín hiệu SignalR cho tất cả Shipper đang online (hoặc Client nghe sự kiện này)
+            await _hubContext.Clients.All.SendAsync("NewOrderAvailable", order.OrderCode, order.PickupLatitude, order.PickupLongitude);
 
             return RedirectToAction("Tracking", new { id = order.Id });
         }
