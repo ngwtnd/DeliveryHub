@@ -34,123 +34,6 @@ namespace DeliveryHubWeb.Data
             var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-            // ===== SCHEMA PATCH (idempotent) =====
-            try
-            {
-                await context.Database.ExecuteSqlRawAsync(@"
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[MenuItems]') AND name = 'Category')
-                        ALTER TABLE [MenuItems] ADD [Category] NVARCHAR(50) DEFAULT 'Chung' NOT NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'Vehicle')
-                        ALTER TABLE [AspNetUsers] ADD [Vehicle] NVARCHAR(MAX) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[DeliveryServices]') AND name = 'ServiceType')
-                        ALTER TABLE [DeliveryServices] ADD [ServiceType] NVARCHAR(50) DEFAULT N'Giao hàng' NOT NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'CitizenIdFrontImageUrl')
-                        ALTER TABLE [AspNetUsers] ADD [CitizenIdFrontImageUrl] nvarchar(max) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'CitizenIdBackImageUrl')
-                        ALTER TABLE [AspNetUsers] ADD [CitizenIdBackImageUrl] nvarchar(max) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'DriverLicenseImageUrl')
-                        ALTER TABLE [AspNetUsers] ADD [DriverLicenseImageUrl] nvarchar(max) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'VehicleType')
-                        ALTER TABLE [AspNetUsers] ADD [VehicleType] nvarchar(max) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'HasOneStarReview')
-                        ALTER TABLE [AspNetUsers] ADD [HasOneStarReview] bit NOT NULL DEFAULT 0;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'ShopAvatarUrl')
-                        ALTER TABLE [AspNetUsers] ADD [ShopAvatarUrl] nvarchar(max) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'IsApproved')
-                    BEGIN
-                        ALTER TABLE [AspNetUsers] ADD [IsApproved] bit NOT NULL CONSTRAINT DF_AspNetUsers_IsApproved DEFAULT(0);
-                        EXEC('UPDATE [AspNetUsers] SET [IsApproved] = 1 WHERE [Role] IN (0,3)');
-                        EXEC('UPDATE [AspNetUsers] SET [IsApproved] = 1 WHERE [Role] IN (1,2) AND [IsActive] = 1');
-                    END
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'ShipperCode')
-                        ALTER TABLE [AspNetUsers] ADD [ShipperCode] nvarchar(max) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[AspNetUsers]') AND name = 'PartnerCode')
-                        ALTER TABLE [AspNetUsers] ADD [PartnerCode] nvarchar(max) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Stores]') AND name = 'HasOneStarReview')
-                        ALTER TABLE [Stores] ADD [HasOneStarReview] bit NOT NULL DEFAULT 0;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Vouchers]') AND name = 'OwnerId')
-                        ALTER TABLE [Vouchers] ADD [OwnerId] nvarchar(max) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Stores]') AND name = 'CreatedAt')
-                        ALTER TABLE [Stores] ADD [CreatedAt] datetime2 NOT NULL CONSTRAINT DF_Stores_CreatedAt DEFAULT (SYSUTCDATETIME());
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Stores]') AND name = 'IsMainBranch')
-                        ALTER TABLE [Stores] ADD [IsMainBranch] bit NOT NULL CONSTRAINT DF_Stores_IsMainBranch DEFAULT(0);
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Reviews]') AND name = 'ShipperId')
-                        ALTER TABLE [Reviews] ADD [ShipperId] nvarchar(450) NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Reviews]') AND name = 'StoreId')
-                        ALTER TABLE [Reviews] ADD [StoreId] int NULL;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Reviews]') AND name = 'Type')
-                        ALTER TABLE [Reviews] ADD [Type] int NOT NULL DEFAULT 0;
-                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Reviews]') AND name = 'CommentForShipper')
-                        ALTER TABLE [Reviews] ADD [CommentForShipper] nvarchar(max) NULL;
-                ");
-
-                // Notifications table
-                await context.Database.ExecuteSqlRawAsync(@"
-                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[Notifications]') AND type in (N'U'))
-                    BEGIN
-                        CREATE TABLE [Notifications] (
-                            [Id] int NOT NULL IDENTITY,
-                            [Title] nvarchar(200) NOT NULL,
-                            [Message] nvarchar(500) NOT NULL,
-                            [Type] int NOT NULL,
-                            [IsRead] bit NOT NULL,
-                            [CreatedAt] datetime2 NOT NULL,
-                            [TargetUrl] nvarchar(max) NULL,
-                            [RelatedId] nvarchar(max) NULL,
-                            [RecipientId] nvarchar(max) NULL,
-                            CONSTRAINT [PK_Notifications] PRIMARY KEY ([Id])
-                        );
-                    END
-                    ELSE IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[Notifications]') AND name = 'RecipientId')
-                        ALTER TABLE [Notifications] ADD [RecipientId] nvarchar(max) NULL;
-                ");
-
-                // BatchOrders & BatchOrderItems
-                await context.Database.ExecuteSqlRawAsync(@"
-                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[BatchOrders]') AND type in (N'U'))
-                    BEGIN
-                        CREATE TABLE [BatchOrders] (
-                            [Id] int NOT NULL IDENTITY,
-                            [BatchCode] nvarchar(50) NOT NULL,
-                            [ShipperId] nvarchar(450) NOT NULL,
-                            [Status] int NOT NULL DEFAULT 0,
-                            [CreatedAt] datetime2 NOT NULL DEFAULT SYSUTCDATETIME(),
-                            [CompletedAt] datetime2 NULL,
-                            [TotalDistance] float NOT NULL DEFAULT 0,
-                            [EstimatedMinutes] float NOT NULL DEFAULT 0,
-                            [DeliveryAddress] nvarchar(max) NOT NULL DEFAULT '',
-                            [DeliveryLatitude] float NOT NULL DEFAULT 0,
-                            [DeliveryLongitude] float NOT NULL DEFAULT 0,
-                            [RouteGeometry] nvarchar(max) NULL,
-                            [OptimizedRouteJson] nvarchar(max) NULL,
-                            CONSTRAINT [PK_BatchOrders] PRIMARY KEY ([Id]),
-                            CONSTRAINT [FK_BatchOrders_AspNetUsers] FOREIGN KEY ([ShipperId]) REFERENCES [AspNetUsers]([Id])
-                        );
-                        CREATE UNIQUE INDEX [IX_BatchOrders_BatchCode] ON [BatchOrders]([BatchCode]);
-                    END
-
-                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[BatchOrderItems]') AND type in (N'U'))
-                    BEGIN
-                        CREATE TABLE [BatchOrderItems] (
-                            [Id] int NOT NULL IDENTITY,
-                            [BatchOrderId] int NOT NULL,
-                            [OrderId] int NOT NULL,
-                            [Sequence] int NOT NULL DEFAULT 0,
-                            [IsPickedUp] bit NOT NULL DEFAULT 0,
-                            [PickedUpAt] datetime2 NULL,
-                            CONSTRAINT [PK_BatchOrderItems] PRIMARY KEY ([Id]),
-                            CONSTRAINT [FK_BatchOrderItems_BatchOrders] FOREIGN KEY ([BatchOrderId]) REFERENCES [BatchOrders]([Id]) ON DELETE CASCADE,
-                            CONSTRAINT [FK_BatchOrderItems_Orders] FOREIGN KEY ([OrderId]) REFERENCES [Orders]([Id])
-                        );
-                    END
-                ");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("====== SCHEMA UPDATE ERROR ======");
-                Console.WriteLine(ex.ToString());
-            }
-
             // ==========================================
             // 1. ROLES
             // ==========================================
@@ -198,7 +81,7 @@ namespace DeliveryHubWeb.Data
                     AvatarUrl = avatarUrl ?? $"https://i.pravatar.cc/150?u={email}",
                     ManagedStoreId = managedStoreId,
                     ShipperCode = shipperCode, PartnerCode = partnerCode,
-                    CreatedAt = DateTime.UtcNow.AddHours(7)
+                    CreatedAt = DateTime.UtcNow
                 };
                 await userManager.CreateAsync(user, demoPwd);
                 await userManager.AddToRoleAsync(user, role.ToString());
@@ -239,7 +122,7 @@ namespace DeliveryHubWeb.Data
                     IsMainBranch = isMain, IsOpen = true,
                     ActivityState = StoreActivityState.Active,
                     Rating = rating, ReviewCount = reviewCount,
-                    CreatedAt = DateTime.UtcNow.AddHours(7).AddDays(-new Random().Next(30, 365))
+                    CreatedAt = DateTime.UtcNow.AddDays(-new Random().Next(30, 365))
                 };
                 context.Stores.Add(store);
                 await context.SaveChangesAsync();
@@ -302,7 +185,7 @@ namespace DeliveryHubWeb.Data
                     vehicleType: "Xe máy",
                     citizenId: $"0790{10000000 + i}",
                     shipperCode: $"SP-{i + 1:D3}",
-                    isActive: i < 10  // 10 shipper đầu online
+                    isActive: true
                 );
                 shipper.Latitude = shipperCoords[i][0];
                 shipper.Longitude = shipperCoords[i][1];
@@ -477,206 +360,181 @@ namespace DeliveryHubWeb.Data
             if (!context.Vouchers.Any())
             {
                 context.Vouchers.AddRange(
-                    new Voucher { Code = "VIP10", ProgramName = "Ưu đãi VIP 10%", IsPercentage = true, DiscountValue = 10, MaxDiscountValue = 80000, MinOrderValue = 0, AppliesToShipping = false, UsedCount = 0, MaxUsageCount = 50, StartDate = new DateTime(2026, 3, 21), EndDate = new DateTime(2026, 6, 26), IsActive = true },
-                    new Voucher { Code = "FREESHIP", ProgramName = "Miễn phí giao hàng", IsPercentage = true, DiscountValue = 100, MaxDiscountValue = null, MinOrderValue = 0, AppliesToShipping = true, UsedCount = 0, MaxUsageCount = 500, StartDate = new DateTime(2026, 3, 13), EndDate = new DateTime(2026, 7, 27), IsActive = true },
-                    new Voucher { Code = "WELCOME50", ProgramName = "Chào mừng khách hàng mới", IsPercentage = false, DiscountValue = 50000, MaxDiscountValue = null, MinOrderValue = 100000, AppliesToShipping = false, UsedCount = 0, MaxUsageCount = 1000, StartDate = new DateTime(2026, 2, 26), EndDate = new DateTime(2026, 8, 27), IsActive = true },
-                    new Voucher { Code = "GIAM20", ProgramName = "Giảm 20% phí giao", IsPercentage = true, DiscountValue = 20, MaxDiscountValue = 50000, MinOrderValue = 50000, AppliesToShipping = true, UsedCount = 0, MaxUsageCount = 200, StartDate = new DateTime(2026, 3, 18), EndDate = new DateTime(2026, 5, 17), IsActive = true }
+                    new Voucher { Code = "VIP10", ProgramName = "Ưu đãi VIP 10%", IsPercentage = true, DiscountValue = 10, MaxDiscountValue = 80000, MinOrderValue = 0, AppliesToShipping = false, UsedCount = 0, MaxUsageCount = 50, StartDate = DateTime.SpecifyKind(new DateTime(2026, 3, 21), DateTimeKind.Utc), EndDate = DateTime.SpecifyKind(new DateTime(2026, 6, 26), DateTimeKind.Utc), IsActive = true },
+                    new Voucher { Code = "FREESHIP", ProgramName = "Miễn phí giao hàng", IsPercentage = true, DiscountValue = 100, MaxDiscountValue = null, MinOrderValue = 0, AppliesToShipping = true, UsedCount = 0, MaxUsageCount = 500, StartDate = DateTime.SpecifyKind(new DateTime(2026, 3, 13), DateTimeKind.Utc), EndDate = DateTime.SpecifyKind(new DateTime(2026, 7, 27), DateTimeKind.Utc), IsActive = true },
+                    new Voucher { Code = "WELCOME50", ProgramName = "Chào mừng khách hàng mới", IsPercentage = false, DiscountValue = 50000, MaxDiscountValue = null, MinOrderValue = 100000, AppliesToShipping = false, UsedCount = 0, MaxUsageCount = 1000, StartDate = DateTime.SpecifyKind(new DateTime(2026, 2, 26), DateTimeKind.Utc), EndDate = DateTime.SpecifyKind(new DateTime(2026, 8, 27), DateTimeKind.Utc), IsActive = true },
+                    new Voucher { Code = "GIAM20", ProgramName = "Giảm 20% phí giao", IsPercentage = true, DiscountValue = 20, MaxDiscountValue = 50000, MinOrderValue = 50000, AppliesToShipping = true, UsedCount = 0, MaxUsageCount = 200, StartDate = DateTime.SpecifyKind(new DateTime(2026, 3, 18), DateTimeKind.Utc), EndDate = DateTime.SpecifyKind(new DateTime(2026, 5, 17), DateTimeKind.Utc), IsActive = true }
                 );
                 await context.SaveChangesAsync();
             }
 
             // ==========================================
-            // 10. ORDERS (realistic with distance-based ShippingFee)
+            // 10. ORDERS & STATISTICS (Enhanced for PostgreSQL)
             // ==========================================
-            var allStores = await context.Stores.ToListAsync();
-            var allMenuItems = await context.MenuItems.ToListAsync();
-            var allUsers = new[] { user1, user2, user3 };
-            var rng = new Random(42); // seed cố định
-
-            // Delivery addresses thực tế
-            var deliveryAddresses = new (string addr, double lat, double lng)[] {
-                ("Vinhomes Central Park, Bình Thạnh", 10.7955, 106.7222),
-                ("Sunrise City, Quận 7", 10.7327, 106.7065),
-                ("The Manor, Bình Thạnh", 10.7981, 106.7210),
-                ("Chung cư Saigon Pearl, Bình Thạnh", 10.7889, 106.7195),
-                ("Chung cư Estella Heights, Quận 2", 10.7910, 106.7423),
-                ("168 Phan Xích Long, Phú Nhuận", 10.7997, 106.6878),
-                ("250 Nguyễn Trãi, Quận 1", 10.7621, 106.6866),
-                ("55 Bạch Đằng, Bình Thạnh", 10.8027, 106.7077),
-                ("KĐT Sala, Quận 2", 10.7723, 106.7284),
-                ("Chung cư Sky Garden, Quận 7", 10.7298, 106.7076),
-            };
-
-            string[] sampleNotes = {
-                "Giao tận cửa phòng", "Gọi trước 10 phút", "Không lấy hành",
-                "Thêm tương ớt", "Giao trước 12h", "Để trước cổng bảo vệ",
-                "Thêm đậu phụ", "Ít cay", "Giao trước 7h tối",
-                "Để sảnh tầng trệt", null!, null!, null!
-            };
-
-            // Remove old orders if any have wrong format
-            var legacyOrders = await context.Orders.Where(o => o.OrderCode.Length > 11).ToListAsync();
-            if (legacyOrders.Any())
+            var currentOrderCount = await context.Orders.CountAsync();
+            if (currentOrderCount < 100)
             {
-                context.Orders.RemoveRange(legacyOrders);
+                // Reset orders to ensure quality demo data
+                context.BatchOrderItems.RemoveRange(context.BatchOrderItems);
+                context.BatchOrders.RemoveRange(context.BatchOrders);
+                context.Reviews.RemoveRange(context.Reviews);
+                context.OrderItems.RemoveRange(context.OrderItems);
+                context.Orders.RemoveRange(context.Orders);
                 await context.SaveChangesAsync();
-            }
 
-            // Tạo 150 orders
-            for (int i = 1; i <= 150; i++)
-            {
-                var ordCode = $"DH-2026-{i:D3}";
-                if (await context.Orders.AnyAsync(o => o.OrderCode == ordCode)) continue;
+                var allStores = await context.Stores.ToListAsync();
+                var allMenuItems = await context.MenuItems.ToListAsync();
+                var allUsers = new[] { user1, user2, user3 };
+                var rng = new Random(42);
 
-                var store = allStores[rng.Next(allStores.Count)];
-                var storeItems = allMenuItems.Where(m => m.StoreId == store.Id).ToList();
-                if (!storeItems.Any()) continue;
-
-                var customer = allUsers[rng.Next(allUsers.Length)];
-                var delivery = deliveryAddresses[rng.Next(deliveryAddresses.Length)];
-                var dist = Math.Round(Haversine(store.Latitude, store.Longitude, delivery.lat, delivery.lng), 1);
-                var shippingFee = CalcShippingFee(dist);
-
-                // Chọn status - Tăng Pending/SearchingShipper để test Gom Đơn
-                OrderStatus status;
-                if (i <= 15) status = OrderStatus.Pending;
-                else if (i <= 35) status = OrderStatus.SearchingShipper;
-                else if (i <= 40) status = OrderStatus.Accepted;
-                else if (i <= 50) status = OrderStatus.Preparing;
-                else if (i <= 65) status = OrderStatus.Delivering;
-                else if (i <= 140) status = OrderStatus.Completed;
-                else if (i <= 145) status = OrderStatus.Cancelled;
-                else status = OrderStatus.Failed;
-
-                var shipper = (status >= OrderStatus.Accepted && status != OrderStatus.Cancelled)
-                    ? shipperList[rng.Next(shipperList.Count)]
-                    : null;
-
-                var createdAt = DateTime.Now.AddDays(-rng.Next(1, 60)).AddHours(rng.Next(8, 21)).AddMinutes(rng.Next(0, 59));
-
-                // Chọn OrderItems (1-3 món)
-                var itemCount = rng.Next(1, Math.Min(4, storeItems.Count + 1));
-                var selectedItems = storeItems.OrderBy(x => rng.Next()).Take(itemCount).ToList();
-                var totalPrice = selectedItems.Sum(m => m.Price * rng.Next(1, 3));
-
-                var order = new Order
-                {
-                    OrderCode = ordCode,
-                    UserId = customer.Id,
-                    StoreId = store.Id,
-                    ShipperId = shipper?.Id,
-                    Status = status,
-                    CreatedAt = createdAt,
-                    ShippingFee = shippingFee,
-                    TotalPrice = totalPrice,
-                    Distance = dist,
-                    PickupAddress = store.Address ?? "Store",
-                    DeliveryAddress = delivery.addr,
-                    PickupLatitude = store.Latitude,
-                    PickupLongitude = store.Longitude,
-                    DeliveryLatitude = delivery.lat,
-                    DeliveryLongitude = delivery.lng,
-                    ShipperIncome = Math.Round(shippingFee * 0.8m / 1000) * 1000, // 80% phí ship
-                    Note = sampleNotes[rng.Next(sampleNotes.Length)],
-                    PaymentMethod = rng.Next(2) == 0 ? PaymentMethod.Cash : PaymentMethod.Wallet,
+                var deliveryAddresses = new (string addr, double lat, double lng)[] {
+                    ("Vinhomes Central Park, Bình Thạnh", 10.7955, 106.7222),
+                    ("Sunrise City, Quận 7", 10.7327, 106.7065),
+                    ("The Manor, Bình Thạnh", 10.7981, 106.7210),
+                    ("Chung cư Saigon Pearl, Bình Thạnh", 10.7889, 106.7195),
+                    ("Chung cư Estella Heights, Quận 2", 10.7910, 106.7423),
+                    ("168 Phan Xích Long, Phú Nhuận", 10.7997, 106.6878),
+                    ("250 Nguyễn Trãi, Quận 1", 10.7621, 106.6866),
+                    ("55 Bạch Đằng, Bình Thạnh", 10.8027, 106.7077),
+                    ("KĐT Sala, Quận 2", 10.7723, 106.7284),
+                    ("Chung cư Sky Garden, Quận 7", 10.7298, 106.7076),
                 };
 
-                // Timestamps
-                if (status == OrderStatus.Cancelled)
-                {
-                    order.CancelledAt = createdAt.AddMinutes(rng.Next(5, 20));
-                }
-                else if (status >= OrderStatus.Accepted)
-                {
-                    order.AcceptedAt = createdAt.AddMinutes(rng.Next(3, 8));
-                    if (status >= OrderStatus.Delivering)
-                        order.PickedUpAt = createdAt.AddMinutes(rng.Next(10, 25));
-                    if (status == OrderStatus.Completed)
-                        order.CompletedAt = createdAt.AddMinutes(rng.Next(25, 55));
-                }
+                string[] sampleNotes = { "Giao tận cửa", "Gọi trước khi đến", "Không lấy hành", "Thêm tương ớt", null! };
 
-                context.Orders.Add(order);
-                await context.SaveChangesAsync();
-
-                // Add OrderItems
-                foreach (var mi in selectedItems)
+                // Tạo 400 đơn hàng lịch sử (từ tết 2026 đến nay)
+                for (int i = 1; i <= 400; i++)
                 {
-                    var qty = rng.Next(1, 3);
-                    context.OrderItems.Add(new OrderItem
+                    // Chọn nhà hàng (Bias 30% cho s1 và 30% cho s10 để tạo Top)
+                    Store store;
+                    int roll = rng.Next(100);
+                    if (roll < 30) store = s1;
+                    else if (roll < 60) store = s10;
+                    else store = allStores[rng.Next(allStores.Count)];
+
+                    var storeItems = allMenuItems.Where(m => m.StoreId == store.Id).ToList();
+                    if (!storeItems.Any()) continue;
+
+                    var customer = allUsers[rng.Next(allUsers.Length)];
+                    var delivery = deliveryAddresses[rng.Next(deliveryAddresses.Length)];
+                    var dist = Math.Round(Haversine(store.Latitude, store.Longitude, delivery.lat, delivery.lng), 1);
+                    var shippingFee = CalcShippingFee(dist);
+
+                    // Trạng thái (Phần lớn là Completed)
+                    OrderStatus status = OrderStatus.Completed;
+                    if (i % 20 == 0) status = OrderStatus.Cancelled;
+                    else if (i % 50 == 0) status = OrderStatus.Failed;
+
+                    // Shipper (Bias cho Shipper 1 - Trần Văn Tốc)
+                    ApplicationUser? shipper = roll < 40 ? shipperList[0] : shipperList[rng.Next(shipperList.Count)];
+
+                    var createdAt = DateTime.Now.AddDays(-rng.Next(1, 100)).AddHours(rng.Next(8, 22));
+
+                    var order = new Order
                     {
-                        OrderId = order.Id, MenuItemId = mi.Id,
-                        Quantity = qty, Price = mi.Price
-                    });
-                }
-                await context.SaveChangesAsync();
-            }
+                        OrderCode = $"DH-H-{i:D4}",
+                        UserId = customer.Id,
+                        StoreId = store.Id,
+                        ShipperId = shipper.Id,
+                        Status = status,
+                        CreatedAt = createdAt,
+                        ShippingFee = shippingFee,
+                        TotalPrice = 0, // Tính sau
+                        Distance = dist,
+                        PickupAddress = store.Address ?? "Store",
+                        DeliveryAddress = delivery.addr,
+                        PickupLatitude = store.Latitude, PickupLongitude = store.Longitude,
+                        DeliveryLatitude = delivery.lat, DeliveryLongitude = delivery.lng,
+                        ShipperIncome = Math.Round(shippingFee * 0.8m / 1000) * 1000,
+                        Note = sampleNotes[rng.Next(sampleNotes.Length)],
+                        PaymentMethod = rng.Next(2) == 0 ? PaymentMethod.Cash : PaymentMethod.Wallet,
+                        CompletedAt = status == OrderStatus.Completed ? createdAt.AddMinutes(rng.Next(30, 60)) : null,
+                        CancelledAt = status == OrderStatus.Cancelled ? createdAt.AddMinutes(rng.Next(5, 15)) : null
+                    };
 
-            // ==========================================
-            // 11. REVIEWS (đánh giá sau khi hoàn thành)
-            // ==========================================
-            var completedOrders = await context.Orders
-                .Include(o => o.OrderItems).ThenInclude(oi => oi.MenuItem)
-                .Where(o => o.Status == OrderStatus.Completed && o.ShipperId != null)
-                .ToListAsync();
+                    context.Orders.Add(order);
+                    await context.SaveChangesAsync();
 
-            var existingReviewOrderIds = await context.Reviews.Select(r => r.OrderId).ToListAsync();
-
-            string[] goodComments = {
-                "Đồ ăn ngon, giao nhanh!", "Shipper thân thiện, giao đúng giờ",
-                "Đồ ăn nóng hổi, đóng gói cẩn thận", "Rất hài lòng, sẽ đặt lại",
-                "Giao hàng đúng hẹn, thái độ tốt", "Món ăn đúng hình, chất lượng tốt",
-                "Shipper lịch sự, đồ ăn ok", "Phục vụ tốt, đồ ăn tươi ngon"
-            };
-            string[] badComments = {
-                "Giao hàng chậm, đồ ăn nguội", "Shipper không thân thiện",
-                "Đồ ăn không giống hình", "Thiếu đồ trong đơn",
-                "Giao rất chậm, phải chờ lâu"
-            };
-
-            int reviewCount = 0;
-            foreach (var order in completedOrders.OrderBy(o => o.CreatedAt))
-            {
-                if (existingReviewOrderIds.Contains(order.Id)) continue;
-                if (reviewCount >= 35) break; // Tối đa 35 reviews
-
-                // 85% xác suất đánh giá
-                if (rng.Next(100) > 85) continue;
-
-                int ratingMenu = rng.Next(100) < 15 ? rng.Next(1, 4) : rng.Next(4, 6); // 15% rating thấp
-                int ratingShipper = rng.Next(100) < 10 ? rng.Next(1, 4) : rng.Next(4, 6); // 10% rating thấp
-
-                var comment = ratingMenu >= 4 ? goodComments[rng.Next(goodComments.Length)] : badComments[rng.Next(badComments.Length)];
-                var commentShipper = ratingShipper >= 4
-                    ? "Shipper giao hàng nhanh, thân thiện"
-                    : "Shipper giao chậm, cần cải thiện";
-
-                context.Reviews.Add(new Review
-                {
-                    OrderId = order.Id,
-                    ShipperId = order.ShipperId,
-                    StoreId = order.StoreId,
-                    RatingMenu = ratingMenu,
-                    RatingShipper = ratingShipper,
-                    Comment = comment,
-                    CommentForShipper = commentShipper,
-                    Type = ReviewType.Customer,
-                    CreatedAt = order.CompletedAt?.AddMinutes(rng.Next(5, 120)) ?? DateTime.Now
-                });
-
-                // Flag 1 star reviews
-                if (ratingShipper == 1 && order.ShipperId != null)
-                {
-                    var shipperUser = await userManager.FindByIdAsync(order.ShipperId);
-                    if (shipperUser != null)
+                    // Món ăn
+                    var itemsCount = rng.Next(1, 4);
+                    var selected = storeItems.OrderBy(x => rng.Next()).Take(itemsCount).ToList();
+                    decimal total = 0;
+                    foreach (var mi in selected)
                     {
-                        shipperUser.HasOneStarReview = true;
-                        await userManager.UpdateAsync(shipperUser);
+                        var qty = rng.Next(1, 4);
+                        context.OrderItems.Add(new OrderItem { OrderId = order.Id, MenuItemId = mi.Id, Quantity = qty, Price = mi.Price });
+                        total += mi.Price * qty;
+                    }
+                    order.TotalPrice = total;
+                    await context.SaveChangesAsync();
+
+                    // Đánh giá (70% đơn Completed có review)
+                    if (status == OrderStatus.Completed && rng.Next(100) < 70)
+                    {
+                        context.Reviews.Add(new Review {
+                            OrderId = order.Id, ShipperId = order.ShipperId, StoreId = order.StoreId,
+                            RatingMenu = rng.Next(4, 6), RatingShipper = rng.Next(4, 6),
+                            Comment = "Hài lòng, dịch vụ rất tốt!", CreatedAt = order.CompletedAt ?? DateTime.Now,
+                            Type = ReviewType.Customer
+                        });
                     }
                 }
 
-                reviewCount++;
+                // Tạo 30 đơn hàng "MỚI NỔ" (Live Data)
+                for (int i = 1; i <= 30; i++)
+                {
+                    var store = allStores[rng.Next(allStores.Count)];
+                    var storeItems = allMenuItems.Where(m => m.StoreId == store.Id).ToList();
+                    var customer = allUsers[rng.Next(allUsers.Length)];
+                    var delivery = deliveryAddresses[rng.Next(deliveryAddresses.Length)];
+                    var dist = Math.Round(Haversine(store.Latitude, store.Longitude, delivery.lat, delivery.lng), 1);
+                    var shippingFee = CalcShippingFee(dist);
+
+                    OrderStatus status = (OrderStatus)rng.Next(0, 5); // Pending -> Delivering
+                    ApplicationUser? shipper = status >= OrderStatus.Accepted ? shipperList[rng.Next(shipperList.Count)] : null;
+
+                    var order = new Order {
+                        OrderCode = $"DH-LIVE-{i:D3}", UserId = customer.Id, StoreId = store.Id, ShipperId = shipper?.Id,
+                        Status = status, CreatedAt = DateTime.Now.AddMinutes(-rng.Next(5, 500)),
+                        ShippingFee = shippingFee, TotalPrice = 0, Distance = dist,
+                        PickupAddress = store.Address ?? "Store", DeliveryAddress = delivery.addr,
+                        PickupLatitude = store.Latitude, PickupLongitude = store.Longitude,
+                        DeliveryLatitude = delivery.lat, DeliveryLongitude = delivery.lng,
+                        ShipperIncome = Math.Round(shippingFee * 0.8m / 1000) * 1000,
+                        Note = "Đơn hàng demo mới"
+                    };
+                    context.Orders.Add(order);
+                    await context.SaveChangesAsync();
+                    
+                    var mi = storeItems[rng.Next(storeItems.Count)];
+                    context.OrderItems.Add(new OrderItem { OrderId = order.Id, MenuItemId = mi.Id, Quantity = 1, Price = mi.Price });
+                    order.TotalPrice = mi.Price;
+                    await context.SaveChangesAsync();
+                }
             }
-            await context.SaveChangesAsync();
+
+            // ==========================================
+            // 11. BATCH ORDERS (Seeding for optimization demo)
+            // ==========================================
+            if (!await context.BatchOrders.AnyAsync())
+            {
+                var shipper = shipperList[0];
+                var batch = new BatchOrder {
+                    BatchCode = "BATCH-001", ShipperId = shipper.Id, Status = BatchOrderStatus.InProgress,
+                    CreatedAt = DateTime.Now.AddMinutes(-30), TotalDistance = 5.5, EstimatedMinutes = 20,
+                    DeliveryAddress = "Phan Xích Long, Phú Nhuận", DeliveryLatitude = 10.7997, DeliveryLongitude = 106.6878
+                };
+                context.BatchOrders.Add(batch);
+                await context.SaveChangesAsync();
+
+                // Gán 2 đơn hàng Delivering vào batch này
+                var liveOrders = await context.Orders.Where(o => o.OrderCode.StartsWith("DH-LIVE") && o.Status == OrderStatus.Delivering).Take(2).ToListAsync();
+                int seq = 1;
+                foreach(var o in liveOrders) {
+                    context.BatchOrderItems.Add(new BatchOrderItem { BatchOrderId = batch.Id, OrderId = o.Id, Sequence = seq++, IsPickedUp = true, PickedUpAt = DateTime.Now.AddMinutes(-10) });
+                }
+                await context.SaveChangesAsync();
+            }
         }
     }
 }
