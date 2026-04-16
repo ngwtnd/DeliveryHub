@@ -46,7 +46,8 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<DeliveryHubWeb.Services.IMapService, DeliveryHubWeb.Services.MapService>();
 builder.Services.AddHttpClient<DeliveryHubWeb.Services.IRouteOptimizationService, DeliveryHubWeb.Services.RouteOptimizationService>();
 
-builder.WebHost.UseUrls("http://0.0.0.0:8080");
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
 var app = builder.Build();
 
@@ -90,4 +91,4 @@ app.MapControllerRoute(
 app.MapHub<DeliveryHubWeb.Hubs.OrderHub>("/orderHub");
 app.MapHub<DeliveryHubWeb.Hubs.ChatHub>("/chatHub");
 
-app.Run("http://localhost:8080");
+app.Run();
