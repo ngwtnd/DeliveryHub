@@ -3,6 +3,9 @@ using DeliveryHubWeb.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
+// Hỗ trợ DateTime cũ của SQL Server chuyển sang PostgreSQL
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
