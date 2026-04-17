@@ -107,7 +107,7 @@ namespace DeliveryHubWeb.Controllers
 
             if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(s => s.Name.Contains(search) || s.Address.Contains(search));
+                query = query.Where(s => (s.Name != null && s.Name.Contains(search)) || (s.Address != null && s.Address.Contains(search)));
             }
 
             int pageSize = 12;
@@ -150,7 +150,7 @@ namespace DeliveryHubWeb.Controllers
 
             if (!string.IsNullOrEmpty(search))
             {
-                query = query.Where(o => o.OrderCode.Contains(search) || o.User.FullName.Contains(search));
+                query = query.Where(o => (o.OrderCode != null && o.OrderCode.Contains(search)) || (o.User != null && o.User.FullName != null && o.User.FullName.Contains(search)));
             }
 
             var orders = await query.OrderByDescending(o => o.CreatedAt).ToListAsync();

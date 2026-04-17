@@ -278,7 +278,7 @@ namespace DeliveryHubWeb.Controllers
             // Auto-cleanup redundant StoreRegistrations that are Main branches
             var mainStoreIds = await _context.Stores.Where(s => s.IsMainBranch).Select(s => s.Id.ToString()).ToListAsync();
             var redundantMainStoreNotifs = await _context.Notifications
-                .Where(n => n.Type == NotificationType.StoreRegistration && mainStoreIds.Contains(n.RelatedId))
+                .Where(n => n.Type == NotificationType.StoreRegistration && n.RelatedId != null && mainStoreIds.Contains(n.RelatedId))
                 .ToListAsync();
 
             if (invalidNotifs.Any() || invalidStoreNotifs.Any() || redundantMainStoreNotifs.Any()) {
@@ -757,8 +757,8 @@ namespace DeliveryHubWeb.Controllers
             // Tính số sao thực tế từ bảng Review
             var reviewStats = await _context.Reviews
                 .Include(r => r.Order)
-                .ThenInclude(o => o != null ? o.OrderItems : null)
-                .ThenInclude(oi => oi != null ? oi.MenuItem : null)
+                .ThenInclude(o => o!.OrderItems)
+                .ThenInclude(oi => oi.MenuItem)
                 .Where(r => r.Order != null && r.Order.OrderItems.Any(oi => oi.MenuItem != null && storeIds.Contains(oi.MenuItem.StoreId)))
                 .ToListAsync();
 
@@ -2055,7 +2055,7 @@ var result = new {
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(search)) {
-                query = query.Where(s => s.Name.Contains(search) || s.Address.Contains(search));
+                query = query.Where(s => (s.Name != null && s.Name.Contains(search)) || (s.Address != null && s.Address.Contains(search)));
             }
 
             int pageSize = 10;
@@ -2108,7 +2108,7 @@ var result = new {
 
             var branchIdsStr = branches.Select(id => id.Id.ToString()).ToList();
             ViewBag.PendingStoreIds = await _context.Notifications
-                .Where(n => n.Type == NotificationType.StoreRegistration && branchIdsStr.Contains(n.RelatedId))
+                .Where(n => n.Type == NotificationType.StoreRegistration && n.RelatedId != null && branchIdsStr.Contains(n.RelatedId))
                 .Select(n => n.RelatedId)
                 .ToListAsync();
 
@@ -2246,7 +2246,7 @@ var result = new {
             // Calculate Real Rating
             var reviews = await _context.Reviews
                 .Include(r => r.Order)
-                .ThenInclude(o => o.OrderItems)
+                .ThenInclude(o => o!.OrderItems)
                 .Where(r => r.Order != null && r.Order.StoreId == id)
                 .ToListAsync();
 
@@ -3222,7 +3222,7 @@ var result = new {
 
             // Calculate Item Ratings
             var reviews = await _context.Reviews
-                .Include(r => r.Order).ThenInclude(o => o.OrderItems)
+                .Include(r => r.Order).ThenInclude(o => o!.OrderItems)
                 .Where(r => r.Order != null && r.Order.StoreId == storeId)
                 .ToListAsync();
 
