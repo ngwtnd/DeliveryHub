@@ -20,13 +20,14 @@
     .timeline-line { position: absolute; left: 20px; top: 40px; width: 2px; bottom: -12px; z-index: 1; }
     .timeline-content { flex: 1; padding-bottom: 1.25rem; min-width: 0; }
 
-    .pickup-btn { background: rgba(168,85,247,0.15); border: 1px solid rgba(168,85,247,0.3); color: #a855f7; font-weight: 800; padding: 0.5rem 1rem; border-radius: 0.6rem; cursor: pointer; font-size: 0.7rem; transition: all 0.2s; }
-    .pickup-btn:hover { background: #a855f7; color: white; }
+    .pickup-btn { background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3); color: #f97316; font-weight: 800; padding: 0.5rem 1rem; border-radius: 0.6rem; cursor: pointer; font-size: 0.7rem; transition: all 0.2s; }
+    .pickup-btn:hover { background: #f97316; color: white; }
     .pickup-btn.done { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.3); color: #22c55e; cursor: default; }
 
-    .complete-batch-btn { background: linear-gradient(135deg, #22c55e, #16a34a); border: none; color: white; font-weight: 900; padding: 1rem; border-radius: 0.75rem; cursor: pointer; font-size: 0.9rem; width: 100%; transition: all 0.2s; box-shadow: 0 4px 20px rgba(34,197,94,0.3); }
-    .complete-batch-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 30px rgba(34,197,94,0.4); }
-    .complete-batch-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .complete-batch-btn { background: #f97316; border: none; color: black; font-weight: 900; padding: 1rem; border-radius: 0.75rem; cursor: pointer; font-size: 0.9rem; width: 100%; transition: all 0.2s; box-shadow: 0 4px 20px rgba(249,115,22,0.35); }
+    .complete-batch-btn:hover { transform: translateY(-1px); background: #fb923c; }
+    .complete-batch-btn.ready { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; box-shadow: 0 4px 20px rgba(59,130,246,0.35); }
+    .complete-batch-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; background: rgba(255,255,255,0.05); color: #64748b; border: 1px solid rgba(255,255,255,0.1); box-shadow: none; }
 
     .stat-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 1rem; padding: 1rem; text-align: center; }
 
@@ -35,6 +36,18 @@
     /* Animated route line */
     .animated-route { stroke-dasharray: 12 6; animation: routeFlow 1.5s linear infinite; }
     @@keyframes routeFlow { to { stroke-dashoffset: -18; } }
+
+    /* Route info floating panel */
+    .route-info-floating { position: absolute; bottom: 1.5rem; left: 1.5rem; right: 1.5rem; z-index: 800; background: rgba(2,6,23,0.95); backdrop-filter: blur(12px); border: 1px solid rgba(249,115,22,0.3); border-radius: 1.25rem; padding: 1.25rem 1.5rem; display: none; }
+    .route-info-floating.visible { display: block; animation: slideUp 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+    @@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    .stat-pill { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; padding: 0.6rem 0.75rem; text-align: center; flex: 1; }
+
+    /* Phase badges */
+    .phase-badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+    .phase-pickup { background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3); color: #f97316; }
+    .phase-deliver { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); color: #3b82f6; }
 </style>
 
 <div class="detail-page">
@@ -43,16 +56,39 @@
     <div class="map-panel">
         <div id="detailMap"></div>
 
-        <!-- Floating info -->
-        <div style="position:absolute; top:1rem; right:1rem; z-index:800; background:rgba(2,6,23,0.92); backdrop-filter:blur(10px); border:1px solid rgba(168,85,247,0.3); border-radius:1rem; padding:1rem 1.25rem;">
-            <div style="display:flex; align-items:center; gap:0.75rem;">
-                <div style="width:2.5rem; height:2.5rem; border-radius:0.75rem; background:rgba(168,85,247,0.2); border:1px solid rgba(168,85,247,0.3); display:flex; align-items:center; justify-content:center;">
-                    <i class="fa-solid fa-route" style="color:#a855f7; font-size:1rem;"></i>
+        <!-- Route info floating panel -->
+        <div class="route-info-floating" id="routeInfoPanel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div style="width:2rem; height:2rem; border-radius:0.6rem; display:flex; align-items:center; justify-content:center;" id="routeIconBox">
+                        <i class="fa-solid fa-route" id="routeIcon"></i>
+                    </div>
+                    <div>
+                        <h3 style="font-size:0.9rem; font-weight:900; color:white; margin:0;" id="routeTitle">Đường đến quán</h3>
+                        <p style="font-size:0.55rem; color:#64748b; font-weight:600; margin:0;" id="routeSubtitle">Quãng đường lấy hàng</p>
+                    </div>
                 </div>
-                <div>
-                    <p style="font-size:1.1rem; font-weight:900; color:white; margin:0;"><span id="displayDistanceFloat">@Model.TotalDistance</span> km</p>
-                    <p style="font-size:0.6rem; color:#64748b; font-weight:700; margin:0;">~<span id="displayMinutesFloat">@Model.EstimatedMinutes</span> phút · @sortedItems.Count điểm dừng</p>
+                <span class="phase-badge phase-pickup" id="routePhaseBadge">
+                    <i class="fa-solid fa-store"></i> Lấy hàng
+                </span>
+            </div>
+            <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+                <div class="stat-pill">
+                    <p style="font-size:1.1rem; font-weight:900; color:#f97316; margin:0;" id="routeDistanceVal">--</p>
+                    <p style="font-size:0.5rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0;">Km</p>
                 </div>
+                <div class="stat-pill">
+                    <p style="font-size:1.1rem; font-weight:900; color:#22c55e; margin:0;" id="routeTimeVal">--</p>
+                    <p style="font-size:0.5rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0;">Phút</p>
+                </div>
+                <div class="stat-pill">
+                    <p style="font-size:1.1rem; font-weight:900; color:#3b82f6; margin:0;" id="routeDestVal">--</p>
+                    <p style="font-size:0.5rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="routeDestLabel">Điểm đến</p>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0.75rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:0.6rem;">
+                <i class="fa-solid fa-location-dot" style="color:#f97316; font-size:0.7rem;"></i>
+                <p style="font-size:0.7rem; color:#cbd5e1; font-weight:600; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="routeDestAddress">--</p>
             </div>
         </div>
     </div>
@@ -202,7 +238,7 @@
             @if (!isCompleted)
             {
                 <div style="margin-top:1.5rem;">
-                    <button class="complete-batch-btn" id="completeBatchBtn" onclick="completeBatch(@Model.Id)"
+                    <button class="complete-batch-btn @(allPickedUp ? "ready" : "")" id="completeBatchBtn" onclick="completeBatch(@Model.Id)"
                             @(allPickedUp ? "" : "disabled")>
                         <i class="fa-solid fa-check-double" style="margin-right:0.5rem;"></i>
                         @(allPickedUp ? "Hoàn thành tất cả đơn" : $"Đã lấy {sortedItems.Count(i => i.IsPickedUp)}/{sortedItems.Count} đơn")
@@ -251,14 +287,17 @@
     }).addTo(map);
 
     // Shipper marker
-    function createShipperIcon() {
+    function createShipperIcon(phase) {
+        const bg = phase === 'deliver' ? '#3b82f6' : '#f97316';
+        const shadow = phase === 'deliver' ? 'rgba(59,130,246,0.7)' : 'rgba(249,115,22,0.7)';
+        const icon = phase === 'deliver' ? 'fa-truck-fast' : 'fa-motorcycle';
         return L.divIcon({
-            html: `<div style="width:48px;height:48px;background:#f97316;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;box-shadow:0 0 24px rgba(249,115,22,0.7),0 4px 12px rgba(0,0,0,0.3);"><i class="fa-solid fa-motorcycle"></i></div>`,
+            html: `<div style="width:48px;height:48px;background:${bg};border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;box-shadow:0 0 24px ${shadow},0 4px 12px rgba(0,0,0,0.3);transition:all 0.5s;"><i class="fa-solid ${icon}"></i></div>`,
             className: '', iconSize: [48, 48], iconAnchor: [24, 24]
         });
     }
 
-    const shipperMarker = L.marker([initialLat, initialLng], { icon: createShipperIcon(), zIndexOffset: 1000 }).addTo(map);
+    const shipperMarker = L.marker([initialLat, initialLng], { icon: createShipperIcon('pickup'), zIndexOffset: 1000 }).addTo(map);
 
     // Move shipper marker with smooth animation
     function moveShipperTo(lat, lng) {
@@ -288,92 +327,150 @@
         animate();
     }
 
-    // Draw route from saved GeoJSON with animation
-    const geoJson = @Html.Raw(Model.RouteGeometry ?? "null");
-    let routesLayers = [];
-    if (geoJson) {
+    // --- Draw animated route ---
+    let routeLayer = null;
+    function clearRoute() {
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    }
+
+    async function drawRoute(fromLat, fromLng, toLat, toLng, color, phase, destLabel, destAddress) {
+        clearRoute();
+        const routeCoords = [[fromLat, fromLng], [toLat, toLng]];
+
         try {
-            if (geoJson.features) {
-                geoJson.features.forEach((feature, idx) => {
-                    const isPrimary = idx === 0;
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+            const res = await fetch(osrmUrl);
+            const data = await res.json();
 
-                    if (isPrimary) {
-                        // Animated drawing for primary route
-                        const coords = [];
-                        if (feature.geometry.type === 'LineString') {
-                            feature.geometry.coordinates.forEach(c => coords.push([c[1], c[0]]));
-                        } else if (feature.geometry.type === 'MultiLineString') {
-                            feature.geometry.coordinates.forEach(line => line.forEach(c => coords.push([c[1], c[0]])));
-                        }
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+                const distance = (route.distance / 1000).toFixed(1);
+                const duration = Math.round(route.duration / 60);
 
-                        if (coords.length > 0) {
-                            // Background shadow line
-                            const bgLine = L.polyline(coords, {
-                                color: '#bfdbfe', weight: 10, opacity: 0.5,
-                                lineCap: 'round', lineJoin: 'round'
-                            }).addTo(map);
+                routeLayer = L.layerGroup().addTo(map);
 
-                            // Animated main line
-                            const mainLine = L.polyline([], {
-                                color: '#3b82f6', weight: 5, opacity: 0.9,
-                                lineCap: 'round', lineJoin: 'round'
-                            }).addTo(map);
+                L.polyline(coords, {
+                    color: color === '#f97316' ? '#fed7aa' : '#bfdbfe',
+                    weight: 10, opacity: 0.4, lineCap: 'round', lineJoin: 'round'
+                }).addTo(routeLayer);
 
-                            let idx2 = 0;
-                            const step = Math.max(1, Math.floor(coords.length / 80));
-                            function animateStep() {
-                                if (idx2 < coords.length) {
-                                    mainLine.addLatLng(coords[idx2]);
-                                    idx2 += step;
-                                    if (idx2 >= coords.length) mainLine.setLatLngs(coords);
-                                    requestAnimationFrame(animateStep);
-                                } else {
-                                    // Add flowing dash
-                                    L.polyline(coords, {
-                                        color: 'white', weight: 3, opacity: 0.5,
-                                        dashArray: '8 16', lineCap: 'round',
-                                        className: 'animated-route'
-                                    }).addTo(map);
-                                }
-                            }
-                            animateStep();
+                const mainLine = L.polyline([], {
+                    color: color, weight: 5, opacity: 0.9,
+                    lineCap: 'round', lineJoin: 'round'
+                }).addTo(routeLayer);
 
-                            routesLayers.push(bgLine);
-                            routesLayers.push(mainLine);
-                        }
+                let idx = 0;
+                const step = Math.max(1, Math.floor(coords.length / 60));
+                function animateStep() {
+                    if (idx < coords.length) {
+                        mainLine.addLatLng(coords[idx]);
+                        idx += step;
+                        if (idx >= coords.length) mainLine.setLatLngs(coords);
+                        requestAnimationFrame(animateStep);
                     } else {
-                        // Alternative routes
-                        const layer = L.geoJSON(feature, {
-                            style: { color: '#94a3b8', weight: 4, opacity: 0.4, lineCap: 'round', lineJoin: 'round', dashArray: '6 8' }
-                        }).addTo(map);
-
-                        layer.on('click', function() {
-                            // Switch route display info
-                            const summary = feature.properties?.summary;
-                            if (summary) {
-                                document.getElementById('displayDistanceFloat').innerText = (summary.distance / 1000).toFixed(1);
-                                document.getElementById('displayMinutesFloat').innerText = Math.round(summary.duration / 60);
-                            }
-                        });
-
-                        routesLayers.push(layer);
-                    }
-                });
-
-                if (routesLayers.length > 0) {
-                    const allBounds = [];
-                    routesLayers.forEach(l => {
-                        if (l.getBounds) allBounds.push(l.getBounds());
-                    });
-                    if (allBounds.length > 0) {
-                        let combinedBounds = allBounds[0];
-                        allBounds.forEach(b => combinedBounds.extend(b));
-                        map.fitBounds(combinedBounds, { padding: [60, 60] });
+                        L.polyline(coords, {
+                            color: 'white', weight: 3, opacity: 0.6,
+                            dashArray: '8 16', lineCap: 'round', lineJoin: 'round',
+                            className: 'animated-route'
+                        }).addTo(routeLayer);
                     }
                 }
+                animateStep();
+
+                map.fitBounds(L.latLngBounds(coords), { padding: [80, 80] });
+                updateRouteInfo(distance, duration, phase, destLabel, destAddress);
+                return;
             }
-        } catch(e) { console.error('GeoJSON parse error:', e); }
+        } catch (e) { console.warn('OSRM route failed:', e); }
+
+        // Fallback
+        routeLayer = L.polyline(routeCoords, {
+            color: color, weight: 5, opacity: 0.8, dashArray: '12 6', lineCap: 'round'
+        }).addTo(map);
+        const dist = haversine(fromLat, fromLng, toLat, toLng).toFixed(1);
+        const time = Math.round(parseFloat(dist) * 3);
+        map.fitBounds(L.latLngBounds(routeCoords), { padding: [80, 80] });
+        updateRouteInfo(dist, time, phase, destLabel, destAddress);
     }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function updateRouteInfo(distance, duration, phase, destLabel, destAddress) {
+        const panel = document.getElementById('routeInfoPanel');
+        if (!panel) return;
+        const iconBox = document.getElementById('routeIconBox');
+        const icon = document.getElementById('routeIcon');
+        const title = document.getElementById('routeTitle');
+        const subtitle = document.getElementById('routeSubtitle');
+        const badge = document.getElementById('routePhaseBadge');
+        const distVal = document.getElementById('routeDistanceVal');
+        const timeVal = document.getElementById('routeTimeVal');
+        const destVal = document.getElementById('routeDestVal');
+
+        distVal.textContent = distance;
+        distVal.style.color = phase === 'deliver' ? '#3b82f6' : '#f97316';
+        timeVal.textContent = duration;
+
+        if (phase === 'pickup') {
+            iconBox.style.background = 'rgba(249,115,22,0.15)';
+            iconBox.style.border = '1px solid rgba(249,115,22,0.25)';
+            icon.style.color = '#f97316';
+            title.textContent = 'Đường đến quán';
+            subtitle.textContent = 'Đi lấy hàng cho khách';
+            badge.className = 'phase-badge phase-pickup';
+            badge.innerHTML = '<i class="fa-solid fa-store"></i> Lấy hàng';
+            destVal.textContent = '🍜';
+            document.getElementById('routeDestLabel').textContent = 'Quán ăn';
+        } else {
+            iconBox.style.background = 'rgba(59,130,246,0.15)';
+            iconBox.style.border = '1px solid rgba(59,130,246,0.25)';
+            icon.style.color = '#3b82f6';
+            title.textContent = 'Đường đến khách';
+            subtitle.textContent = 'Giao hàng cho khách';
+            badge.className = 'phase-badge phase-deliver';
+            badge.innerHTML = '<i class="fa-solid fa-location-dot"></i> Giao hàng';
+            destVal.textContent = '📍';
+            document.getElementById('routeDestLabel').textContent = 'Khách hàng';
+        }
+        
+        document.getElementById('routeDestAddress').textContent = destAddress || '--';
+        panel.classList.add('visible');
+    }
+
+    // Determine the next target and update route
+    async function updateNextRoute() {
+        const unpickedStops = Array.from(document.querySelectorAll('.timeline-item')).filter(el => {
+            const btn = el.querySelector('.pickup-btn');
+            return btn && !btn.classList.contains('done') && !btn.disabled;
+        });
+
+        if (unpickedStops.length > 0) {
+            // Next is a store
+            const nextStop = unpickedStops[0];
+            const sLat = parseFloat(nextStop.dataset.storeLat);
+            const sLng = parseFloat(nextStop.dataset.storeLng);
+            const sName = nextStop.querySelector("p[style*='color:white']").textContent;
+            await drawRoute(currentShipperLat, currentShipperLng, sLat, sLng, '#f97316', 'pickup', 'Quán ăn', sName);
+            shipperMarker.setIcon(createShipperIcon('pickup'));
+        } else {
+            // All picked up, goto delivery
+            const dLat = @dLat;
+            const dLng = @dLng;
+            await drawRoute(currentShipperLat, currentShipperLng, dLat, dLng, '#3b82f6', 'deliver', 'Khách hàng', '@Html.Raw(Model.DeliveryAddress)');
+            shipperMarker.setIcon(createShipperIcon('deliver'));
+            shipperMarker.bindPopup(`<div style="font-weight:800;color:#3b82f6;font-size:13px;">📍 Đã lấy - Đi giao</div>`).openPopup();
+        }
+    }
+
+    // Call update on initialize
+    setTimeout(updateNextRoute, 500);
 
     setTimeout(() => map.invalidateSize(), 300);
 
@@ -472,6 +569,9 @@
                             });
                             stopMarkers[itemId].marker = L.marker([storeLat, storeLng], { icon: newIcon }).addTo(map);
                         }
+
+                        // Wait a bit, then recalculate & draw next route
+                        setTimeout(updateNextRoute, 1200);
                     }
                 }
 
@@ -479,6 +579,7 @@
                     const completeBtn = document.getElementById('completeBatchBtn');
                     if (completeBtn) {
                         completeBtn.disabled = false;
+                        completeBtn.classList.add('ready');
                         completeBtn.innerHTML = '<i class="fa-solid fa-check-double" style="margin-right:0.5rem;"></i> Hoàn thành tất cả đơn';
                     }
                 }
