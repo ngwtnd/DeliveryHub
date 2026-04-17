@@ -141,7 +141,7 @@ namespace DeliveryHubWeb.Controllers
                 .Include(o => o.Shipper)
                 .Include(o => o.OrderItems)
                 .ThenInclude(oi => oi.MenuItem)
-                .Where(o => o.Store.OwnerId == user.Id);
+                .Where(o => o.Store!.OwnerId == user.Id);
 
             if (storeId.HasValue && storeId > 0)
             {
@@ -216,7 +216,7 @@ namespace DeliveryHubWeb.Controllers
                 {
                     UserName = rmEmail,
                     Email = rmEmail,
-                    FullName = $"QL {model.Name.Substring(0, Math.Min(model.Name.Length, 15))}",
+                    FullName = $"QL {model.Name!.Substring(0, Math.Min(model.Name.Length, 15))}",
                     Role = UserRole.RestaurantManager,
                     IsActive = true,
                     ManagedStoreId = model.Id,
@@ -248,7 +248,7 @@ namespace DeliveryHubWeb.Controllers
         public async Task<IActionResult> ToggleStoreStatus(int id)
         {
             var user = await GetCurrentUser();
-            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user.Id);
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user!.Id);
             if (store == null) return Json(new { success = false });
 
             store.IsOpen = !store.IsOpen;
@@ -260,7 +260,7 @@ namespace DeliveryHubWeb.Controllers
         public async Task<IActionResult> LockStoreByPartner(int id)
         {
             var user = await GetCurrentUser();
-            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user.Id);
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user!.Id);
             if (store == null) return Json(new { success = false });
 
             store.ActivityState = StoreActivityState.LockedByPartner;
@@ -272,7 +272,7 @@ namespace DeliveryHubWeb.Controllers
         public async Task<IActionResult> UnlockStoreByPartner(int id)
         {
             var user = await GetCurrentUser();
-            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user.Id);
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user!.Id);
             if (store == null) return Json(new { success = false });
 
             store.ActivityState = StoreActivityState.Active;

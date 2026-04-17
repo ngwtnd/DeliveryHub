@@ -12,8 +12,8 @@
     var statusStats = ViewBag.StatusStats as IEnumerable<dynamic>;
     var chartData = ViewBag.ChartData as IEnumerable<dynamic>;
 
-    var totalRevenue = (decimal)(ViewBag.TotalRevenue ?? 0m);
-    var totalOrders = (int)(ViewBag.TotalOrders ?? 0);
+    var totalRevenue = (decimal)(ViewBag.TotalRevenue ?? 0m)!;
+    var totalOrders = (int)(ViewBag.TotalOrders ?? 0)!;
 
     // Helpers
     string GetStatusLabel(DeliveryHubWeb.Models.OrderStatus status) => status switch {
@@ -346,7 +346,7 @@
              data-time3="@(order.PickedUpAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
              data-time4="@((order.Status == DeliveryHubWeb.Models.OrderStatus.Completed ? order.CompletedAt : order.CancelledAt)?.ToString("HH:mm - dd/MM") ?? "--:--")"
              data-shipper-name="@(order.Shipper?.FullName ?? "")"
-             data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)[order.ShipperId] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
+             data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId!) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)![order.ShipperId!] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
              data-note="@order.Note">
              <div class="items-json">
                 @Html.Raw(System.Text.Json.JsonSerializer.Serialize(order.OrderItems.Select(oi => new { name = oi.MenuItem?.Name, qty = oi.Quantity, price = oi.Price })))

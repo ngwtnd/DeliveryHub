@@ -263,17 +263,23 @@
 
 @section Scripts {
 <script>
-    @if (sortedItems.LastOrDefault(i => i.IsPickedUp) is var lastPicked && lastPicked != null && lastPicked.Order?.Store?.Latitude != null && lastPicked.Order.Store.Latitude != 0) {
-        <text>
-        const initialLat = @(lastPicked.Order.Store.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        const initialLng = @(lastPicked.Order.Store.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        </text>
-    } else {
-        <text>
-        const initialLat = @((shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        const initialLng = @((shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture));
-        </text>
+    @{
+        var dLat = Model.DeliveryLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var dLng = Model.DeliveryLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var initialLat = (shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var initialLng = (shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        if (sortedItems.LastOrDefault(i => i.IsPickedUp) is var lastPicked && lastPicked != null && lastPicked.Order?.Store?.Latitude != null && lastPicked.Order.Store.Latitude != 0)
+        {
+            initialLat = lastPicked.Order.Store.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            initialLng = lastPicked.Order.Store.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
     }
+
+    const initialLat = @initialLat;
+    const initialLng = @initialLng;
+    const dLat = @dLat;
+    const dLng = @dLng;
 
     let currentShipperLat = initialLat;
     let currentShipperLng = initialLng;
@@ -461,8 +467,6 @@
             shipperMarker.setIcon(createShipperIcon('pickup'));
         } else {
             // All picked up, goto delivery
-            const dLat = @dLat;
-            const dLng = @dLng;
             await drawRoute(currentShipperLat, currentShipperLng, dLat, dLng, '#3b82f6', 'deliver', 'Khách hàng', '@Html.Raw(Model.DeliveryAddress)');
             shipperMarker.setIcon(createShipperIcon('deliver'));
             shipperMarker.bindPopup(`<div style="font-weight:800;color:#3b82f6;font-size:13px;">📍 Đã lấy - Đi giao</div>`).openPopup();
@@ -507,11 +511,6 @@
         }
     }
 
-    // Delivery marker (bright style)
-    @{
-        var dLat = Model.DeliveryLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var dLng = Model.DeliveryLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
-    }
     @if (Model.DeliveryLatitude != 0 && Model.DeliveryLongitude != 0)
     {
         <text>
@@ -519,7 +518,7 @@
             html: `<div style="width:38px;height:38px;background:white;border:3px solid #3b82f6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:14px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px rgba(59,130,246,0.15);"><i class="fa-solid fa-flag-checkered"></i></div>`,
             className: '', iconSize: [38, 38], iconAnchor: [19, 19]
         });
-        L.marker([@dLat, @dLng], { icon: deliveryIcon }).addTo(map)
+        L.marker([dLat, dLng], { icon: deliveryIcon }).addTo(map)
             .bindPopup(`<div style="font-weight:800;font-size:12px;color:#1e293b;"><span style="color:#3b82f6;">Điểm giao</span></div>`);
         </text>
     }

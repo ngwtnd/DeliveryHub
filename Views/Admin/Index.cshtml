@@ -6,7 +6,7 @@
     var chartData = System.Text.Json.JsonSerializer.Serialize(ViewBag.ChartData);
     var statusStats = System.Text.Json.JsonSerializer.Serialize(ViewBag.StatusStats);
 
-    string previousPeriodLabel = stats.SelectedDays == 1 ? "hôm qua" :
+    string previousPeriodLabel = stats!.SelectedDays == 1 ? "hôm qua" :
                                  stats.SelectedDays == 7 ? "tuần trước" :
                                  stats.SelectedDays == 30 ? "tháng trước" :
                                  stats.SelectedDays == 365 ? "năm trước" : "kỳ trước";
@@ -51,12 +51,12 @@
             @{
                 var storesList = ViewBag.Stores as IEnumerable<DeliveryHubWeb.Models.Store>;
                 string selectedStoreName = "Tất cả nhà hàng";
-                if (stats.SelectedStoreId != null && storesList != null) {
+                if (stats!.SelectedStoreId != null && storesList != null) {
                     var sStore = storesList.FirstOrDefault(s => s.Id == stats.SelectedStoreId);
-                    if (sStore != null) selectedStoreName = sStore.Name;
+                    if (sStore != null) selectedStoreName = sStore.Name!;
                 }
 
-                string selectedDaysLabel = stats.SelectedDays == 1 ? "Hôm nay" :
+                string selectedDaysLabel = stats!.SelectedDays == 1 ? "Hôm nay" :
                                          stats.SelectedDays == 7 ? "1 tuần qua" :
                                          stats.SelectedDays == 30 ? "1 tháng qua" :
                                          stats.SelectedDays == 365 ? "1 năm qua" : "Tất cả";
@@ -314,10 +314,10 @@
     @foreach(var order in Model) {
         <div data-id="@order.Id" 
              data-code="@order.OrderCode"
-             data-customer="@order.User?.FullName"
-             data-merchant="@order.OrderItems.FirstOrDefault()?.MenuItem?.Store?.Name"
-             data-merchant-addr="@order.OrderItems.FirstOrDefault()?.MenuItem?.Store?.Address"
-             data-delivery-addr="@order.DeliveryAddress"
+             data-customer="@(order.User?.FullName ?? "Khách hàng")"
+             data-merchant="@(order.OrderItems.FirstOrDefault()?.MenuItem?.Store?.Name ?? "N/A")"
+             data-merchant-addr="@(order.OrderItems.FirstOrDefault()?.MenuItem?.Store?.Address ?? "N/A")"
+             data-delivery-addr="@(order.DeliveryAddress ?? "N/A")"
              data-status="@order.Status"
              data-price="@string.Format("{0:N0}", order.TotalPrice + order.ShippingFee)"
              data-time1="@order.CreatedAt.ToString("HH:mm - dd/MM")"
@@ -325,8 +325,8 @@
              data-time3="@(order.PickedUpAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
              data-time4="@((order.Status == OrderStatus.Completed ? order.CompletedAt : order.CancelledAt)?.ToString("HH:mm - dd/MM") ?? "--:--")"
              data-shipper-name="@(order.Shipper?.FullName ?? "")"
-             data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)[order.ShipperId] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
-             data-note="@order.Note">
+             data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId!) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)![order.ShipperId!] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
+             data-note="@(order.Note ?? "")">
              <div class="items-json">
                 @Html.Raw(System.Text.Json.JsonSerializer.Serialize(order.OrderItems.Select(oi => new { name = oi.MenuItem?.Name, qty = oi.Quantity, price = oi.Price })))
              </div>

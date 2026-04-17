@@ -72,7 +72,7 @@
             <button type="button" id="statusDropdownBtn" 
                     class="w-full flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold focus:border-brand-orange/50 outline-none transition-all cursor-pointer hover:bg-white/10">
                 <span id="statusLabel" class="@GetStatusTextColor(ViewBag.SelectedStatus)">
-                    @(ViewBag.SelectedStatus != null ? GetStatusLabel(Enum.Parse<OrderStatus>(ViewBag.SelectedStatus.ToString())) : "Tất cả trạng thái")
+                    @(ViewBag.SelectedStatus != null ? GetStatusLabel(Enum.Parse<OrderStatus>(ViewBag.SelectedStatus!.ToString()!)) : "Tất cả trạng thái")
                 </span>
                 <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray group-hover/btn:text-brand-orange transition-colors"></i>
             </button>
@@ -114,7 +114,7 @@
             @{
                 var selectedStoreText = "Tất cả nhà hàng";
                 if (ViewBag.SelectedStore != null) {
-                    var sId = (int)ViewBag.SelectedStore;
+                    var sId = (int)ViewBag.SelectedStore!;
                     var s = stores?.FirstOrDefault(x => x.Id == sId);
                     if (s != null) selectedStoreText = s.Name;
                 }
@@ -308,7 +308,7 @@
                  data-time3="@(order.PickedUpAt?.ToString("HH:mm - dd/MM") ?? "--:--")"
                  data-time4="@((order.Status == OrderStatus.Completed ? order.CompletedAt : order.CancelledAt)?.ToString("HH:mm - dd/MM") ?? "--:--")"
                  data-shipper-name="@(order.Shipper?.FullName ?? "")"
-                 data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)[order.ShipperId] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
+                 data-shipper-code="@(order.ShipperId != null && (ViewBag.ShipperCodes as Dictionary<string, string>)?.ContainsKey(order.ShipperId!) == true ? (ViewBag.ShipperCodes as Dictionary<string, string>)![order.ShipperId!] : (order.ShipperId != null ? order.ShipperId.Substring(0, 8).ToUpper() : ""))"
                  data-note="@order.Note">
                  <div class="items-json">
                     @Html.Raw(System.Text.Json.JsonSerializer.Serialize(order.OrderItems.Select(oi => new { name = oi.MenuItem?.Name, qty = oi.Quantity, price = oi.Price })))

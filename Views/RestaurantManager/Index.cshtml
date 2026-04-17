@@ -35,14 +35,6 @@
         _ => "bg-gray-500/10 text-gray-500 border-gray-500/30"
     };
 
-    string GetStatusDotClass(DeliveryHubWeb.Models.OrderStatus status) => status switch {
-        DeliveryHubWeb.Models.OrderStatus.Pending => "bg-[#22D3EE]",
-        DeliveryHubWeb.Models.OrderStatus.SearchingShipper => "bg-[#A855F7]",
-        DeliveryHubWeb.Models.OrderStatus.Accepted => "bg-pink-500",
-        DeliveryHubWeb.Models.OrderStatus.Preparing => "bg-yellow-500",
-        DeliveryHubWeb.Models.OrderStatus.Delivering => "bg-brand-orange",
-        DeliveryHubWeb.Models.OrderStatus.Completed => "bg-green-400",
-        _ => "bg-gray-500"
     };
 }
 
