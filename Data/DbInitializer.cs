@@ -483,14 +483,30 @@ namespace DeliveryHubWeb.Data
                 // Tạo 30 đơn hàng "MỚI NỔ" (Live Data)
                 for (int i = 1; i <= 30; i++)
                 {
-                    var store = allStores[rng.Next(allStores.Count)];
+                    Store store;
+                    ApplicationUser customer;
+                    (string addr, double lat, double lng) delivery;
+
+                    // Nhóm 3 đơn đầu tiên để test Gom đơn tự nhiên (Batch)
+                    if (i <= 3)
+                    {
+                        var batchStores = new[] { s1, s4, s5 }; // Các quán tại Quận 1 tập trung
+                        store = batchStores[i - 1];
+                        customer = user1; 
+                        delivery = deliveryAddresses[0]; 
+                    }
+                    else
+                    {
+                        store = allStores[rng.Next(allStores.Count)];
+                        customer = allUsers[rng.Next(allUsers.Length)];
+                        delivery = deliveryAddresses[rng.Next(deliveryAddresses.Length)];
+                    }
+
                     var storeItems = allMenuItems.Where(m => m.StoreId == store.Id).ToList();
-                    var customer = allUsers[rng.Next(allUsers.Length)];
-                    var delivery = deliveryAddresses[rng.Next(deliveryAddresses.Length)];
                     var dist = Math.Round(Haversine(store.Latitude, store.Longitude, delivery.lat, delivery.lng), 1);
                     var shippingFee = CalcShippingFee(dist);
 
-                    OrderStatus status = i <= 20 ? OrderStatus.SearchingShipper : (OrderStatus)rng.Next(0, 5); // Đảm bảo có ít nhất 20 đơn đang chờ shipper nhận để làm chức năng gom đơn
+                    OrderStatus status = i <= 20 ? OrderStatus.SearchingShipper : (OrderStatus)rng.Next(0, 5);
                     ApplicationUser? shipper = status >= OrderStatus.Accepted ? shipperList[rng.Next(shipperList.Count)] : null;
 
                     var order = new Order {

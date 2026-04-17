@@ -79,7 +79,7 @@
                 }
                 else
                 {
-                    <span class="status-badge" style="background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3); color:#a855f7;">
+                    <span class="status-badge" style="background:rgba(249,115,22,0.15); border:1px solid rgba(249,115,22,0.3); color:#f97316;">
                         <i class="fa-solid fa-spinner fa-pulse"></i> Đang giao
                     </span>
                 }
@@ -88,7 +88,7 @@
             <!-- Stats -->
             <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; margin-top:1rem;">
                 <div class="stat-box">
-                    <p style="font-size:1.1rem; font-weight:900; color:#a855f7; margin:0;">@Model.TotalDistance</p>
+                    <p style="font-size:1.1rem; font-weight:900; color:#f97316; margin:0;">@Model.TotalDistance</p>
                     <p style="font-size:0.55rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0;">Km</p>
                 </div>
                 <div class="stat-box">
@@ -104,7 +104,7 @@
 
         <!-- Timeline -->
         <div class="info-scroll">
-            <p style="font-size:0.6rem; font-weight:800; color:#a855f7; text-transform:uppercase; letter-spacing:0.15em; margin:0 0 1rem;">Lộ trình tối ưu</p>
+            <p style="font-size:0.6rem; font-weight:800; color:#f97316; text-transform:uppercase; letter-spacing:0.15em; margin:0 0 1rem;">Lộ trình tối ưu</p>
 
             <!-- Start point -->
             <div class="timeline-item">
@@ -112,7 +112,7 @@
                     <div class="timeline-dot" style="background:#22c55e; color:white; border:3px solid rgba(34,197,94,0.3);">
                         <i class="fa-solid fa-flag" style="font-size:12px;"></i>
                     </div>
-                    <div class="timeline-line" style="background:linear-gradient(to bottom, #22c55e, #a855f7);"></div>
+                    <div class="timeline-line" style="background:linear-gradient(to bottom, #22c55e, #f97316);"></div>
                 </div>
                 <div class="timeline-content">
                     <p style="font-size:0.8rem; font-weight:800; color:white; margin:0;">Xuất phát</p>
@@ -253,7 +253,7 @@
     // Shipper marker
     function createShipperIcon() {
         return L.divIcon({
-            html: `<div style="width:48px;height:48px;background:#a855f7;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;box-shadow:0 0 24px rgba(168,85,247,0.7),0 4px 12px rgba(0,0,0,0.3);"><i class="fa-solid fa-motorcycle"></i></div>`,
+            html: `<div style="width:48px;height:48px;background:#f97316;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;box-shadow:0 0 24px rgba(249,115,22,0.7),0 4px 12px rgba(0,0,0,0.3);"><i class="fa-solid fa-motorcycle"></i></div>`,
             className: '', iconSize: [48, 48], iconAnchor: [24, 24]
         });
     }
@@ -309,13 +309,13 @@
                         if (coords.length > 0) {
                             // Background shadow line
                             const bgLine = L.polyline(coords, {
-                                color: '#e9d5ff', weight: 10, opacity: 0.5,
+                                color: '#bfdbfe', weight: 10, opacity: 0.5,
                                 lineCap: 'round', lineJoin: 'round'
                             }).addTo(map);
 
                             // Animated main line
                             const mainLine = L.polyline([], {
-                                color: '#a855f7', weight: 5, opacity: 0.9,
+                                color: '#3b82f6', weight: 5, opacity: 0.9,
                                 lineCap: 'round', lineJoin: 'round'
                             }).addTo(map);
 
@@ -392,17 +392,18 @@
             <text>
             (function(){
                 const isPicked = @(picked ? "true" : "false");
-                const bg = isPicked ? 'white' : 'white';
-                const borderColor = isPicked ? '#22c55e' : '#a855f7';
-                const textColor = isPicked ? '#22c55e' : '#a855f7';
-                const shadowColor = isPicked ? 'rgba(34,197,94,0.3)' : 'rgba(168,85,247,0.3)';
-                const label = isPicked ? '✓' : '@item.Sequence';
+                const borderColor = isPicked ? '#22c55e' : '#f97316';
+                const textColor = isPicked ? '#22c55e' : '#f97316';
+                const shadowColor = isPicked ? 'rgba(34,197,94,0.3)' : 'rgba(249,115,22,0.3)';
+                const iconHtml = isPicked ? '✓' : '<i class="fa-solid fa-store"></i>';
+                const sequenceBadge = isPicked ? '' : `<div style="position:absolute;top:-6px;right:-6px;background:#ef4444;color:white;border-radius:50%;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.3);font-weight:900;">@item.Sequence</div>`;
+
                 const icon = L.divIcon({
-                    html: `<div style="width:38px;height:38px;background:${bg};border:3px solid ${borderColor};border-radius:50%;display:flex;align-items:center;justify-content:center;color:${textColor};font-size:14px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px ${shadowColor};">${label}</div>`,
-                    className: '', iconSize: [38, 38], iconAnchor: [19, 19]
+                    html: `<div style="position:relative; width:36px; height:36px;"><div style="width:100%;height:100%;background:white;border:3px solid ${borderColor};border-radius:50%;display:flex;align-items:center;justify-content:center;color:${textColor};font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px ${shadowColor};">${iconHtml}</div>${sequenceBadge}</div>`,
+                    className: '', iconSize: [36, 36], iconAnchor: [18, 18]
                 });
                 const marker = L.marker([@lat, @lng], { icon }).addTo(map)
-                    .bindPopup(`<div style="font-weight:800;font-size:12px;color:#1e293b;"><span style="color:#a855f7;">Điểm @item.Sequence:</span> @name</div>`);
+                    .bindPopup(`<div style="font-weight:800;font-size:12px;color:#1e293b;"><span style="color:#f97316;">Điểm lấy hàng @item.Sequence:</span> @name</div>`);
                 stopMarkers[@item.Id] = { marker: marker, lat: @lat, lng: @lng };
             })();
             </text>
