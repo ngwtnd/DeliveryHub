@@ -31,6 +31,10 @@
     .stat-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 1rem; padding: 1rem; text-align: center; }
 
     .status-badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.75rem; border-radius: 999px; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+
+    /* Animated route line */
+    .animated-route { stroke-dasharray: 12 6; animation: routeFlow 1.5s linear infinite; }
+    @@keyframes routeFlow { to { stroke-dashoffset: -18; } }
 </style>
 
 <div class="detail-page">
@@ -125,7 +129,9 @@
                 var storeAddr = order?.PickupAddress ?? order?.Store?.Address ?? "";
                 var totalItems = order?.OrderItems?.Sum(oi => oi.Quantity) ?? 0;
 
-                <div class="timeline-item" id="timeline-@item.Id">
+                <div class="timeline-item" id="timeline-@item.Id"
+                     data-store-lat="@((order?.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                     data-store-lng="@((order?.Store?.Longitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))">
                     <div>
                         <div class="timeline-dot" style="background:@(item.IsPickedUp ? "#22c55e" : "#a855f7"); color:white; border:3px solid @(item.IsPickedUp ? "rgba(34,197,94,0.3)" : "rgba(168,85,247,0.3)");">
                             @if (item.IsPickedUp) {
@@ -224,19 +230,56 @@
     const shipperLat = @((shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture));
     const shipperLng = @((shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture));
 
+    let currentShipperLat = shipperLat;
+    let currentShipperLng = shipperLng;
+
+    // --- Map Init (BRIGHT tile - CartoDB Voyager, synced with AvailableOrders) ---
     const map = L.map('detailMap', { zoomControl: true }).setView([shipperLat, shipperLng], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; CARTO', maxZoom: 20
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        maxZoom: 20,
+        subdomains: 'abcd'
     }).addTo(map);
 
     // Shipper marker
-    const shipperIcon = L.divIcon({
-        html: `<div style="width:44px;height:44px;background:#a855f7;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;box-shadow:0 0 24px rgba(168,85,247,0.8);"><i class="fa-solid fa-motorcycle"></i></div>`,
-        className: '', iconSize: [44, 44], iconAnchor: [22, 22]
-    });
-    L.marker([shipperLat, shipperLng], { icon: shipperIcon }).addTo(map);
+    function createShipperIcon() {
+        return L.divIcon({
+            html: `<div style="width:48px;height:48px;background:#a855f7;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;box-shadow:0 0 24px rgba(168,85,247,0.7),0 4px 12px rgba(0,0,0,0.3);"><i class="fa-solid fa-motorcycle"></i></div>`,
+            className: '', iconSize: [48, 48], iconAnchor: [24, 24]
+        });
+    }
 
-    // Draw route from saved GeoJSON
+    const shipperMarker = L.marker([shipperLat, shipperLng], { icon: createShipperIcon(), zIndexOffset: 1000 }).addTo(map);
+
+    // Move shipper marker with smooth animation
+    function moveShipperTo(lat, lng) {
+        currentShipperLat = lat;
+        currentShipperLng = lng;
+
+        const startLatLng = shipperMarker.getLatLng();
+        const endLatLng = L.latLng(lat, lng);
+        const frames = 40;
+        let frame = 0;
+
+        function animate() {
+            frame++;
+            const t = frame / frames;
+            const ease = 1 - Math.pow(1 - t, 3);
+            const newLat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * ease;
+            const newLng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * ease;
+            shipperMarker.setLatLng([newLat, newLng]);
+
+            if (frame < frames) {
+                requestAnimationFrame(animate);
+            } else {
+                shipperMarker.setLatLng(endLatLng);
+                shipperMarker.bindPopup(`<div style="font-weight:800;color:#a855f7;font-size:13px;">📍 Đã lấy hàng tại đây</div>`).openPopup();
+            }
+        }
+        animate();
+    }
+
+    // Draw route from saved GeoJSON with animation
     const geoJson = @Html.Raw(Model.RouteGeometry ?? "null");
     let routesLayers = [];
     if (geoJson) {
@@ -244,41 +287,89 @@
             if (geoJson.features) {
                 geoJson.features.forEach((feature, idx) => {
                     const isPrimary = idx === 0;
-                    const color = isPrimary ? '#a855f7' : '#64748b';
-                    const weight = isPrimary ? 6 : 4;
-                    const opacity = isPrimary ? 0.85 : 0.6;
 
-                    const layer = L.geoJSON(feature, {
-                        style: { color: color, weight: weight, opacity: opacity, lineCap: 'round', lineJoin: 'round' }
-                    }).addTo(map);
-
-                    // Click to switch alternative route
-                    layer.on('click', function() {
-                        routesLayers.forEach(r => r.setStyle({ color: '#64748b', weight: 4, opacity: 0.6 }));
-                        this.setStyle({ color: '#a855f7', weight: 6, opacity: 0.85 });
-                        this.bringToFront();
-
-                        // Update floating UI
-                        const summary = feature.properties?.summary;
-                        if (summary) {
-                            const dDist = (summary.distance / 1000).toFixed(1);
-                            const dMin = Math.round(summary.duration / 60);
-                            document.getElementById('displayDistanceFloat').innerText = dDist;
-                            document.getElementById('displayMinutesFloat').innerText = dMin;
+                    if (isPrimary) {
+                        // Animated drawing for primary route
+                        const coords = [];
+                        if (feature.geometry.type === 'LineString') {
+                            feature.geometry.coordinates.forEach(c => coords.push([c[1], c[0]]));
+                        } else if (feature.geometry.type === 'MultiLineString') {
+                            feature.geometry.coordinates.forEach(line => line.forEach(c => coords.push([c[1], c[0]])));
                         }
-                    });
-                    
-                    if (!isPrimary) layer.bringToBack();
-                    routesLayers.push(layer);
+
+                        if (coords.length > 0) {
+                            // Background shadow line
+                            const bgLine = L.polyline(coords, {
+                                color: '#e9d5ff', weight: 10, opacity: 0.5,
+                                lineCap: 'round', lineJoin: 'round'
+                            }).addTo(map);
+
+                            // Animated main line
+                            const mainLine = L.polyline([], {
+                                color: '#a855f7', weight: 5, opacity: 0.9,
+                                lineCap: 'round', lineJoin: 'round'
+                            }).addTo(map);
+
+                            let idx2 = 0;
+                            const step = Math.max(1, Math.floor(coords.length / 80));
+                            function animateStep() {
+                                if (idx2 < coords.length) {
+                                    mainLine.addLatLng(coords[idx2]);
+                                    idx2 += step;
+                                    if (idx2 >= coords.length) mainLine.setLatLngs(coords);
+                                    requestAnimationFrame(animateStep);
+                                } else {
+                                    // Add flowing dash
+                                    L.polyline(coords, {
+                                        color: 'white', weight: 3, opacity: 0.5,
+                                        dashArray: '8 16', lineCap: 'round',
+                                        className: 'animated-route'
+                                    }).addTo(map);
+                                }
+                            }
+                            animateStep();
+
+                            routesLayers.push(bgLine);
+                            routesLayers.push(mainLine);
+                        }
+                    } else {
+                        // Alternative routes
+                        const layer = L.geoJSON(feature, {
+                            style: { color: '#94a3b8', weight: 4, opacity: 0.4, lineCap: 'round', lineJoin: 'round', dashArray: '6 8' }
+                        }).addTo(map);
+
+                        layer.on('click', function() {
+                            // Switch route display info
+                            const summary = feature.properties?.summary;
+                            if (summary) {
+                                document.getElementById('displayDistanceFloat').innerText = (summary.distance / 1000).toFixed(1);
+                                document.getElementById('displayMinutesFloat').innerText = Math.round(summary.duration / 60);
+                            }
+                        });
+
+                        routesLayers.push(layer);
+                    }
                 });
-                if (routesLayers.length > 0) map.fitBounds(routesLayers[0].getBounds(), { padding: [60, 60] });
+
+                if (routesLayers.length > 0) {
+                    const allBounds = [];
+                    routesLayers.forEach(l => {
+                        if (l.getBounds) allBounds.push(l.getBounds());
+                    });
+                    if (allBounds.length > 0) {
+                        let combinedBounds = allBounds[0];
+                        allBounds.forEach(b => combinedBounds.extend(b));
+                        map.fitBounds(combinedBounds, { padding: [60, 60] });
+                    }
+                }
             }
         } catch(e) { console.error('GeoJSON parse error:', e); }
     }
 
     setTimeout(() => map.invalidateSize(), 300);
 
-    // Draw stop markers
+    // Draw stop markers (bright style, white bg with colored border)
+    const stopMarkers = {};
     @foreach (var item in sortedItems)
     {
         var order = item.Order;
@@ -291,19 +382,25 @@
         {
             <text>
             (function(){
-                const bg = '@(picked ? "#22c55e" : "#a855f7")';
+                const isPicked = @(picked ? "true" : "false");
+                const bg = isPicked ? 'white' : 'white';
+                const borderColor = isPicked ? '#22c55e' : '#a855f7';
+                const textColor = isPicked ? '#22c55e' : '#a855f7';
+                const shadowColor = isPicked ? 'rgba(34,197,94,0.3)' : 'rgba(168,85,247,0.3)';
+                const label = isPicked ? '✓' : '@item.Sequence';
                 const icon = L.divIcon({
-                    html: `<div style="width:36px;height:36px;background:${bg};border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:900;box-shadow:0 0 20px ${bg === '#22c55e' ? 'rgba(34,197,94,0.6)' : 'rgba(168,85,247,0.6)'};">@(picked ? "✓" : item.Sequence.ToString())</div>`,
-                    className: '', iconSize: [36, 36], iconAnchor: [18, 18]
+                    html: `<div style="width:38px;height:38px;background:${bg};border:3px solid ${borderColor};border-radius:50%;display:flex;align-items:center;justify-content:center;color:${textColor};font-size:14px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px ${shadowColor};">${label}</div>`,
+                    className: '', iconSize: [38, 38], iconAnchor: [19, 19]
                 });
-                L.marker([@lat, @lng], { icon }).addTo(map)
-                    .bindPopup(`<div style="font-weight:800;font-size:12px;"><span style="color:#a855f7;">Điểm @item.Sequence:</span> @name</div>`);
+                const marker = L.marker([@lat, @lng], { icon }).addTo(map)
+                    .bindPopup(`<div style="font-weight:800;font-size:12px;color:#1e293b;"><span style="color:#a855f7;">Điểm @item.Sequence:</span> @name</div>`);
+                stopMarkers[@item.Id] = { marker: marker, lat: @lat, lng: @lng };
             })();
             </text>
         }
     }
 
-    // Delivery marker
+    // Delivery marker (bright style)
     @{
         var dLat = Model.DeliveryLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var dLng = Model.DeliveryLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -312,11 +409,11 @@
     {
         <text>
         const deliveryIcon = L.divIcon({
-            html: `<div style="width:36px;height:36px;background:#3b82f6;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;font-weight:900;box-shadow:0 0 20px rgba(59,130,246,0.6);"><i class="fa-solid fa-flag-checkered"></i></div>`,
-            className: '', iconSize: [36, 36], iconAnchor: [18, 18]
+            html: `<div style="width:38px;height:38px;background:white;border:3px solid #3b82f6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:14px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px rgba(59,130,246,0.15);"><i class="fa-solid fa-flag-checkered"></i></div>`,
+            className: '', iconSize: [38, 38], iconAnchor: [19, 19]
         });
         L.marker([@dLat, @dLng], { icon: deliveryIcon }).addTo(map)
-            .bindPopup(`<div style="font-weight:800;font-size:12px;"><span style="color:#3b82f6;">Điểm giao</span></div>`);
+            .bindPopup(`<div style="font-weight:800;font-size:12px;color:#1e293b;"><span style="color:#3b82f6;">Điểm giao</span></div>`);
         </text>
     }
 
@@ -347,6 +444,24 @@
                         dot.style.background = '#22c55e';
                         dot.style.borderColor = 'rgba(34,197,94,0.3)';
                         dot.innerHTML = '<i class="fa-solid fa-check" style="font-size:14px;"></i>';
+                    }
+
+                    // Move shipper to this store location
+                    const storeLat = parseFloat(timeline.dataset.storeLat);
+                    const storeLng = parseFloat(timeline.dataset.storeLng);
+                    if (storeLat && storeLng) {
+                        moveShipperTo(storeLat, storeLng);
+
+                        // Update stop marker to green
+                        if (stopMarkers[itemId]) {
+                            const m = stopMarkers[itemId].marker;
+                            map.removeLayer(m);
+                            const newIcon = L.divIcon({
+                                html: `<div style="width:38px;height:38px;background:white;border:3px solid #22c55e;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#22c55e;font-size:14px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px rgba(34,197,94,0.15);">✓</div>`,
+                                className: '', iconSize: [38, 38], iconAnchor: [19, 19]
+                            });
+                            stopMarkers[itemId].marker = L.marker([storeLat, storeLng], { icon: newIcon }).addTo(map);
+                        }
                     }
                 }
 

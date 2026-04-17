@@ -3038,6 +3038,72 @@ var result = new {
 
             await _context.SaveChangesAsync();
 
+            // Return order coordinates for route drawing
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == order.StoreId);
+            return Json(new
+            {
+                success = true,
+                storeLat = store?.Latitude ?? 0,
+                storeLng = store?.Longitude ?? 0,
+                storeName = store?.Name ?? "Cửa hàng",
+                pickupAddress = order.PickupAddress,
+                deliveryLat = order.DeliveryLatitude,
+                deliveryLng = order.DeliveryLongitude,
+                deliveryAddress = order.DeliveryAddress,
+                customerName = (await _context.Users.FirstOrDefaultAsync(u => u.Id == order.UserId))?.FullName ?? "Khách hàng",
+                distance = order.Distance
+            });
+        }
+
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> MarkPickedUp([FromBody] string orderCode)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == User.Identity!.Name);
+            if (user == null) return Json(new { success = false, message = "Unauthorized" });
+
+            var order = await _context.Orders
+                .Include(o => o.Store)
+                .Include(o => o.User)
+                .FirstOrDefaultAsync(o => o.OrderCode == orderCode && o.ShipperId == user.Id);
+
+            if (order == null) return Json(new { success = false, message = "Không tìm thấy đơn hàng." });
+
+            if (order.Status != OrderStatus.Accepted && order.Status != OrderStatus.Preparing)
+                return Json(new { success = false, message = "Đơn hàng không ở trạng thái có thể lấy hàng." });
+
+            order.Status = OrderStatus.Delivering;
+            order.PickedUpAt = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+
+            return Json(new
+            {
+                success = true,
+                storeLat = order.Store?.Latitude ?? 0,
+                storeLng = order.Store?.Longitude ?? 0,
+                deliveryLat = order.DeliveryLatitude,
+                deliveryLng = order.DeliveryLongitude,
+                deliveryAddress = order.DeliveryAddress,
+                customerName = order.User?.FullName ?? "Khách hàng"
+            });
+        }
+
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
+        public async Task<IActionResult> CompleteOrder([FromBody] string orderCode)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == User.Identity!.Name);
+            if (user == null) return Json(new { success = false, message = "Unauthorized" });
+
+            var order = await _context.Orders.FirstOrDefaultAsync(o => o.OrderCode == orderCode && o.ShipperId == user.Id);
+            if (order == null) return Json(new { success = false, message = "Không tìm thấy đơn hàng." });
+
+            order.Status = OrderStatus.Completed;
+            order.CompletedAt = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+
             return Json(new { success = true });
         }
     }

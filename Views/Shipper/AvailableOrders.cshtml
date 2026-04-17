@@ -15,6 +15,8 @@
     .order-card { background: #020617; border: 1px solid rgba(255,255,255,0.07); border-radius: 1.25rem; padding: 1.25rem; margin-bottom: 1rem; cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s; }
     .order-card:hover { border-color: rgba(249,115,22,0.5); box-shadow: 0 0 20px rgba(249,115,22,0.08); }
     .order-card.active { border-color: #f97316; box-shadow: 0 0 25px rgba(249,115,22,0.2); }
+    .order-card.accepted { border-color: #22c55e; box-shadow: 0 0 25px rgba(34,197,94,0.2); background: rgba(34,197,94,0.03); }
+    .order-card.delivering { border-color: #3b82f6; box-shadow: 0 0 25px rgba(59,130,246,0.2); background: rgba(59,130,246,0.03); }
     #availableMap { width: 100%; height: 100%; }
     .map-overlay-badge { position: absolute; top: 1rem; right: 1rem; z-index: 800; background: rgba(2,6,23,0.9); backdrop-filter: blur(8px); border: 1px solid rgba(249,115,22,0.3); border-radius: 0.75rem; padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.5rem; }
     .pulse-dot { width: 10px; height: 10px; border-radius: 50%; background: #f97316; animation: pulseDot 1.5s infinite; }
@@ -23,6 +25,23 @@
     .dot-orange { width: 10px; height: 10px; border-radius: 50%; background: #f97316; border: 2px solid rgba(249,115,22,0.3); flex-shrink: 0; }
     .dot-blue   { width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; border: 2px solid rgba(59,130,246,0.3); flex-shrink: 0; }
     .route-seg  { width: 2px; flex: 1; min-height: 18px; background: linear-gradient(to bottom, #f97316, #3b82f6); opacity: 0.4; }
+
+    /* Route info floating panel */
+    .route-info-floating { position: absolute; bottom: 1.5rem; left: 1.5rem; right: 1.5rem; z-index: 800; background: rgba(2,6,23,0.95); backdrop-filter: blur(12px); border: 1px solid rgba(249,115,22,0.3); border-radius: 1.25rem; padding: 1.25rem 1.5rem; display: none; }
+    .route-info-floating.visible { display: block; animation: slideUp 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+    @@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    .stat-pill { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 0.75rem; padding: 0.6rem 0.75rem; text-align: center; flex: 1; }
+
+    /* Animated route line */
+    .animated-route { stroke-dasharray: 12 6; animation: routeFlow 1.5s linear infinite; }
+    @@keyframes routeFlow { to { stroke-dashoffset: -18; } }
+
+    /* Phase badges */
+    .phase-badge { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+    .phase-pickup { background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.3); color: #f97316; }
+    .phase-deliver { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); color: #3b82f6; }
+    .phase-done { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: #22c55e; }
 </style>
 
 <div class="available-orders-page">
@@ -33,9 +52,45 @@
 
         <!-- Floating status badge -->
         <div class="map-overlay-badge">
-            <div class="@(isOnline ? "pulse-dot" : "w-2.5 h-2.5 rounded-full bg-red-500")"></div>
+            <div class="@(isOnline ? "pulse-dot" : "")" style="@(!isOnline ? "width:10px;height:10px;border-radius:50%;background:#ef4444;" : "")"></div>
             <span style="font-size:0.7rem; font-weight:800; color:@(isOnline?"#f97316":"#ef4444"); text-transform:uppercase; letter-spacing:0.1em;">@(isOnline ? "Trực tuyến" : "Ngoại tuyến")</span>
             <span style="font-size:0.7rem; color:#64748b; font-weight:600;">| @(isOnline ? "Bán kính 5km" : "Chưa khả dụng")</span>
+        </div>
+
+        <!-- Route info floating panel -->
+        <div class="route-info-floating" id="routeInfoPanel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div style="width:2rem; height:2rem; border-radius:0.6rem; display:flex; align-items:center; justify-content:center;" id="routeIconBox">
+                        <i class="fa-solid fa-route" id="routeIcon"></i>
+                    </div>
+                    <div>
+                        <h3 style="font-size:0.9rem; font-weight:900; color:white; margin:0;" id="routeTitle">Đường đến quán</h3>
+                        <p style="font-size:0.55rem; color:#64748b; font-weight:600; margin:0;" id="routeSubtitle">Quãng đường lấy hàng</p>
+                    </div>
+                </div>
+                <span class="phase-badge phase-pickup" id="routePhaseBadge">
+                    <i class="fa-solid fa-store"></i> Lấy hàng
+                </span>
+            </div>
+            <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem;">
+                <div class="stat-pill">
+                    <p style="font-size:1.1rem; font-weight:900; color:#f97316; margin:0;" id="routeDistanceVal">--</p>
+                    <p style="font-size:0.5rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0;">Km</p>
+                </div>
+                <div class="stat-pill">
+                    <p style="font-size:1.1rem; font-weight:900; color:#22c55e; margin:0;" id="routeTimeVal">--</p>
+                    <p style="font-size:0.5rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0;">Phút</p>
+                </div>
+                <div class="stat-pill">
+                    <p style="font-size:1.1rem; font-weight:900; color:#3b82f6; margin:0;" id="routeDestVal">--</p>
+                    <p style="font-size:0.5rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="routeDestLabel">Điểm đến</p>
+                </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0.75rem; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:0.6rem;">
+                <i class="fa-solid fa-location-dot" style="color:#f97316; font-size:0.7rem;"></i>
+                <p style="font-size:0.7rem; color:#cbd5e1; font-weight:600; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" id="routeDestAddress">--</p>
+            </div>
         </div>
     </div>
 
@@ -51,7 +106,7 @@
                     <p style="font-size:0.65rem; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; margin:0.25rem 0 0;">Các đơn đang chờ bạn nhận</p>
                 </div>
                 <div style="background:rgba(249,115,22,0.1); border:1px solid rgba(249,115,22,0.25); border-radius:999px; padding:0.4rem 1rem;">
-                    <span style="font-size:0.85rem; font-weight:900; color:#f97316;">@Model.Count() đơn</span>
+                    <span style="font-size:0.85rem; font-weight:900; color:#f97316;" id="orderCountBadge">@Model.Count() đơn</span>
                 </div>
             </div>
         </div>
@@ -74,7 +129,15 @@
                 {
                     var itemCount = order.OrderItems?.Sum(oi => oi.Quantity) ?? 0;
                     <div class="order-card" id="card-@order.OrderCode"
-                         onclick="highlightOrder('@order.OrderCode', @((order.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)), @((order.Store?.Longitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture)))">
+                         data-code="@order.OrderCode"
+                         data-store-lat="@((order.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                         data-store-lng="@((order.Store?.Longitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))"
+                         data-store-name="@(order.Store?.Name ?? "Cửa hàng")"
+                         data-delivery-lat="@order.DeliveryLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                         data-delivery-lng="@order.DeliveryLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                         data-delivery-addr="@order.DeliveryAddress"
+                         data-customer="@(order.User?.FullName ?? "Khách hàng")"
+                         onclick="highlightOrder('@order.OrderCode')">
                         
                         <!-- Card Header -->
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.875rem;">
@@ -134,7 +197,7 @@
                         </div>
 
                         <!-- Action Buttons -->
-                        <div style="display:flex; gap:0.5rem;" onclick="event.stopPropagation()">
+                        <div style="display:flex; gap:0.5rem;" onclick="event.stopPropagation()" id="actions-@order.OrderCode">
                             <button onclick="skipOrder(this, '@order.OrderCode')"
                                     style="flex:1; padding:0.6rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:0.75rem; color:#94a3b8; font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.2s;"
                                     onmouseover="this.style.background='rgba(239,68,68,0.15)'; this.style.color='#f87171'; this.style.borderColor='rgba(239,68,68,0.3)'"
@@ -142,6 +205,7 @@
                                 Bỏ qua
                             </button>
                             <button onclick="acceptOrder('@order.OrderCode', this)"
+                                    id="acceptBtn-@order.OrderCode"
                                     style="flex:2; padding:0.6rem; background:#f97316; border:none; border-radius:0.75rem; color:black; font-size:0.75rem; font-weight:900; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 15px rgba(249,115,22,0.35);"
                                     onmouseover="this.style.background='#fb923c'; this.style.transform='translateY(-1px)'"
                                     onmouseout="this.style.background='#f97316'; this.style.transform='translateY(0)'">
@@ -170,35 +234,50 @@
     const shipperLat = @( (shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture) );
     const shipperLng = @( (shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture) );
 
-    // --- Map Init ---
+    // --- State ---
+    let currentShipperLat = shipperLat;
+    let currentShipperLng = shipperLng;
+    let shipperMarker = null;
+    let routeLayer = null;
+    let activeOrderCode = null;
+    let activePhase = null; // 'pickup' or 'deliver'
+
+    // --- Map Init (BRIGHT tile - CartoDB Voyager) ---
     const map = L.map('availableMap', { zoomControl: true }).setView([shipperLat, shipperLng], 13);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 20
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+        maxZoom: 20,
+        subdomains: 'abcd'
     }).addTo(map);
 
     // 5km radius circle
-    const mapCircle = L.circle([shipperLat, shipperLng], {
-        color: '@(isOnline ? "#f97316" : "#475569")', fillColor: '@(isOnline ? "#f97316" : "#475569")',
-        fillOpacity: 0.07, weight: 2, radius: 5000
+    L.circle([shipperLat, shipperLng], {
+        color: '@(isOnline ? "#f97316" : "#94a3b8")',
+        fillColor: '@(isOnline ? "#f97316" : "#94a3b8")',
+        fillOpacity: 0.06, weight: 2, dashArray: '8 4', radius: 5000
     }).addTo(map);
 
     // Shipper marker
-    const shipperBg = '@(isOnline ? "#f97316" : "#475569")';
-    const shipperShadow = '@(isOnline ? "rgba(249,115,22,0.85)" : "transparent")';
-    const shipperColor = '@(isOnline ? "black" : "white")';
-    const shipperIcon = L.divIcon({
-        html: `<div style="width:44px;height:44px;background:${shipperBg};border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:${shipperColor};font-size:18px;box-shadow:0 0 24px ${shipperShadow};"><i class="fa-solid fa-motorcycle"></i></div>`,
-        className: '', iconSize: [44, 44], iconAnchor: [22, 22]
-    });
-    L.marker([shipperLat, shipperLng], { icon: shipperIcon })
+    function createShipperIcon(phase) {
+        const bg = phase === 'deliver' ? '#3b82f6' : '#f97316';
+        const shadow = phase === 'deliver' ? 'rgba(59,130,246,0.7)' : 'rgba(249,115,22,0.7)';
+        const icon = phase === 'deliver' ? 'fa-truck-fast' : 'fa-motorcycle';
+        return L.divIcon({
+            html: `<div style="width:48px;height:48px;background:${bg};border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;box-shadow:0 0 24px ${shadow},0 4px 12px rgba(0,0,0,0.3);transition:all 0.5s;"><i class="fa-solid ${icon}"></i></div>`,
+            className: '', iconSize: [48, 48], iconAnchor: [24, 24]
+        });
+    }
+
+    shipperMarker = L.marker([shipperLat, shipperLng], { icon: createShipperIcon('pickup'), zIndexOffset: 1000 })
         .addTo(map)
         .bindPopup(`<div style="font-weight:800;color:#f97316;font-size:13px;">📍 Vị trí của bạn</div>`)
         .openPopup();
 
     // Store markers
     const storeMarkers = {};
+    const deliveryMarkers = {};
+
     @foreach (var order in Model)
     {
         var sLat = (order.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -212,32 +291,221 @@
     function addStoreMarker(code, lat, lng, name) {
         if (lat === 0 && lng === 0) return;
         const icon = L.divIcon({
-            html: `<div style="width:32px;height:32px;background:#3b82f6;border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:12px;box-shadow:0 0 12px rgba(59,130,246,0.6);"><i class="fa-solid fa-store"></i></div>`,
-            className: '', iconSize: [32, 32], iconAnchor: [16, 16]
+            html: `<div style="width:36px;height:36px;background:white;border:3px solid #f97316;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#f97316;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px rgba(249,115,22,0.15);"><i class="fa-solid fa-store"></i></div>`,
+            className: '', iconSize: [36, 36], iconAnchor: [18, 18]
         });
         storeMarkers[code] = L.marker([lat, lng], { icon })
             .addTo(map)
-            .bindPopup(`<div style="font-weight:800;font-size:12px;">${name}</div>`);
+            .bindPopup(`<div style="font-weight:800;font-size:12px;color:#1e293b;"><i class="fa-solid fa-store" style="color:#f97316;margin-right:4px;"></i>${name}</div>`);
     }
 
-    let activeCard = null;
-    function highlightOrder(code, storeLat, storeLng) {
-        // Card highlight
-        document.querySelectorAll('.order-card').forEach(c => c.classList.remove('active'));
-        const card = document.getElementById('card-' + code);
-        if (card) card.classList.add('active');
-        activeCard = code;
+    function addDeliveryMarker(code, lat, lng, customerName) {
+        if (lat === 0 && lng === 0) return;
+        if (deliveryMarkers[code]) map.removeLayer(deliveryMarkers[code]);
+        const icon = L.divIcon({
+            html: `<div style="width:36px;height:36px;background:white;border:3px solid #3b82f6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px rgba(59,130,246,0.15);"><i class="fa-solid fa-flag-checkered"></i></div>`,
+            className: '', iconSize: [36, 36], iconAnchor: [18, 18]
+        });
+        deliveryMarkers[code] = L.marker([lat, lng], { icon })
+            .addTo(map)
+            .bindPopup(`<div style="font-weight:800;font-size:12px;color:#1e293b;"><i class="fa-solid fa-user" style="color:#3b82f6;margin-right:4px;"></i>${customerName}</div>`);
+    }
 
-        // Pan map
-        if (storeLat !== 0 && storeLng !== 0 && storeMarkers[code]) {
-            const bounds = L.latLngBounds([[shipperLat, shipperLng], [storeLat, storeLng]]);
-            map.fitBounds(bounds, { padding: [60, 60] });
+    // --- Highlight order card ---
+    function highlightOrder(code) {
+        document.querySelectorAll('.order-card').forEach(c => {
+            if (!c.classList.contains('accepted') && !c.classList.contains('delivering')) {
+                c.classList.remove('active');
+            }
+        });
+        const card = document.getElementById('card-' + code);
+        if (card && !card.classList.contains('accepted') && !card.classList.contains('delivering')) {
+            card.classList.add('active');
+        }
+
+        // Pan to store
+        const sLat = parseFloat(card?.dataset.storeLat || 0);
+        const sLng = parseFloat(card?.dataset.storeLng || 0);
+        if (sLat !== 0 && sLng !== 0 && storeMarkers[code]) {
+            const bounds = L.latLngBounds([[currentShipperLat, currentShipperLng], [sLat, sLng]]);
+            map.fitBounds(bounds, { padding: [80, 80] });
             storeMarkers[code].openPopup();
-        } else {
-            map.setView([shipperLat, shipperLng], 14);
         }
     }
 
+    // --- Draw animated route ---
+    function clearRoute() {
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+    }
+
+    async function drawRoute(fromLat, fromLng, toLat, toLng, color, phase) {
+        clearRoute();
+
+        // Use straight line as fallback, try to get real route via OSRM
+        const routeCoords = [[fromLat, fromLng], [toLat, toLng]];
+
+        try {
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+            const res = await fetch(osrmUrl);
+            const data = await res.json();
+
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+                const distance = (route.distance / 1000).toFixed(1);
+                const duration = Math.round(route.duration / 60);
+
+                // Draw with animation
+                routeLayer = L.layerGroup().addTo(map);
+
+                // Background line (shadow)
+                L.polyline(coords, {
+                    color: color === '#f97316' ? '#fed7aa' : '#bfdbfe',
+                    weight: 10, opacity: 0.4, lineCap: 'round', lineJoin: 'round'
+                }).addTo(routeLayer);
+
+                // Main animated line
+                const mainLine = L.polyline([], {
+                    color: color, weight: 5, opacity: 0.9,
+                    lineCap: 'round', lineJoin: 'round'
+                }).addTo(routeLayer);
+
+                // Animate drawing
+                let idx = 0;
+                const step = Math.max(1, Math.floor(coords.length / 60));
+                function animateStep() {
+                    if (idx < coords.length) {
+                        mainLine.addLatLng(coords[idx]);
+                        idx += step;
+                        if (idx >= coords.length) {
+                            mainLine.setLatLngs(coords); // final complete
+                        }
+                        requestAnimationFrame(animateStep);
+                    } else {
+                        // Add flowing dash overlay
+                        addFlowingDash(coords, color);
+                    }
+                }
+                animateStep();
+
+                // Fit bounds
+                const bounds = L.latLngBounds(coords);
+                map.fitBounds(bounds, { padding: [80, 80] });
+
+                // Update route info panel
+                updateRouteInfo(distance, duration, phase);
+                return { distance, duration };
+            }
+        } catch (e) {
+            console.warn('OSRM route failed, using straight line:', e);
+        }
+
+        // Fallback: straight line
+        routeLayer = L.polyline(routeCoords, {
+            color: color, weight: 5, opacity: 0.8,
+            dashArray: '12 6', lineCap: 'round'
+        }).addTo(map);
+
+        const dist = haversine(fromLat, fromLng, toLat, toLng).toFixed(1);
+        const time = Math.round(parseFloat(dist) * 3); // rough estimate
+        map.fitBounds(L.latLngBounds(routeCoords), { padding: [80, 80] });
+        updateRouteInfo(dist, time, phase);
+        return { distance: dist, duration: time };
+    }
+
+    function addFlowingDash(coords, color) {
+        // Create SVG-based flowing animation using a second polyline
+        const dashLine = L.polyline(coords, {
+            color: 'white', weight: 3, opacity: 0.6,
+            dashArray: '8 16', lineCap: 'round', lineJoin: 'round',
+            className: 'animated-route'
+        }).addTo(routeLayer);
+    }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function updateRouteInfo(distance, duration, phase) {
+        const panel = document.getElementById('routeInfoPanel');
+        const iconBox = document.getElementById('routeIconBox');
+        const icon = document.getElementById('routeIcon');
+        const title = document.getElementById('routeTitle');
+        const subtitle = document.getElementById('routeSubtitle');
+        const badge = document.getElementById('routePhaseBadge');
+        const distVal = document.getElementById('routeDistanceVal');
+        const timeVal = document.getElementById('routeTimeVal');
+        const destVal = document.getElementById('routeDestVal');
+
+        distVal.textContent = distance;
+        distVal.style.color = phase === 'deliver' ? '#3b82f6' : '#f97316';
+        timeVal.textContent = duration;
+
+        if (phase === 'pickup') {
+            iconBox.style.background = 'rgba(249,115,22,0.15)';
+            iconBox.style.border = '1px solid rgba(249,115,22,0.25)';
+            icon.style.color = '#f97316';
+            title.textContent = 'Đường đến quán';
+            subtitle.textContent = 'Đi lấy hàng cho khách';
+            badge.className = 'phase-badge phase-pickup';
+            badge.innerHTML = '<i class="fa-solid fa-store"></i> Lấy hàng';
+            destVal.textContent = '🍜';
+            document.getElementById('routeDestLabel').textContent = 'Quán ăn';
+        } else {
+            iconBox.style.background = 'rgba(59,130,246,0.15)';
+            iconBox.style.border = '1px solid rgba(59,130,246,0.25)';
+            icon.style.color = '#3b82f6';
+            title.textContent = 'Đường đến khách';
+            subtitle.textContent = 'Giao hàng cho khách';
+            badge.className = 'phase-badge phase-deliver';
+            badge.innerHTML = '<i class="fa-solid fa-location-dot"></i> Giao hàng';
+            destVal.textContent = '📍';
+            document.getElementById('routeDestLabel').textContent = 'Khách hàng';
+        }
+
+        panel.classList.add('visible');
+    }
+
+    // --- Move shipper marker with smooth animation ---
+    function moveShipperTo(lat, lng, phase) {
+        currentShipperLat = lat;
+        currentShipperLng = lng;
+
+        // Update icon based on phase
+        shipperMarker.setIcon(createShipperIcon(phase));
+
+        // Animate position
+        const startLatLng = shipperMarker.getLatLng();
+        const endLatLng = L.latLng(lat, lng);
+        const frames = 40;
+        let frame = 0;
+
+        function animate() {
+            frame++;
+            const t = frame / frames;
+            // Ease out cubic
+            const ease = 1 - Math.pow(1 - t, 3);
+            const newLat = startLatLng.lat + (endLatLng.lat - startLatLng.lat) * ease;
+            const newLng = startLatLng.lng + (endLatLng.lng - startLatLng.lng) * ease;
+            shipperMarker.setLatLng([newLat, newLng]);
+
+            if (frame < frames) {
+                requestAnimationFrame(animate);
+            } else {
+                shipperMarker.setLatLng(endLatLng);
+                if (phase === 'deliver') {
+                    shipperMarker.bindPopup(`<div style="font-weight:800;color:#3b82f6;font-size:13px;">📍 Đã lấy hàng - Đang giao</div>`).openPopup();
+                }
+            }
+        }
+        animate();
+    }
+
+    // --- Accept Order ---
     async function acceptOrder(orderCode, btn) {
         btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right:0.4rem;"></i>Đang nhận...`;
         btn.disabled = true;
@@ -249,15 +517,42 @@
             });
             const data = await res.json();
             if (data.success) {
-                btn.innerHTML = `<i class="fa-solid fa-check" style="margin-right:0.4rem;"></i>Thành công!`;
-                btn.style.background = '#22c55e';
+                activeOrderCode = orderCode;
+                activePhase = 'pickup';
+
+                // Update card state
                 const card = document.getElementById('card-' + orderCode);
-                setTimeout(() => {
-                    card.style.opacity = '0';
-                    card.style.transform = 'translateX(40px)';
-                    card.style.transition = 'all 0.4s ease';
-                    setTimeout(() => { card.remove(); updateCount(); }, 400);
-                }, 800);
+                card.classList.remove('active');
+                card.classList.add('accepted');
+
+                // Replace buttons with pickup button
+                const actionsDiv = document.getElementById('actions-' + orderCode);
+                actionsDiv.innerHTML = `
+                    <button onclick="markPickedUp('${orderCode}', this)"
+                            style="flex:1; padding:0.7rem; background:linear-gradient(135deg, #22c55e, #16a34a); border:none; border-radius:0.75rem; color:white; font-size:0.8rem; font-weight:900; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 15px rgba(34,197,94,0.35);"
+                            onmouseover="this.style.transform='translateY(-1px)'"
+                            onmouseout="this.style.transform='translateY(0)'">
+                        <i class="fa-solid fa-hand" style="margin-right:0.4rem;"></i>Đã lấy hàng
+                    </button>
+                `;
+
+                // Draw route: shipper → store
+                const storeLat = data.storeLat || parseFloat(card.dataset.storeLat);
+                const storeLng = data.storeLng || parseFloat(card.dataset.storeLng);
+
+                if (storeLat && storeLng) {
+                    await drawRoute(currentShipperLat, currentShipperLng, storeLat, storeLng, '#f97316', 'pickup');
+                    document.getElementById('routeDestAddress').textContent = data.pickupAddress || card.querySelector('[style*="Lấy hàng"]')?.nextElementSibling?.nextElementSibling?.textContent || '';
+                }
+
+                // Disable other order cards
+                document.querySelectorAll('.order-card').forEach(c => {
+                    if (c.id !== 'card-' + orderCode) {
+                        c.style.opacity = '0.4';
+                        c.style.pointerEvents = 'none';
+                    }
+                });
+
             } else {
                 alert('Lỗi: ' + data.message);
                 btn.innerHTML = `<i class="fa-solid fa-check" style="margin-right:0.4rem;"></i>Nhận đơn`;
@@ -267,6 +562,122 @@
             console.error(e);
             alert('Đã xảy ra lỗi kết nối.');
             btn.innerHTML = `<i class="fa-solid fa-check" style="margin-right:0.4rem;"></i>Nhận đơn`;
+            btn.disabled = false;
+        }
+    }
+
+    // --- Mark Picked Up ---
+    async function markPickedUp(orderCode, btn) {
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right:0.4rem;"></i>Đang xử lý...`;
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/Shipper/MarkPickedUp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderCode)
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                activePhase = 'deliver';
+
+                // Update card state
+                const card = document.getElementById('card-' + orderCode);
+                card.classList.remove('accepted');
+                card.classList.add('delivering');
+
+                // Move shipper to store location
+                const storeLat = data.storeLat || parseFloat(card.dataset.storeLat);
+                const storeLng = data.storeLng || parseFloat(card.dataset.storeLng);
+                moveShipperTo(storeLat, storeLng, 'deliver');
+
+                // Remove store marker (shipper is there now)
+                if (storeMarkers[orderCode]) {
+                    map.removeLayer(storeMarkers[orderCode]);
+                }
+
+                // Add delivery marker
+                const deliveryLat = data.deliveryLat || parseFloat(card.dataset.deliveryLat);
+                const deliveryLng = data.deliveryLng || parseFloat(card.dataset.deliveryLng);
+                const customerName = data.customerName || card.dataset.customer;
+                addDeliveryMarker(orderCode, deliveryLat, deliveryLng, customerName);
+
+                // Wait a bit for the shipper to move, then draw route to customer
+                setTimeout(async () => {
+                    await drawRoute(storeLat, storeLng, deliveryLat, deliveryLng, '#3b82f6', 'deliver');
+                    document.getElementById('routeDestAddress').textContent = data.deliveryAddress || card.dataset.deliveryAddr;
+                }, 1200);
+
+                // Update buttons to "Complete"
+                const actionsDiv = document.getElementById('actions-' + orderCode);
+                actionsDiv.innerHTML = `
+                    <button onclick="completeOrder('${orderCode}', this)"
+                            style="flex:1; padding:0.7rem; background:linear-gradient(135deg, #3b82f6, #2563eb); border:none; border-radius:0.75rem; color:white; font-size:0.8rem; font-weight:900; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 15px rgba(59,130,246,0.35);"
+                            onmouseover="this.style.transform='translateY(-1px)'"
+                            onmouseout="this.style.transform='translateY(0)'">
+                        <i class="fa-solid fa-flag-checkered" style="margin-right:0.4rem;"></i>Đã giao hàng
+                    </button>
+                `;
+
+            } else {
+                alert('Lỗi: ' + data.message);
+                btn.innerHTML = `<i class="fa-solid fa-hand" style="margin-right:0.4rem;"></i>Đã lấy hàng`;
+                btn.disabled = false;
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Đã xảy ra lỗi kết nối.');
+            btn.innerHTML = `<i class="fa-solid fa-hand" style="margin-right:0.4rem;"></i>Đã lấy hàng`;
+            btn.disabled = false;
+        }
+    }
+
+    // --- Complete Order ---
+    async function completeOrder(orderCode, btn) {
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right:0.4rem;"></i>Đang hoàn thành...`;
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/Shipper/CompleteOrder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderCode)
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                const card = document.getElementById('card-' + orderCode);
+                const actionsDiv = document.getElementById('actions-' + orderCode);
+                actionsDiv.innerHTML = `
+                    <div style="width:100%; padding:0.7rem; background:rgba(34,197,94,0.15); border:1px solid rgba(34,197,94,0.3); border-radius:0.75rem; text-align:center;">
+                        <span style="color:#22c55e; font-weight:900; font-size:0.8rem;">
+                            <i class="fa-solid fa-circle-check" style="margin-right:0.4rem;"></i>Giao thành công!
+                        </span>
+                    </div>
+                `;
+                card.classList.remove('delivering');
+                card.style.borderColor = '#22c55e';
+                card.style.boxShadow = '0 0 25px rgba(34,197,94,0.2)';
+
+                // Hide route info
+                document.getElementById('routeInfoPanel').classList.remove('visible');
+                clearRoute();
+
+                // Clean up markers
+                if (deliveryMarkers[orderCode]) map.removeLayer(deliveryMarkers[orderCode]);
+
+                // Reload after short delay
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                alert('Lỗi: ' + data.message);
+                btn.innerHTML = `<i class="fa-solid fa-flag-checkered" style="margin-right:0.4rem;"></i>Đã giao hàng`;
+                btn.disabled = false;
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Đã xảy ra lỗi kết nối.');
+            btn.innerHTML = `<i class="fa-solid fa-flag-checkered" style="margin-right:0.4rem;"></i>Đã giao hàng`;
             btn.disabled = false;
         }
     }
@@ -282,7 +693,8 @@
 
     function updateCount() {
         const remaining = document.querySelectorAll('.order-card').length;
-        const badge = document.querySelector('[style*="1 đơn"],[style*="đơn"]');
+        const badge = document.getElementById('orderCountBadge');
+        if (badge) badge.textContent = remaining + ' đơn';
     }
 </script>
 }
