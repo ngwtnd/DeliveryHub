@@ -104,14 +104,14 @@ namespace DeliveryHubWeb.Controllers
                 var allUserIds = await _context.Users.Select(u => u.Id).ToListAsync();
                 var approvedUsers = await _context.Users.Where(u => u.IsApproved).Select(u => u.Id).ToListAsync();
                 var userNotifs = await _context.Notifications
-                    .Where(n => (n.Type == NotificationType.PartnerRegistration || n.Type == NotificationType.ShipperRegistration) && (!allUserIds.Contains(n.RelatedId) || approvedUsers.Contains(n.RelatedId)))
+                    .Where(n => (n.Type == NotificationType.PartnerRegistration || n.Type == NotificationType.ShipperRegistration) && n.RelatedId != null && (!allUserIds.Contains(n.RelatedId) || approvedUsers.Contains(n.RelatedId)))
                     .ToListAsync();
                 if (userNotifs.Any()) _context.Notifications.RemoveRange(userNotifs);
 
                 var allStoreIds = await _context.Stores.Select(s => s.Id.ToString()).ToListAsync();
                 var approvedStores = await _context.Stores.Where(s => s.IsOpen && s.ActivityState == StoreActivityState.Active).Select(s => s.Id.ToString()).ToListAsync();
                 var storeNotifs = await _context.Notifications
-                    .Where(n => n.Type == NotificationType.StoreRegistration && (!allStoreIds.Contains(n.RelatedId) || approvedStores.Contains(n.RelatedId)))
+                    .Where(n => n.Type == NotificationType.StoreRegistration && n.RelatedId != null && (!allStoreIds.Contains(n.RelatedId) || approvedStores.Contains(n.RelatedId)))
                     .ToListAsync();
                 if (storeNotifs.Any()) _context.Notifications.RemoveRange(storeNotifs);
 
@@ -119,7 +119,7 @@ namespace DeliveryHubWeb.Controllers
                 var voucherNotifs = await _context.Notifications
                     .Where(n => (n.Type == NotificationType.VoucherExpired || n.Type == NotificationType.VoucherExpiring || 
                                  n.Type == NotificationType.VoucherLimitReached || n.Type == NotificationType.VoucherLimitSoon) 
-                                 && activeVouchers.Contains(n.RelatedId))
+                                 && n.RelatedId != null && activeVouchers.Contains(n.RelatedId))
                     .ToListAsync();
                 if (voucherNotifs.Any()) _context.Notifications.RemoveRange(voucherNotifs);
 

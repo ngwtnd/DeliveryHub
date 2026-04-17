@@ -526,7 +526,7 @@
                 if (!document.getElementById('routeAnimStyle')) {
                     const style = document.createElement('style');
                     style.id = 'routeAnimStyle';
-                    style.innerHTML = '.animated-route { stroke-dasharray: 12 12; animation: routeFlow 1.5s linear infinite; } @keyframes routeFlow { to { stroke-dashoffset: -24; } }';
+                    style.innerHTML = '.animated-route { stroke-dasharray: 12 12; animation: routeFlow 1.5s linear infinite; } @@keyframes routeFlow { to { stroke-dashoffset: -24; } }';
                     document.head.appendChild(style);
                 }
 

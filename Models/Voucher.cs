@@ -13,11 +13,11 @@ namespace DeliveryHubWeb.Models
 
         [Required]
         [StringLength(50)]
-        public string Code { get; set; }
+        public string Code { get; set; } = string.Empty;
 
         [Required]
         [StringLength(200)]
-        public string ProgramName { get; set; }
+        public string ProgramName { get; set; } = string.Empty;
 
         [StringLength(1000)]
         public string? Description { get; set; }

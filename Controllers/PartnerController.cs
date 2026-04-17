@@ -23,7 +23,7 @@ namespace DeliveryHubWeb.Controllers
             _userManager = userManager;
         }
 
-        private async Task<ApplicationUser> GetCurrentUser()
+        private async Task<ApplicationUser?> GetCurrentUser()
         {
             return await _userManager.GetUserAsync(User);
         }
