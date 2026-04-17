@@ -309,6 +309,7 @@
         let mapInstance = null;
         let mapCircle = null;
         let mapMarker = null;
+        let mapRouteLine = null;
 
         // Coordinates from Backend
         const shipperLat = @( (shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture) );
@@ -463,12 +464,13 @@
 
             if (!mapInstance) {
                 // Initialize map
-                mapInstance = L.map('shipperMap').setView([shipperLat, shipperLng], 13);
+                mapInstance = L.map('shipperMap', { zoomControl: true }).setView([shipperLat, shipperLng], 13);
                 
-                // Add Dark Matter tiles (premium look)
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                    maxZoom: 20
+                // Add Bright CARTO Voyager tiles (premium clear look)
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '&copy; OpenStreetMap &copy; CARTO',
+                    maxZoom: 20,
+                    subdomains: 'abcd'
                 }).addTo(mapInstance);
 
                 // Add 5km transparent circle
@@ -481,36 +483,56 @@
 
                 // Custom Shipper Marker
                 const shipperIcon = L.divIcon({
-                    html: '<div class="w-8 h-8 bg-orange-500 border-2 border-white rounded-full flex items-center justify-center text-black shadow-[0_0_15px_rgba(249,115,22,0.8)]"><i class="fa-solid fa-motorcycle text-sm"></i></div>',
+                    html: '<div style="width:48px;height:48px;background:#a855f7;border:3px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;box-shadow:0 0 24px rgba(168,85,247,0.7),0 4px 12px rgba(0,0,0,0.3);"><i class="fa-solid fa-motorcycle"></i></div>',
                     className: 'dummy',
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16]
+                    iconSize: [48, 48],
+                    iconAnchor: [24, 24]
                 });
                 
-                L.marker([shipperLat, shipperLng], { icon: shipperIcon })
+                L.marker([shipperLat, shipperLng], { icon: shipperIcon, zIndexOffset: 1000 })
                     .addTo(mapInstance)
-                    .bindPopup("<b class='text-orange-500'>Vị trí của bạn</b>")
+                    .bindPopup("<div style='font-weight:800;font-size:12px;color:#1e293b;'><span style='color:#a855f7;'>Vị trí của bạn</span></div>")
                     .openPopup();
             }
 
-            // Remove old store marker if exists (clean up needed logic here, simplify for now)
+            // Remove old store marker and line if exists
             if (mapMarker) { mapInstance.removeLayer(mapMarker); }
+            if (mapRouteLine) { mapInstance.removeLayer(mapRouteLine); }
 
             // Add Store Marker if coords valid
             if (storeLat !== 0 && storeLng !== 0) {
                 const storeIcon = L.divIcon({
-                    html: '<div class="w-6 h-6 bg-blue-500 border-2 border-white rounded-full flex items-center justify-center text-white"><i class="fa-solid fa-store text-xs"></i></div>',
+                    html: '<div style="width:38px;height:38px;background:white;border:3px solid #3b82f6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:14px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,0.15),0 0 0 3px rgba(59,130,246,0.15);"><i class="fa-solid fa-store"></i></div>',
                     className: 'dummy',
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 12]
+                    iconSize: [38, 38],
+                    iconAnchor: [19, 19]
                 });
                 mapMarker = L.marker([storeLat, storeLng], { icon: storeIcon })
                     .addTo(mapInstance)
-                    .bindPopup("<b>Điểm lấy hàng</b>");
+                    .bindPopup("<div style='font-weight:800;font-size:12px;color:#1e293b;'><span style='color:#3b82f6;'>Điểm lấy hàng</span></div>");
+
+                // Add animated dashed route line between shipper and store
+                mapRouteLine = L.polyline([[shipperLat, shipperLng], [storeLat, storeLng]], {
+                    color: '#a855f7',
+                    weight: 3,
+                    opacity: 0.8,
+                    dashArray: '8 10',
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    className: 'animated-route'
+                }).addTo(mapInstance);
+
+                // We need to insert a temporary inline CSS to make the line moving if it's not present globally
+                if (!document.getElementById('routeAnimStyle')) {
+                    const style = document.createElement('style');
+                    style.id = 'routeAnimStyle';
+                    style.innerHTML = '.animated-route { stroke-dasharray: 12 12; animation: routeFlow 1.5s linear infinite; } @keyframes routeFlow { to { stroke-dashoffset: -24; } }';
+                    document.head.appendChild(style);
+                }
 
                 // Auto fit bounds
                 const bounds = L.latLngBounds([[shipperLat, shipperLng], [storeLat, storeLng]]);
-                mapInstance.fitBounds(bounds, { padding: [50, 50] });
+                mapInstance.fitBounds(bounds, { padding: [60, 60] });
             } else {
                 mapInstance.setView([shipperLat, shipperLng], 13);
             }

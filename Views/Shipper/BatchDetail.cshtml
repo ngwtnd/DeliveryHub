@@ -227,14 +227,23 @@
 
 @section Scripts {
 <script>
-    const shipperLat = @((shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture));
-    const shipperLng = @((shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture));
+    @if (sortedItems.LastOrDefault(i => i.IsPickedUp) is var lastPicked && lastPicked != null && lastPicked.Order?.Store?.Latitude != null && lastPicked.Order.Store.Latitude != 0) {
+        <text>
+        const initialLat = @(lastPicked.Order.Store.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        const initialLng = @(lastPicked.Order.Store.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        </text>
+    } else {
+        <text>
+        const initialLat = @((shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        const initialLng = @((shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        </text>
+    }
 
-    let currentShipperLat = shipperLat;
-    let currentShipperLng = shipperLng;
+    let currentShipperLat = initialLat;
+    let currentShipperLng = initialLng;
 
     // --- Map Init (BRIGHT tile - CartoDB Voyager, synced with AvailableOrders) ---
-    const map = L.map('detailMap', { zoomControl: true }).setView([shipperLat, shipperLng], 13);
+    const map = L.map('detailMap', { zoomControl: true }).setView([initialLat, initialLng], 13);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
         maxZoom: 20,
@@ -249,7 +258,7 @@
         });
     }
 
-    const shipperMarker = L.marker([shipperLat, shipperLng], { icon: createShipperIcon(), zIndexOffset: 1000 }).addTo(map);
+    const shipperMarker = L.marker([initialLat, initialLng], { icon: createShipperIcon(), zIndexOffset: 1000 }).addTo(map);
 
     // Move shipper marker with smooth animation
     function moveShipperTo(lat, lng) {
