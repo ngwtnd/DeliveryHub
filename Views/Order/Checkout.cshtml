@@ -1,0 +1,223 @@
+@model DeliveryHubWeb.Models.ApplicationUser
+
+@{
+    ViewData["Title"] = "Thanh toán";
+    Layout = "~/Views/Shared/_Layout.cshtml"; 
+}
+
+<section class="pt-32 pb-16 px-6 md:px-12 bg-brand-black min-h-screen">
+    <div class="max-w-[1000px] mx-auto">
+        <h1 class="text-3xl md:text-5xl font-black text-white mb-8 border-b border-gray-800 pb-4">Xác nhận <span class="text-brand-orange">Đơn hàng</span></h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: Address and Order Items -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Delivery Info -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                    <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2"><i class="fa-solid fa-location-dot text-brand-orange"></i> Địa chỉ giao hàng</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-wider mb-2">Họ & Tên</label>
+                            <input type="text" id="customerName" value="@Model.FullName" class="w-full bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-wider mb-2">Số điện thoại</label>
+                            <input type="text" id="customerPhone" value="@Model.PhoneNumber" class="w-full bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" readonly>
+                        </div>
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-wider mb-2">Địa chỉ nhận hàng chi tiết</label>
+                            <textarea id="deliveryAddress" rows="3" class="w-full bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" placeholder="Ví dụ: Tầng 3, Tòa nhà ABC, 123 Đường XYZ">@Model.Address</textarea>
+                            <p class="text-xs text-brand-orange mt-2"><i class="fa-solid fa-circle-exclamation"></i> Vui lòng kiểm tra lại chính xác địa chỉ để shipper tìm được bạn dễ nhất.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Items Display -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                    <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2"><i class="fa-solid fa-utensils text-brand-orange"></i> Món ăn đã chọn</h2>
+                    <div id="checkout-items" class="space-y-4">
+                        <!-- Items will be injected here via JS -->
+                        <div class="text-center text-brand-gray py-4"><i class="fa-solid fa-spinner fa-spin text-2xl"></i><br>Đang tải giỏ hàng...</div>
+                    </div>
+                    
+                    <div class="mt-6 pt-4 border-t border-gray-800">
+                        <label class="block text-brand-gray text-xs font-bold uppercase tracking-wider mb-2">Ghi chú cho nhà hàng / Shipper</label>
+                        <input type="text" id="orderNote" class="w-full bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" placeholder="Ví dụ: Lấy nhiều tương ớt, bớt cay...">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Summary & Payment -->
+            <div class="lg:col-span-1">
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sticky top-28">
+                    <h2 class="text-xl font-bold text-white mb-4">Tổng cộng</h2>
+                    
+                    <div class="space-y-3 text-sm font-semibold text-brand-gray mb-6">
+                        <div class="flex justify-between">
+                            <span>Tạm tính (<span id="summary-count">0</span> món)</span>
+                            <span id="summary-subtotal" class="text-white">0 đ</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Phí giao hàng</span>
+                            <span id="summary-shipping" class="text-white">Đang tính...</span>
+                        </div>
+                        <div id="distance-info" class="text-[10px] text-right text-brand-orange hidden">Khoảng cách: <span id="summary-dist">--</span> km</div>
+                    </div>
+
+                    <div class="flex justify-between items-end border-t border-gray-800 pt-4 mb-8">
+                        <span class="text-white font-bold">Thành tiền</span>
+                        <span id="summary-total" class="text-3xl font-black text-brand-orange">0 đ</span>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label class="block text-brand-gray text-xs font-bold uppercase tracking-wider mb-2">Phương thức thanh toán</label>
+                        <div class="w-full bg-brand-black border border-brand-orange rounded-xl px-4 py-3 text-white flex justify-between items-center">
+                            <div class="flex items-center gap-2"><i class="fa-solid fa-money-bill-wave text-green-500"></i> Tiền mặt (COD)</div>
+                            <i class="fa-solid fa-check-circle text-brand-orange"></i>
+                        </div>
+                    </div>
+
+                    <button id="btn-place-order" class="w-full py-4 rounded-xl bg-brand-orange text-black font-black text-lg hover:bg-yellow-500 transition-colors shadow-[0_0_20px_rgba(255,107,0,0.3)] disabled:opacity-50 disabled:cursor-not-allowed">
+                        ĐẶT ĐƠN NGAY
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const checkoutCart = JSON.parse(localStorage.getItem('cart') || '[]');
+            if (checkoutCart.length === 0) {
+                alert('Giỏ hàng trống. Chuyển về trang chủ.');
+                window.location.href = '/';
+                return;
+            }
+
+            const formatPrice = (price) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
+
+            // Render Items
+            const itemsContainer = document.getElementById('checkout-items');
+            itemsContainer.innerHTML = '';
+            let subtotal = 0;
+            let totalItems = 0;
+            let currentStoreId = checkoutCart[0].storeId;
+
+            checkoutCart.forEach(item => {
+                subtotal += item.price * item.quantity;
+                totalItems += item.quantity;
+                const div = document.createElement('div');
+                div.className = 'flex gap-4 items-center bg-brand-black p-3 rounded-xl border border-gray-800';
+                div.innerHTML = `
+                    <img src="${item.image}" class="w-16 h-16 rounded-lg object-cover">
+                    <div class="flex-1">
+                        <h4 class="font-bold text-sm mb-1 text-white">${item.name}</h4>
+                        <div class="text-brand-gray text-xs">x${item.quantity}</div>
+                    </div>
+                    <div class="text-brand-orange font-bold">${formatPrice(item.price * item.quantity)}</div>
+                `;
+                itemsContainer.appendChild(div);
+            });
+
+            document.getElementById('summary-count').innerText = totalItems;
+            document.getElementById('summary-subtotal').innerText = formatPrice(subtotal);
+
+            let shippingFee = 0;
+            let finalTotal = 0;
+            
+            // Lấy thông tin tọa độ của Store và tính phí ship
+            // Do cần Google Maps API hoặc Backend, ta sẽ gọi API backend để tính
+            
+            async function calculateShipping() {
+                const deliveryAddress = document.getElementById('deliveryAddress').value;
+                if (!deliveryAddress) {
+                    document.getElementById('summary-shipping').innerText = 'Nhập địa chỉ...';
+                    return;
+                }
+
+                document.getElementById('summary-shipping').innerText = 'Đang tính...';
+                document.getElementById('btn-place-order').disabled = true;
+
+                try {
+                    const res = await fetch('/Order/CalculateShippingFeeByAddress', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ storeId: currentStoreId, deliveryAddress: deliveryAddress })
+                    });
+                    
+                    const data = await res.json();
+                    if (data.success) {
+                        shippingFee = data.fee;
+                        document.getElementById('summary-shipping').innerText = formatPrice(shippingFee);
+                        document.getElementById('distance-info').classList.remove('hidden');
+                        document.getElementById('summary-dist').innerText = data.distance;
+                        
+                        finalTotal = subtotal + shippingFee;
+                        document.getElementById('summary-total').innerText = formatPrice(finalTotal);
+                        document.getElementById('btn-place-order').disabled = false;
+                    } else {
+                        document.getElementById('summary-shipping').innerText = 'Lỗi tính phí';
+                        alert(data.message || 'Lỗi khi tính phí giao hàng. Vui lòng kiểm tra lại địa chỉ.');
+                    }
+                } catch (e) {
+                    document.getElementById('summary-shipping').innerText = 'Lỗi kết nối';
+                }
+            }
+
+            // Tính ban đầu
+            calculateShipping();
+
+            let typingTimer;
+            document.getElementById('deliveryAddress').addEventListener('input', () => {
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(calculateShipping, 1000);
+            });
+
+            // Gửi đơn hàng
+            document.getElementById('btn-place-order').addEventListener('click', async () => {
+                const deliveryAddress = document.getElementById('deliveryAddress').value;
+                const note = document.getElementById('orderNote').value;
+                
+                if (!deliveryAddress) {
+                    alert('Vui lòng nhập địa chỉ nhận hàng!');
+                    return;
+                }
+
+                document.getElementById('btn-place-order').disabled = true;
+                document.getElementById('btn-place-order').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ĐANG XỬ LÝ...';
+
+                const orderData = {
+                    StoreId: currentStoreId,
+                    DeliveryAddress: deliveryAddress,
+                    Note: note,
+                    Items: checkoutCart.map(i => ({ MenuItemId: i.id, Quantity: i.quantity, Price: i.price }))
+                };
+
+                try {
+                    const res = await fetch('/Order/ProcessCheckout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(orderData)
+                    });
+                    
+                    const data = await res.json();
+                    if (data.success) {
+                        // Xóa giỏ hàng
+                        localStorage.removeItem('cart');
+                        window.location.href = '/Order/Tracking/' + data.orderId;
+                    } else {
+                        alert(data.message || 'Có lỗi xảy ra khi tạo đơn hàng.');
+                        document.getElementById('btn-place-order').disabled = false;
+                        document.getElementById('btn-place-order').innerText = 'ĐẶT ĐƠN NGAY';
+                    }
+                } catch (e) {
+                    alert('Lỗi kết nối khi tạo đơn hàng.');
+                    document.getElementById('btn-place-order').disabled = false;
+                    document.getElementById('btn-place-order').innerText = 'ĐẶT ĐƠN NGAY';
+                }
+            });
+        });
+    </script>
+}

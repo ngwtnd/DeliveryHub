@@ -92,11 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Giỏ hàng trống! Vui lòng chọn món ăn.');
                 return;
             }
-            alert('Đặt hàng thành công! Cảm ơn bạn đã lựa chọn Delivery hub.');
-            cart = [];
-            saveCart();
-            updateCartUI();
-            closeCart();
+            // Navigate to actual checkout flow
+            window.location.href = '/Order/Checkout';
         });
     }
 
@@ -270,6 +267,20 @@ window.addToCart = function (productId) {
         console.error("Product not found!", productId);
         return;
     }
+
+    // Single Store Enforcement
+    if (cart.length > 0 && product.storeId) {
+        const currentStoreId = cart[0].storeId;
+        if (currentStoreId && currentStoreId !== product.storeId) {
+            const confirmReset = confirm(`Bạn chỉ có thể đặt món ăn từ một cửa hàng trong cùng một đơn hàng. Bạn có muốn xóa giỏ hàng hiện tại (chứa món của ${cart[0].storeName}) để bắt đầu đặt đơn từ nhà hàng này không?`);
+            if (confirmReset) {
+                cart = []; // Clear current cart
+            } else {
+                return; // Do nothing
+            }
+        }
+    }
+
     const existing = cart.find(c => c.id === productId);
 
     if (existing) {
