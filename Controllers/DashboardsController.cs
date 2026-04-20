@@ -6,14 +6,32 @@ using Microsoft.EntityFrameworkCore;
 using DeliveryHubWeb.Data;
 using DeliveryHubWeb.Models;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.Identity;
+using System.Threading.Tasks;
+using System.Linq;
 
 namespace DeliveryHubWeb.Controllers
 {
-    [Authorize(Roles = "Admin")]
-    public class AdminController : Controller
+    public abstract class HubBaseController : Controller
     {
-        private readonly ApplicationDbContext _context;
-        public AdminController(ApplicationDbContext context) => _context = context;
+        protected readonly ApplicationDbContext _context;
+        protected readonly UserManager<ApplicationUser> _userManager;
+
+        public HubBaseController(ApplicationDbContext context, UserManager<ApplicationUser> userManager)
+        {
+            _context = context;
+            _userManager = userManager;
+        }
+
+        protected async Task<ApplicationUser?> GetCurrentUser()
+        {
+            return await _userManager.GetUserAsync(User);
+        }
+    }
+    [Authorize(Roles = "Admin")]
+    public class AdminController : HubBaseController
+    {
+        public AdminController(ApplicationDbContext context, UserManager<ApplicationUser> userManager) : base(context, userManager) { }
 
         private async Task SyncVoucherNotifications()
         {
