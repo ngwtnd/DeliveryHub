@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using DeliveryHubWeb.Data;
 using DeliveryHubWeb.Models;
+using Microsoft.AspNetCore.SignalR;
 
 namespace DeliveryHubWeb.Controllers
 {
@@ -634,6 +635,18 @@ namespace DeliveryHubWeb.Controllers
             return View(orders);
         }
 
+        [HttpPost]
+        public async Task<IActionResult> CancelActiveOrders()
+        {
+            var activeOrders = await _context.Orders.Where(o => o.Status != OrderStatus.Completed && o.Status != OrderStatus.Failed && o.Status != OrderStatus.Cancelled).ToListAsync();
+            foreach(var order in activeOrders) {
+                order.Status = OrderStatus.Cancelled;
+                order.CancelledAt = DateTime.Now;
+            }
+            await _context.SaveChangesAsync();
+            return Json(new { success = true, message = $"Đã hủy {activeOrders.Count} đơn hàng treo." });
+        }
+
         public async Task<IActionResult> Merchants(string search, bool? active, int page = 1)
         {
             // === CLEANUP DUP STORES TRỰC TIẾP KHI TRUY CẬP (Đảm bảo dọn dẹp tức thì) ===
@@ -1102,18 +1115,35 @@ namespace DeliveryHubWeb.Controllers
             return Json(new { success = true, message = "Đã khôi phục đối tác và mở khóa các chi nhánh thành công!" });
         }
 
-        [HttpPost("Admin/ToggleUserLock/{id}")]
-        public async Task<IActionResult> ToggleUserLock(string id)
+        [HttpPost("Admin/ToggleLock/{id}")]
+        public async Task<IActionResult> ToggleLock(string id)
         {
             var user = await _context.Users.FindAsync(id);
-            if (user == null || user.Role != UserRole.User) 
-                return Json(new { success = false, message = "Không tìm thấy người dùng." });
+            if (user == null || (user.Role != UserRole.User && user.Role != UserRole.Shipper)) 
+                return Json(new { success = false, message = "Không tìm thấy người dùng hoặc chức năng không hỗ trợ loại user này." });
 
-            user.IsActive = !user.IsActive;
-            await _context.SaveChangesAsync();
-            
-            string status = user.IsActive ? "mở khóa" : "tạm khóa";
-            return Json(new { success = true, message = $"Đã {status} tài khoản thành công." });
+            if (user.IsLocked) {
+                // Đang bị khóa -> Phục hồi
+                user.IsLocked = false;
+                user.PendingLock = false; // Xóa hàng chờ nếu có
+                // Khi phục hồi, Shipper/User trở về trạng thái Ngưng hoạt động / Offline
+                user.IsActive = false; 
+                await _context.SaveChangesAsync();
+                return Json(new { success = true, message = "Đã mở khóa tài khoản thành công. Tài khoản hiện đang ở trạng thái ngưng hoạt động/offline." });
+            } else {
+                // Đang mở -> Khóa
+                if (user.Role == UserRole.Shipper && user.IsDelivering) {
+                    user.PendingLock = true;
+                    // Không khóa ngay mà đưa vào hàng chờ
+                    await _context.SaveChangesAsync();
+                    return Json(new { success = true, message = "Shipper đang giao đơn, đã đưa vào hàng chờ khóa tài khoản sau khi hoàn thành đơn." });
+                } else {
+                    user.IsLocked = true;
+                    user.IsActive = false; // Ngưng hoạt động
+                    await _context.SaveChangesAsync();
+                    return Json(new { success = true, message = "Đã khóa tài khoản và ngưng hoạt động thành công." });
+                }
+            }
         }
 
         public async Task<IActionResult> Users(string search, string filter = "all", int page = 1)
@@ -1145,10 +1175,7 @@ namespace DeliveryHubWeb.Controllers
             foreach (var u in allUsersRaw)
             {
                 int totalCompletedOrders = orderCounts.ContainsKey(u.Id) ? orderCounts[u.Id] : 0;
-                string rank = "Đồng";
-                if (totalCompletedOrders >= 50) rank = "Kim cương";
-                else if (totalCompletedOrders >= 20) rank = "Vàng";
-                else if (totalCompletedOrders >= 5) rank = "Bạc";
+                string rank = string.IsNullOrEmpty(u.UserTier) ? "Đồng" : u.UserTier;
 
                 allUsers.Add(new UserViewModel
                 {
@@ -1252,7 +1279,9 @@ namespace DeliveryHubWeb.Controllers
                     IsActive = user.IsActive,
                     IsDelivering = activeOrder != null, // Based on actual order presence
                     ActiveOrderId = activeOrder?.Id,
-                    ActiveOrderCode = activeOrder?.OrderCode
+                    ActiveOrderCode = activeOrder?.OrderCode,
+                    IsLocked = user.IsLocked,
+                    PendingLock = user.PendingLock
                 });
             }
             
@@ -1261,9 +1290,11 @@ namespace DeliveryHubWeb.Controllers
             
             // Apply filtering in-memory to ensure perfect consistency with UI labels
             if (filter == "active") {
-                allShippers = allShippers.Where(s => s.IsActive || s.IsDelivering).ToList();
+                allShippers = allShippers.Where(s => s.IsActive && !s.IsLocked).ToList();
+            } else if (filter == "locked") {
+                allShippers = allShippers.Where(s => s.IsLocked).ToList();
             } else if (filter == "pending") {
-                allShippers = allShippers.Where(s => !s.IsActive && !s.IsDelivering).ToList();
+                allShippers = allShippers.Where(s => !s.IsActive && !s.IsLocked).ToList();
             }
 
             // Pagination Logic
@@ -1600,7 +1631,7 @@ var result = new {
             var existing = await _context.DeliveryServices.FindAsync(id);
             if (existing == null) return NotFound();
 
-            _context.DeliveryServices.Remove(existing);
+            existing.IsActive = false;
             await _context.SaveChangesAsync();
             return Json(new { success = true });
         }
@@ -2535,10 +2566,13 @@ var result = new {
     {
         private readonly ApplicationDbContext _context;
         private readonly DeliveryHubWeb.Services.IRouteOptimizationService _routeService;
-        public ShipperController(ApplicationDbContext context, DeliveryHubWeb.Services.IRouteOptimizationService routeService)
+        private readonly Microsoft.AspNetCore.SignalR.IHubContext<DeliveryHubWeb.Hubs.OrderHub> _hubContext;
+
+        public ShipperController(ApplicationDbContext context, DeliveryHubWeb.Services.IRouteOptimizationService routeService, Microsoft.AspNetCore.SignalR.IHubContext<DeliveryHubWeb.Hubs.OrderHub> hubContext)
         {
             _context = context;
             _routeService = routeService;
+            _hubContext = hubContext;
         }
 
         [Authorize(Roles = "Shipper")]
@@ -3038,6 +3072,8 @@ var result = new {
 
             await _context.SaveChangesAsync();
 
+            await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", order.OrderCode, order.Status.ToString(), user.Id, user.FullName ?? "", user.PhoneNumber ?? "");
+
             // Return order coordinates for route drawing
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == order.StoreId);
             return Json(new
@@ -3077,6 +3113,8 @@ var result = new {
 
             await _context.SaveChangesAsync();
 
+            await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", order.OrderCode, order.Status.ToString(), user.Id, user.FullName ?? "", user.PhoneNumber ?? "");
+
             return Json(new
             {
                 success = true,
@@ -3096,13 +3134,34 @@ var result = new {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == User.Identity!.Name);
             if (user == null) return Json(new { success = false, message = "Unauthorized" });
 
-            var order = await _context.Orders.FirstOrDefaultAsync(o => o.OrderCode == orderCode && o.ShipperId == user.Id);
+            var order = await _context.Orders.Include(o => o.User).FirstOrDefaultAsync(o => o.OrderCode == orderCode && o.ShipperId == user.Id);
             if (order == null) return Json(new { success = false, message = "Không tìm thấy đơn hàng." });
 
             order.Status = OrderStatus.Completed;
             order.CompletedAt = DateTime.Now;
+            
+            user.IsDelivering = false;
+            
+            if (user.PendingLock) {
+                user.PendingLock = false;
+                user.IsLocked = true;
+                user.IsActive = false;
+                // Nếu muốn ghi log thông báo nội bộ tùy bạn
+            }
+
+            if (order.User != null) {
+                order.User.TotalSpent += order.TotalPrice; // Chỉ cộng TotalPrice, hoặc cộng luôn ShippingFee tùy logic bạn đang thiết kế (ở đây lấy TotalPrice theo giá đồ ăn dã giảm - hay giá tổng)
+                // Cập nhật hạng
+                var oldTier = order.User.UserTier;
+                if (order.User.TotalSpent >= 15000000) order.User.UserTier = "Kim Cương";
+                else if (order.User.TotalSpent >= 5000000) order.User.UserTier = "Vàng";
+                else if (order.User.TotalSpent >= 1000000) order.User.UserTier = "Bạc";
+                else order.User.UserTier = "Đồng";
+            }
 
             await _context.SaveChangesAsync();
+
+            await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", order.OrderCode, order.Status.ToString(), user.Id, user.FullName ?? "", user.PhoneNumber ?? "");
 
             return Json(new { success = true });
         }
@@ -3115,10 +3174,77 @@ var result = new {
     public class RestaurantManagerController : Controller
     {
         private readonly Data.ApplicationDbContext _context;
+        private readonly Microsoft.AspNetCore.SignalR.IHubContext<DeliveryHubWeb.Hubs.OrderHub> _hubContext;
 
-        public RestaurantManagerController(Data.ApplicationDbContext context)
+        public RestaurantManagerController(Data.ApplicationDbContext context, Microsoft.AspNetCore.SignalR.IHubContext<DeliveryHubWeb.Hubs.OrderHub> hubContext)
         {
             _context = context;
+            _hubContext = hubContext;
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> UpdateOrderStatus([FromBody] UpdateOrderStatusRequest req)
+        {
+            if (req == null) return Json(new { success = false, message = "Dữ liệu không hợp lệ." });
+            var user = await GetCurrentUser();
+            if (user == null || !user.ManagedStoreId.HasValue) return Json(new { success = false, message = "Bạn chưa đăng nhập hoặc không có quyền quản lý cửa hàng." });
+
+            var order = await _context.Orders.Include(o => o.User).Include(o => o.Shipper).FirstOrDefaultAsync(o => o.Id == req.OrderId && o.StoreId == user.ManagedStoreId.Value);
+            if (order == null) return Json(new { success = false, message = "Không tìm thấy đơn hàng." });
+
+            if (!Enum.TryParse<OrderStatus>(req.Status, out var newStatus)) {
+                return Json(new { success = false, message = "Trạng thái không hợp lệ." });
+            }
+
+            order.Status = newStatus;
+
+            // Xử lý Logic Thành công / Thất bại
+            if (newStatus == OrderStatus.Completed || newStatus == OrderStatus.Failed) {
+                if (newStatus == OrderStatus.Completed) order.CompletedAt = DateTime.Now;
+
+                // Xử lý Shipper Pending Lock
+                if (order.Shipper != null) {
+                    order.Shipper.IsDelivering = false;
+                    if (order.Shipper.PendingLock) {
+                        order.Shipper.PendingLock = false;
+                        order.Shipper.IsLocked = true;
+                        order.Shipper.IsActive = false;
+                    }
+                }
+
+                if (order.User != null) {
+                    if (newStatus == OrderStatus.Completed) {
+                        order.User.TotalSpent += order.TotalPrice;
+                        if (order.User.TotalSpent >= 15000000) order.User.UserTier = "Kim Cương";
+                        else if (order.User.TotalSpent >= 5000000) order.User.UserTier = "Vàng";
+                        else if (order.User.TotalSpent >= 1000000) order.User.UserTier = "Bạc";
+                        else order.User.UserTier = "Đồng";
+                    } else if (newStatus == OrderStatus.Failed) {
+                        order.User.FailedOrdersCount++;
+                        order.User.MonthlyFailedOrdersCount++;
+
+                        var tier = order.User.UserTier;
+                        if ((tier == "Đồng" && order.User.FailedOrdersCount >= 1) ||
+                            (tier == "Bạc" && order.User.FailedOrdersCount >= 3) ||
+                            (tier == "Vàng" && order.User.MonthlyFailedOrdersCount >= 3) ||
+                            (tier == "Kim Cương" && order.User.MonthlyFailedOrdersCount >= 5)) 
+                        {
+                            order.User.IsLocked = true;
+                        }
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", order.OrderCode, order.Status.ToString(), "", "", "");
+
+            return Json(new { success = true });
+        }
+
+        public class UpdateOrderStatusRequest {
+            public int OrderId { get; set; }
+            public string Status { get; set; } = string.Empty;
         }
 
         private async Task<ApplicationUser?> GetCurrentUser()

@@ -3,19 +3,22 @@
     Layout = "_AdminLayout";
     ViewData["Title"] = "Quản lý Shipper";
 
-    string GetStatusClass(bool isActive, bool isDelivering) {
+    string GetStatusClass(bool isActive, bool isDelivering, bool isLocked) {
+        if (isLocked) return "bg-red-500/10 text-red-500 border border-red-500/20";
         if (isDelivering) return "bg-brand-orange/10 text-brand-orange border border-brand-orange/20";
         if (!isActive) return "bg-brand-gray/10 text-brand-gray border border-brand-gray/20";
         return "bg-green-500/10 text-green-500 border border-green-500/20";
     }
         
-    string GetStatusLabel(bool isActive, bool isDelivering) {
+    string GetStatusLabel(bool isActive, bool isDelivering, bool isLocked) {
+        if (isLocked) return "Đã khóa";
         if (isDelivering) return "Đang giao";
         if (!isActive) return "Offline";
         return "Online";
     }
 
-    string GetStatusDot(bool isActive, bool isDelivering) {
+    string GetStatusDot(bool isActive, bool isDelivering, bool isLocked) {
+        if (isLocked) return "bg-red-500";
         if (isDelivering) return "bg-brand-orange";
         if (!isActive) return "bg-brand-gray";
         return "bg-green-500";
@@ -53,6 +56,7 @@
             <button id="btn-filter-all" type="button" onclick="setFilter('all')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Tất cả</button>
             <button id="btn-filter-active" type="button" onclick="setFilter('active')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Online</button>
             <button id="btn-filter-pending" type="button" onclick="setFilter('pending')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Offline</button>
+            <button id="btn-filter-locked" type="button" onclick="setFilter('locked')" class="filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500">Đã khóa</button>
         </div>
 
         <div class="relative group">
@@ -116,9 +120,9 @@
                             <span class="text-xs font-black text-brand-orange">@shipper.Income.ToString("N0") <span class="text-[9px] opacity-60 text-white">VNĐ</span></span>
                         </td>
                         <td class="py-5 px-4">
-                            <div class="flex items-center justify-center gap-2 px-3 py-1.5 rounded-full w-fit mx-auto @GetStatusClass(shipper.IsActive, shipper.IsDelivering)">
-                                <span class="w-1.5 h-1.5 rounded-full @GetStatusDot(shipper.IsActive, shipper.IsDelivering)"></span>
-                                <span class="text-[10px] font-black uppercase tracking-tighter">@GetStatusLabel(shipper.IsActive, shipper.IsDelivering)</span>
+                            <div class="flex items-center justify-center gap-2 px-3 py-1.5 rounded-full w-fit mx-auto @GetStatusClass(shipper.IsActive, shipper.IsDelivering, shipper.IsLocked)">
+                                <span class="w-1.5 h-1.5 rounded-full @GetStatusDot(shipper.IsActive, shipper.IsDelivering, shipper.IsLocked)"></span>
+                                <span class="text-[10px] font-black uppercase tracking-tighter">@GetStatusLabel(shipper.IsActive, shipper.IsDelivering, shipper.IsLocked)</span>
                                 @if (shipper.IsDelivering && shipper.ActiveOrderId != null) {
                                     <button onclick="showOrderDetail(@shipper.ActiveOrderId)" class="ml-2 text-white hover:scale-125 transition-all animate-pulse flex items-center justify-center h-full" title="Xem đơn đang giao">
                                         <i class="fa-regular fa-clock text-[18px]"></i>
@@ -131,9 +135,15 @@
                                 <a href="@Url.Action("ShipperDetail", "Admin", new { id = shipper.Id })" class="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all hover:scale-110 shadow-lg" title="Xem chi tiết">
                                     <i class="fa-solid fa-eye text-xs"></i>
                                 </a>
-                                <button class="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover/alert:bg-red-500 group-hover/alert:text-white hover:bg-red-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Cảnh báo">
-                                    <i class="fa-solid fa-triangle-exclamation text-xs text-red-500 hover:text-white transition-colors"></i>
-                                </button>
+                                @if (shipper.IsLocked) {
+                                    <button onclick="handleToggleLock('@shipper.Id', true)" class="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover/alert:bg-green-500 group-hover/alert:text-white hover:bg-green-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Mở khóa tài khoản">
+                                        <i class="fa-solid fa-check text-xs text-green-500 hover:text-white transition-colors"></i>
+                                    </button>
+                                } else {
+                                    <button onclick="handleToggleLock('@shipper.Id', false)" class="w-8 h-8 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group-hover/alert:bg-red-500 group-hover/alert:text-white hover:bg-red-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Khóa tài khoản">
+                                        <i class="fa-solid fa-triangle-exclamation text-xs text-red-500 hover:text-white transition-colors"></i>
+                                    </button>
+                                }
                             </div>
                         </td>
                     </tr>
@@ -295,9 +305,13 @@
             const btnAll = document.getElementById('btn-filter-all');
             const btnPending = document.getElementById('btn-filter-pending');
             const btnActive = document.getElementById('btn-filter-active');
+            const btnLocked = document.getElementById('btn-filter-locked');
             const pill = document.getElementById('filterPill');
             
-            const btnTarget = activeFilter === 'all' ? btnAll : (activeFilter === 'pending' ? btnPending : btnActive);
+            let btnTarget = btnAll;
+            if (activeFilter === 'pending') btnTarget = btnPending;
+            else if (activeFilter === 'active') btnTarget = btnActive;
+            else if (activeFilter === 'locked') btnTarget = btnLocked;
             
             if (pill && btnTarget) {
                 let pillClass = "absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0";
@@ -307,6 +321,8 @@
                     pillClass += " bg-red-500/10 border border-red-500/50 shadow-lg shadow-red-500/10";
                 } else if (activeFilter === 'active') {
                     pillClass += " bg-green-500/10 border border-green-500/50 shadow-lg shadow-green-500/10";
+                } else if (activeFilter === 'locked') {
+                    pillClass += " bg-red-500/20 border border-red-500/50 shadow-lg shadow-red-500/20";
                 }
                 pill.className = pillClass;
                 pill.style.left = btnTarget.offsetLeft + 'px';
@@ -318,6 +334,7 @@
             if(btnAll) btnAll.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'all' ? 'text-white' : resetClass}`;
             if(btnPending) btnPending.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'pending' ? 'text-red-500' : resetClass}`;
             if(btnActive) btnActive.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'active' ? 'text-green-500' : resetClass}`;
+            if(btnLocked) btnLocked.className = `filter-tab relative z-10 px-6 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'locked' ? 'text-red-500' : resetClass}`;
         };
 
         if (document.fonts) {
@@ -600,6 +617,27 @@
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
+        }
+    };
+
+    window.handleToggleLock = async (id, isLocked) => {
+        let title = isLocked ? 'Mở Khóa Shipper' : 'Khóa Shipper';
+        let mes = isLocked ? 'Bạn có chắc chắn muốn MỞ KHÓA tài khoản Shipper này không? Khi mở, tài khoản sẽ về trạng thái Offline.' : 'Bạn có muốn khóa Shipper hay không? Nếu đồng ý, tài khoản sẽ ngưng hoạt động (ngoại trừ đang giao).';
+        let action = isLocked ? 'Đồng ý mở khóa' : 'Khóa tài khoản';
+        
+        const res = await window.showAdminConfirm(
+            title, mes, 
+            isLocked ? 'success' : 'error', 
+            action, 'Quay lại'
+        );
+        if (res.isConfirmed) {
+            try {
+                const result = await fetch('/Admin/ToggleLock/' + id, { method: 'POST' }).then(r => r.json());
+                if(result.success) {
+                    await window.showAdminAlert("Thành công", result.message, "success");
+                    location.reload();
+                } else await window.showAdminAlert("Lỗi", result.message || "Có lỗi xảy ra", "error");
+            } catch(e) { await window.showAdminAlert("Lỗi", "Mất kết nối máy chủ", "error"); }
         }
     };
 </script>

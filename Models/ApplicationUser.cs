@@ -51,5 +51,17 @@ namespace DeliveryHubWeb.Models
 
         // For RestaurantManager
         public int? ManagedStoreId { get; set; }
+
+        // --- NEW FIELDS FOR CUSTOMER TIERS & LOGIC ---
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal TotalSpent { get; set; } = 0m;
+        public int FailedOrdersCount { get; set; } = 0;
+        public int MonthlyFailedOrdersCount { get; set; } = 0;
+        public string UserTier { get; set; } = "Đồng"; // Đồng, Bạc, Vàng, Kim Cương
+        public int LastVoucherMonth { get; set; } = 0;
+
+        // --- NEW FIELDS FOR LOCKING LOGIC ---
+        public bool IsLocked { get; set; } = false;
+        public bool PendingLock { get; set; } = false;
     }
 }

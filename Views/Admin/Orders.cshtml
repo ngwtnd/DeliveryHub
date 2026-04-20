@@ -147,6 +147,9 @@
             <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
         </div>
 
+        <button type="button" onclick="cancelActiveOrders()" class="h-12 px-6 bg-red-500/20 text-red-500 border border-red-500/30 font-black text-xs rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-lg hover:shadow-red-500/30">
+            <i class="fa-solid fa-trash mr-2"></i>HỦY ĐƠN TREO
+        </button>
         <button type="submit" class="h-12 px-8 bg-brand-orange text-black font-black text-xs rounded-2xl hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-orange/20">
             <i class="fa-solid fa-filter mr-2"></i>LỌC ĐƠN
         </button>
@@ -521,6 +524,24 @@
             gsap.to(body, { duration: 0.3, scale: 0.9, opacity: 0, ease: "power2.in", onComplete: () => {
                 modal.classList.add('hidden');
             }});
+        }
+
+        function cancelActiveOrders() {
+            if (confirm("Bạn có chắc chắn muốn HỦY TOÀN BỘ đơn hàng không nằm trong trạng thái Thành công / Thất bại / Đã hủy không?")) {
+                fetch('/Admin/CancelActiveOrders', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert(data.message || "Có lỗi xảy ra.");
+                    }
+                });
+            }
         }
 
 

@@ -20,7 +20,7 @@
 
     string GetRankClass(string rank) {
         switch (rank) {
-            case "Kim cương": return "text-blue-400";
+            case "Kim Cương": return "text-blue-400";
             case "Vàng": return "text-yellow-400";
             case "Bạc": return "text-gray-300";
             default: return "text-orange-400"; // Đồng
@@ -28,7 +28,7 @@
     }
 
     string GetRankIcon(string rank) {
-        if (rank == "Kim cương") return "fa-gem";
+        if (rank == "Kim Cương") return "fa-gem";
         return "fa-medal";
     }
 }
@@ -335,7 +335,7 @@
         btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
         btn.style.pointerEvents = 'none';
 
-        fetch('/Admin/ToggleUserLock/' + targetUserId, { method: 'POST' })
+        fetch('/Admin/ToggleLock/' + targetUserId, { method: 'POST' })
             .then(res => res.json())
             .then(data => {
                 if(data.success) {

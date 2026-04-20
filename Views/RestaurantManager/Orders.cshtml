@@ -85,12 +85,12 @@
                                 <button onclick="viewOrderDetail(@order.Id)" class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-brand-gray hover:bg-brand-orange hover:text-black transition-all group/btn" title="Chi tiết">
                                     <i class="fa-solid fa-eye text-xs"></i>
                                 </button>
-                                @if(order.Status == DeliveryHubWeb.Models.OrderStatus.Pending) {
-                                    <button onclick="updateStatus(@order.Id, 'Accepted')" class="px-3 h-10 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-[10px] font-black hover:bg-green-500 hover:text-white transition-all">XÁC NHẬN</button>
+                                @if(order.Status == DeliveryHubWeb.Models.OrderStatus.SearchingShipper) {
+                                    <span class="text-[10px] text-brand-gray italic">Đợi Tài xế nhận đơn</span>
                                 } else if(order.Status == DeliveryHubWeb.Models.OrderStatus.Accepted) {
                                     <button onclick="updateStatus(@order.Id, 'Preparing')" class="px-3 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-[10px] font-black hover:bg-yellow-500 hover:text-white transition-all">LÀM MÓN</button>
                                 } else if(order.Status == DeliveryHubWeb.Models.OrderStatus.Preparing) {
-                                     <button onclick="updateStatus(@order.Id, 'SearchingShipper')" class="px-3 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-500 text-[10px] font-black hover:bg-pink-500 hover:text-white transition-all">GỌI SHIPPER</button>
+                                     <button onclick="alert('Đã thông báo cho tài xế món đã xong!'); this.disabled = true; this.innerText = 'ĐÃ XONG';" class="px-3 h-10 rounded-xl bg-green-500/10 border border-green-500/20 text-green-500 text-[10px] font-black hover:bg-green-500 hover:text-white transition-all">XONG MÓN</button>
                                 }
                             </div>
                         </td>
@@ -174,10 +174,22 @@
         }
 
         async function updateStatus(id, status) {
-            // Reusing Partner logic logic for now, but should ideally have dedicated RM endpoint
-            // Actually, I'll need to add update methods to RestaurantManagerController
-            alert('Cập nhật đơn #' + id + ' sang ' + status);
-            // location.reload();
+            try {
+                const res = await fetch('/RestaurantManager/UpdateOrderStatus', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ OrderId: id, Status: status })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    location.reload(); // Reload after success to get new UI state
+                } else {
+                    alert('Lỗi: ' + data.message);
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Có lỗi xảy ra khi cập nhật.');
+            }
         }
 
         document.getElementById('tableSearch').addEventListener('keyup', function() {

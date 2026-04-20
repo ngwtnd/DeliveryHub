@@ -52,34 +52,34 @@
                     <div class="mb-8">
                         <h2 class="text-lg font-bold text-white mb-4"><i class="fa-solid fa-bars-progress text-brand-orange"></i> Tiến trình giao hàng</h2>
                         <div class="relative pl-6 space-y-6 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-800">
-                            <!-- Step 1 -->
-                            <div class="relative">
-                                <div class="absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= OrderStatus.Pending ? "bg-brand-orange" : "bg-gray-700")"></div>
-                                <h4 class="text-white font-bold text-sm @(Model.Status >= OrderStatus.Pending ? "" : "text-brand-gray")">Đã tiếp nhận đơn</h4>
+                            <!-- Step 1 (Pending/SearchingShipper) -->
+                            <div class="relative" id="step-pending">
+                                <div class="step-indicator absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= OrderStatus.Pending ? "bg-brand-orange" : "bg-gray-700")"></div>
+                                <h4 class="step-title font-bold text-sm @(Model.Status >= OrderStatus.Pending ? "text-white" : "text-brand-gray")">Đã tiếp nhận đơn</h4>
                                 <p class="text-[10px] text-brand-gray">Hệ thống đang tìm tài xế gần nhất.</p>
                             </div>
-                            <!-- Step 2 -->
-                            <div class="relative">
-                                <div class="absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= OrderStatus.Accepted ? "bg-brand-orange" : "bg-gray-700")"></div>
-                                <h4 class="text-white font-bold text-sm @(Model.Status >= OrderStatus.Accepted ? "" : "text-brand-gray")">Tài xế đã nhận đơn</h4>
+                            <!-- Step 2 (Accepted) -->
+                            <div class="relative" id="step-accepted">
+                                <div class="step-indicator absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= OrderStatus.Accepted ? "bg-brand-orange" : "bg-gray-700")"></div>
+                                <h4 class="step-title font-bold text-sm @(Model.Status >= OrderStatus.Accepted ? "text-white" : "text-brand-gray")">Tài xế đã nhận đơn</h4>
                                 <p class="text-[10px] text-brand-gray">Tài xế đang di chuyển đến nhà hàng.</p>
                             </div>
-                            <!-- Step 3 -->
-                            <div class="relative">
-                                <div class="absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= OrderStatus.Preparing ? "bg-brand-orange" : "bg-gray-700")"></div>
-                                <h4 class="text-white font-bold text-sm @(Model.Status >= OrderStatus.Preparing ? "" : "text-brand-gray")">Nhà hàng chuẩn bị</h4>
-                                <p class="text-[10px] text-brand-gray">Tài xế đã đến quán và đợi món.</p>
+                            <!-- Step 3 (Preparing) -->
+                            <div class="relative" id="step-preparing">
+                                <div class="step-indicator absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= OrderStatus.Preparing ? "bg-brand-orange" : "bg-gray-700")"></div>
+                                <h4 class="step-title font-bold text-sm @(Model.Status >= OrderStatus.Preparing ? "text-white" : "text-brand-gray")">Nhà hàng chuẩn bị</h4>
+                                <p class="text-[10px] text-brand-gray">Nhà hàng đã nhận được yêu cầu và đang làm món.</p>
                             </div>
-                            <!-- Step 4 -->
-                            <div class="relative">
-                                <div class="absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= OrderStatus.Delivering ? "bg-brand-orange" : "bg-gray-700")"></div>
-                                <h4 class="text-white font-bold text-sm @(Model.Status >= OrderStatus.Delivering ? "" : "text-brand-gray")">Đang giao hàng</h4>
+                            <!-- Step 4 (Delivering) -->
+                            <div class="relative" id="step-delivering">
+                                <div class="step-indicator absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= OrderStatus.Delivering ? "bg-brand-orange" : "bg-gray-700")"></div>
+                                <h4 class="step-title font-bold text-sm @(Model.Status >= OrderStatus.Delivering ? "text-white" : "text-brand-gray")">Đang giao hàng</h4>
                                 <p class="text-[10px] text-brand-gray">Tài xế đang trên đường đến giao cho bạn.</p>
                             </div>
-                            <!-- Step 5 -->
-                            <div class="relative">
-                                <div class="absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status == OrderStatus.Completed ? "bg-green-500" : "bg-gray-700")"></div>
-                                <h4 class="text-white font-bold text-sm @(Model.Status == OrderStatus.Completed ? "text-green-500" : "text-brand-gray")">Hoàn thành</h4>
+                            <!-- Step 5 (Completed) -->
+                            <div class="relative" id="step-completed">
+                                <div class="step-indicator absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status == OrderStatus.Completed ? "bg-green-500" : "bg-gray-700")"></div>
+                                <h4 class="step-title font-bold text-sm @(Model.Status == OrderStatus.Completed ? "text-green-500" : "text-brand-gray")">Hoàn thành</h4>
                                 <p class="text-[10px] text-brand-gray">Đơn hàng đã được giao thành công.</p>
                             </div>
                         </div>
@@ -166,21 +166,6 @@
                 .withAutomaticReconnect()
                 .build();
 
-            connection.on("OrderStatusUpdated", (updatedOrderCode, status, shipperId, shipperName, shipperPhone) => {
-                if (updatedOrderCode === orderCode) {
-                    // Refresh trang luôn cho an toàn cập nhật UI
-                    window.location.reload();
-                }
-            });
-
-            // Giao diện shipper location (giả lập nếu shipper nhận đơn)
-            if (currentStatus === 'Delivering' || currentStatus === 'Accepted') {
-                shipperMarker = L.marker([pLat, pLng], { icon: shipperIcon, zIndexOffset: 1000 }).addTo(map);
-            }
-
-            connection.start().catch(err => console.error("SignalR Connection Error: ", err));
-
-            // Format UI Status Label
             const badge = document.getElementById('status-badge');
             const mapStatusStr = {
                 'Pending': 'Mới tạo',
@@ -191,13 +176,73 @@
                 'Completed': 'Hoàn thành',
                 'Cancelled': 'Đã hủy'
             };
-            badge.innerText = mapStatusStr[currentStatus] || currentStatus;
-            
-            if (currentStatus === 'Completed') {
-                badge.className = 'px-6 py-2 rounded-full font-black text-sm uppercase tracking-widest bg-green-500/20 text-green-500 border border-green-500/30';
-            } else if (currentStatus === 'Delivering') {
-                badge.className = 'px-6 py-2 rounded-full font-black text-sm uppercase tracking-widest bg-brand-orange/20 text-brand-orange border border-brand-orange/30';
+
+            function updateUI(status, sName, sPhone) {
+                // Update badge
+                badge.innerText = mapStatusStr[status] || status;
+                badge.className = 'px-6 py-2 rounded-full font-black text-sm uppercase tracking-widest bg-yellow-500/20 text-yellow-500 border border-yellow-500/30';
+                if (status === 'Completed') {
+                    badge.className = 'px-6 py-2 rounded-full font-black text-sm uppercase tracking-widest bg-green-500/20 text-green-500 border border-green-500/30';
+                } else if (status === 'Delivering') {
+                    badge.className = 'px-6 py-2 rounded-full font-black text-sm uppercase tracking-widest bg-brand-orange/20 text-brand-orange border border-brand-orange/30';
+                }
+
+                // Update timeline
+                const levels = ['Pending', 'SearchingShipper', 'Accepted', 'Preparing', 'Delivering', 'Completed'];
+                let currentLevel = levels.indexOf(status);
+                
+                ['pending', 'accepted', 'preparing', 'delivering', 'completed'].forEach(step => {
+                    let stepLevel = levels.indexOf(step === 'pending' ? 'Pending' : step.charAt(0).toUpperCase() + step.slice(1));
+                    let stepDiv = document.getElementById('step-' + step);
+                    if (!stepDiv) return;
+                    
+                    let indicator = stepDiv.querySelector('.step-indicator');
+                    let title = stepDiv.querySelector('.step-title');
+                    
+                    // Reset
+                    indicator.className = 'step-indicator absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 bg-gray-700';
+                    title.className = 'step-title font-bold text-sm text-brand-gray';
+                    
+                    if (currentLevel >= stepLevel) {
+                        if (step === 'completed' && status === 'Completed') {
+                           indicator.classList.replace('bg-gray-700', 'bg-green-500');
+                           title.classList.replace('text-brand-gray', 'text-green-500');
+                        } else {
+                           indicator.classList.replace('bg-gray-700', 'bg-brand-orange');
+                           title.classList.replace('text-brand-gray', 'text-white');
+                        }
+                    }
+                });
+
+                // Update shipper info
+                if ((status === 'Accepted' || status === 'Preparing' || status === 'Delivering') && sName) {
+                    const shipperInfo = document.getElementById('shipper-info');
+                    shipperInfo.classList.remove('hidden');
+                    document.getElementById('shipper-name').innerText = sName;
+                    document.getElementById('shipper-phone').innerText = sPhone;
+
+                    // Draw shipper marker if not exist
+                    if (!shipperMarker) {
+                         shipperMarker = L.marker([pLat, pLng], { icon: shipperIcon, zIndexOffset: 1000 }).addTo(map);
+                    }
+                }
             }
+
+            connection.on("OrderStatusUpdated", (updatedOrderCode, status, shipperId, shipperName, shipperPhone) => {
+                if (updatedOrderCode === orderCode) {
+                    updateUI(status, shipperName, shipperPhone);
+                }
+            });
+
+            // Initial view of shipper marker
+            if (currentStatus === 'Delivering' || currentStatus === 'Accepted' || currentStatus === 'Preparing') {
+                shipperMarker = L.marker([pLat, pLng], { icon: shipperIcon, zIndexOffset: 1000 }).addTo(map);
+            }
+
+            // Init badge style
+            updateUI(currentStatus, '@(Model.Shipper?.FullName ?? "")', '@(Model.Shipper?.PhoneNumber ?? "")');
+
+            connection.start().catch(err => console.error("SignalR Connection Error: ", err));
         });
     </script>
 }

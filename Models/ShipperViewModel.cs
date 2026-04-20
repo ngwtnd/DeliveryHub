@@ -14,5 +14,7 @@ namespace DeliveryHubWeb.Models
         public bool IsDelivering { get; set; } = false;
         public int? ActiveOrderId { get; set; }
         public string? ActiveOrderCode { get; set; }
+        public bool IsLocked { get; set; } = false;
+        public bool PendingLock { get; set; } = false;
     }
 }

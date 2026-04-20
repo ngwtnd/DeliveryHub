@@ -28,6 +28,12 @@ namespace DeliveryHubWeb.Controllers
             var user = await _userManager.FindByEmailAsync(email);
             if (user != null)
             {
+                if (user.IsLocked)
+                {
+                    ModelState.AddModelError("", "Tài khoản của bạn đã bị khóa vui lòng liên hệ hỗ trợ.");
+                    return View();
+                }
+
                 var result = await _signInManager.PasswordSignInAsync(user.UserName ?? email, password, rememberMe, false);
                 if (result.Succeeded)
                 {
