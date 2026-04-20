@@ -41,6 +41,9 @@ namespace DeliveryHubWeb.Models
         // Thời gian ước tính (phút)
         public double EstimatedMinutes { get; set; }
 
+        // Tổng thu nhập cho shipper
+        public decimal TotalIncome { get; set; }
+
         // Điểm giao cuối cùng
         [Required]
         public string DeliveryAddress { get; set; } = string.Empty;

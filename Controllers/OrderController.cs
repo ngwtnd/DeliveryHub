@@ -215,6 +215,7 @@ namespace DeliveryHubWeb.Controllers
             var createdOrderIds = new List<int>();
 
             BatchOrder? batchOrder = null;
+            decimal totalBatchShipperIncome = 0;
             if (itemsByStore.Count > 1) 
             {
                 batchOrder = new BatchOrder
@@ -281,6 +282,7 @@ namespace DeliveryHubWeb.Controllers
                 _context.Orders.Add(order);
                 await _context.SaveChangesAsync();
                 createdOrderIds.Add(order.Id);
+                totalBatchShipperIncome += order.ShipperIncome;
 
                 if (batchOrder != null) 
                 {
@@ -301,6 +303,7 @@ namespace DeliveryHubWeb.Controllers
                 double dLon = req.Lng != 0 ? req.Lng : 106.660172;
                 batchOrder.TotalDistance = Math.Round(_mapService.CalculateMergedDistance(dLat, dLon, storeLocations), 1);
                 batchOrder.EstimatedMinutes = batchOrder.TotalDistance * 4;
+                batchOrder.TotalIncome = totalBatchShipperIncome;
                 await _context.SaveChangesAsync();
                 await _hubContext.Clients.All.SendAsync("NewBatchAvailable", batchOrder.BatchCode);
                 return Json(new { success = true, batchId = batchOrder.Id, orderCount = createdOrderIds.Count, orderId = createdOrderIds.First() });

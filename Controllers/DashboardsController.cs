@@ -2833,6 +2833,16 @@ var result = new {
                 {
                     availableOrders = allOrders; // Nếu chưa có GPS thì hiển tất cả
                 }
+
+                // Lấy các BatchOrders đang tìm shipper (Multi-store)
+                var availableBatches = await _context.BatchOrders
+                    .Include(b => b.Items).ThenInclude(bi => bi.Order).ThenInclude(o => o!.Store)
+                    .Include(b => b.Items).ThenInclude(bi => bi.Order).ThenInclude(o => o!.User)
+                    .Where(b => b.ShipperId == null && b.Status == BatchOrderStatus.Created)
+                    .OrderByDescending(b => b.CreatedAt)
+                    .ToListAsync();
+                
+                ViewBag.AvailableBatches = availableBatches;
             }
 
             ViewBag.ShipperUser = user;
@@ -2995,6 +3005,56 @@ var result = new {
             ViewData["Title"] = $"Batch {batch.BatchCode}";
             return View(batch);
         }
+
+        [HttpPost]
+        [IgnoreAntiforgeryToken]
+        [Authorize(Roles = "Shipper")]
+        public async Task<IActionResult> AcceptBatch([FromBody] AcceptBatchRequest request)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == User.Identity!.Name);
+            if (user == null) return Json(new { success = false, message = "Unauthorized" });
+
+            var batch = await _context.BatchOrders
+                .Include(b => b.Items).ThenInclude(bi => bi.Order)
+                .FirstOrDefaultAsync(b => b.Id == request.BatchId && b.ShipperId == null);
+
+            if (batch == null) return Json(new { success = false, message = "Không tìm thấy đợt gom đơn này hoặc đã có người nhận." });
+
+            // Kiểm tra shipper có bận không
+            var hasActiveOrder = await _context.Orders.AnyAsync(o => o.ShipperId == user.Id && (o.Status == OrderStatus.Accepted || o.Status == OrderStatus.Delivering));
+            var hasActiveBatch = await _context.BatchOrders.AnyAsync(b => b.ShipperId == user.Id && (b.Status == BatchOrderStatus.InProgress || b.Status == BatchOrderStatus.Created));
+            if (hasActiveOrder || hasActiveBatch)
+                return Json(new { success = false, message = "Bạn đang có đơn hàng chưa hoàn thành." });
+
+            batch.ShipperId = user.Id;
+            batch.Status = BatchOrderStatus.InProgress;
+
+            foreach (var item in batch.Items)
+            {
+                if (item.Order != null)
+                {
+                    item.Order.ShipperId = user.Id;
+                    item.Order.Status = OrderStatus.Accepted;
+                    item.Order.AcceptedAt = DateTime.Now;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Notify users (simplified - notify all users in batch)
+            foreach (var item in batch.Items)
+            {
+                if (item.Order != null && !string.IsNullOrEmpty(item.Order.UserId))
+                {
+                    // This is a simplified call, ideally use a specific Hub method if exists
+                    // await _hubContext.Clients.User(item.Order.UserId).SendAsync("OrderAccepted", item.Order.OrderCode);
+                }
+            }
+
+            return Json(new { success = true, batchId = batch.Id });
+        }
+
+        public class AcceptBatchRequest { public int BatchId { get; set; } }
 
         [HttpPost]
         [IgnoreAntiforgeryToken]

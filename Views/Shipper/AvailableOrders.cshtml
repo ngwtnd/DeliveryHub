@@ -107,7 +107,10 @@
                     <p style="font-size:0.65rem; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; margin:0.25rem 0 0;">Các đơn đang chờ bạn nhận</p>
                 </div>
                 <div style="background:rgba(249,115,22,0.1); border:1px solid rgba(249,115,22,0.25); border-radius:999px; padding:0.4rem 1rem;">
-                    <span style="font-size:0.85rem; font-weight:900; color:#f97316;" id="orderCountBadge">@Model.Count() đơn</span>
+                    @{
+                        int totalAvailable = Model.Count() + ((ViewBag.AvailableBatches as List<BatchOrder>)?.Count ?? 0);
+                    }
+                    <span style="font-size:0.85rem; font-weight:900; color:#f97316;" id="orderCountBadge">@totalAvailable đơn</span>
                 </div>
             </div>
         </div>
@@ -137,8 +140,84 @@
                     </a>
                 </div>
             }
-            else if (Model.Any())
+            else if (Model.Any() || (ViewBag.AvailableBatches as List<BatchOrder>)?.Any() == true)
             {
+                <!-- Batch orders section -->
+                @if (ViewBag.AvailableBatches != null)
+                {
+                    @foreach (var batch in (ViewBag.AvailableBatches as List<BatchOrder>)!)
+                    {
+                        var totalItems = batch.Items.Sum(bi => bi.Order?.OrderItems?.Sum(oi => oi.Quantity) ?? 0);
+                        var storeCount = batch.Items.Count;
+                        var firstStore = batch.Items.OrderBy(bi => bi.Sequence).FirstOrDefault()?.Order?.Store;
+
+                        <div class="order-card" style="border-width:2px; border-color:rgba(168,85,247,0.4); background:rgba(168,85,247,0.03);" id="batch-card-@batch.Id">
+                            <!-- Card Header -->
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.875rem;">
+                                <div style="display:flex; align-items:center; gap:0.6rem;">
+                                    <div style="width:2rem; height:2rem; border-radius:0.5rem; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.25); display:flex; align-items:center; justify-content:center;">
+                                        <i class="fa-solid fa-layer-group" style="color:#a855f7; font-size:0.75rem;"></i>
+                                    </div>
+                                    <div>
+                                        <div style="display:flex; align-items:center; gap:0.4rem;">
+                                            <p style="font-size:0.8rem; font-weight:900; color:#a855f7; margin:0;">@batch.BatchCode</p>
+                                            <span style="background:#a855f7; color:white; font-size:0.55rem; font-weight:900; padding:1px 4px; border-radius:4px; text-transform:uppercase;">Gom đơn</span>
+                                        </div>
+                                        <p style="font-size:0.6rem; color:#64748b; font-weight:600; margin:0;">@batch.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</p>
+                                    </div>
+                                </div>
+                                <div style="text-align:right;">
+                                    <p style="font-size:1.1rem; font-weight:900; color:white; margin:0;">@string.Format("{0:N0}", batch.TotalIncome)</p>
+                                    <p style="font-size:0.6rem; color:#64748b; font-weight:700; text-transform:uppercase; margin:0;">VND</p>
+                                </div>
+                            </div>
+
+                            <!-- Stores Summary -->
+                            <div style="background:rgba(255,255,255,0.03); border-radius:0.75rem; padding:0.75rem; margin-bottom:0.875rem; border:1px solid rgba(255,255,255,0.05);">
+                                <p style="font-size:0.6rem; font-weight:800; color:#a855f7; text-transform:uppercase; letter-spacing:0.1em; margin:0 0 6px;">Lộ trình gộp @storeCount cửa hàng</p>
+                                <div style="display:flex; flex-direction:column; gap:6px;">
+                                    @foreach (var item in batch.Items.OrderBy(bi => bi.Sequence))
+                                    {
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <div style="width:14px; height:14px; border-radius:50%; background:rgba(168,85,247,0.2); border:1px solid #a855f7; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                                                <span style="font-size:8px; color:white; font-weight:900;">@item.Sequence</span>
+                                            </div>
+                                            <p style="font-size:0.75rem; color:#cbd5e1; font-weight:700; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@(item.Order?.Store?.Name ?? "Quán ăn")</p>
+                                        </div>
+                                    }
+                                    <div style="display:flex; align-items:center; gap:8px; margin-top:4px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.05);">
+                                        <i class="fa-solid fa-location-dot" style="color:#3b82f6; font-size:12px; width:14px; text-align:center;"></i>
+                                        <p style="font-size:0.7rem; color:#94a3b8; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@batch.DeliveryAddress</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Badges -->
+                            <div style="display:flex; flex-wrap:wrap; gap:0.375rem; margin-bottom:0.875rem;">
+                                <span style="background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.2); border-radius:0.5rem; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:700; color:#d8b4fe;">
+                                    <i class="fa-solid fa-route" style="margin-right:4px;"></i>@batch.TotalDistance.ToString("F1")km
+                                </span>
+                                <span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:0.5rem; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:700; color:#cbd5e1;">
+                                    <i class="fa-solid fa-clock" style="color:#a855f7; margin-right:4px;"></i>~@Math.Round(batch.TotalDistance * 4) phút
+                                </span>
+                                <span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:0.5rem; padding:0.3rem 0.6rem; font-size:0.65rem; font-weight:700; color:#cbd5e1;">
+                                    <i class="fa-solid fa-box" style="color:#a855f7; margin-right:4px;"></i>@totalItems món
+                                </span>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div style="display:flex; gap:0.5rem;">
+                                <button onclick="acceptBatch(@batch.Id, this)"
+                                        style="flex:1; padding:0.75rem; background:#a855f7; border:none; border-radius:0.75rem; color:white; font-size:0.8rem; font-weight:900; cursor:pointer; transition:all 0.2s; box-shadow:0 4px 15px rgba(168,85,247,0.35);"
+                                        onmouseover="this.style.background='#c084fc'; this.style.transform='translateY(-1px)'"
+                                        onmouseout="this.style.background='#a855f7'; this.style.transform='translateY(0)'">
+                                    <i class="fa-solid fa-check-double" style="margin-right:0.4rem;"></i>Nhận đợt gom này
+                                </button>
+                            </div>
+                        </div>
+                    }
+                }
+
                 @foreach (var order in Model)
                 {
                     var itemCount = order.OrderItems?.Sum(oi => oi.Quantity) ?? 0;
@@ -248,6 +327,48 @@
 <script>
     const shipperLat = @( (shipperUser?.Latitude ?? 10.762622).ToString(System.Globalization.CultureInfo.InvariantCulture) );
     const shipperLng = @( (shipperUser?.Longitude ?? 106.660172).ToString(System.Globalization.CultureInfo.InvariantCulture) );
+
+    async function acceptBatch(batchId, btn) {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin" style="margin-right:0.4rem;"></i>Đang nhận...`;
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/Shipper/AcceptBatch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ batchId: batchId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                Swal.fire({
+                    title: 'Thành công!',
+                    text: 'Bạn đã nhận đợt gom đơn này. Hãy bắt đầu lộ trình!',
+                    icon: 'success',
+                    background: '#0f172a',
+                    color: '#fff',
+                    confirmButtonColor: '#a855f7'
+                }).then(() => {
+                    window.location.href = '/Shipper/BatchDetail/' + data.batchId;
+                });
+            } else {
+                Swal.fire({
+                    title: 'Thất bại',
+                    text: data.message,
+                    icon: 'error',
+                    background: '#0f172a',
+                    color: '#fff'
+                });
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Lỗi kết nối.');
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
+    }
 
     // --- State ---
     let currentShipperLat = shipperLat;
