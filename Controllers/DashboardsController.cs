@@ -770,6 +770,7 @@ namespace DeliveryHubWeb.Controllers
             
             ViewBag.TotalBranches = allFiltered.Count;
             ViewBag.OpenBranches = allFiltered.Count(s => s.IsOpen);
+            ViewBag.AdminBalance = (await GetCurrentUser())?.Balance ?? 0m;
 
             if (Request.Headers["X-Requested-With"] == "XMLHttpRequest") {
                 return View(pagedStores);

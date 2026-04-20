@@ -143,6 +143,7 @@
                 {
                     var itemCount = order.OrderItems?.Sum(oi => oi.Quantity) ?? 0;
                     <div class="order-card" id="card-@order.OrderCode"
+                         data-id="@order.Id"
                          data-code="@order.OrderCode"
                          data-store-lat="@((order.Store?.Latitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))"
                          data-store-lng="@((order.Store?.Longitude ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture))"
@@ -695,7 +696,7 @@
                     reverseButtons: true
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        showRatingModal(orderCode, card.dataset.storeName);
+                        showRatingModal(card.dataset.id, card.dataset.storeName);
                     } else {
                         window.location.reload();
                     }
@@ -729,7 +730,7 @@
     }
 
     // --- Shipper Rating Modal ---
-    function showRatingModal(orderCode, storeName) {
+    function showRatingModal(orderId, storeName) {
         Swal.fire({
             title: `Đánh giá: ${storeName}`,
             html: `
@@ -777,9 +778,9 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            orderCode: orderCode,
-                            ratingStoreByShipper: rating,
-                            reviewType: 1 // Shipper
+                            OrderId: parseInt(orderId),
+                            RatingStoreByShipper: parseInt(rating),
+                            Type: 1 // Shipper
                         })
                     });
                     Swal.fire({ title: 'Cảm ơn!', text: 'Đánh giá của bạn đã được ghi nhận.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#0f172a', color: '#fff' })
