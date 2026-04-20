@@ -402,6 +402,29 @@ namespace DeliveryHubWeb.Controllers
         {
             await EnsureDatabaseSchemaAndNotifications();
             await LoadShipperCodes();
+
+            // --- AUTO CLEANUP LOGIC ---
+            // 1. Hủy các đơn "Tìm shipper" sau 1 tiếng
+            // 2. Theo yêu cầu: Reset các đơn trạng thái khác (trừ Thành công, Thất bại, Đã huỷ) về Đã huỷ nếu quá 1 tiếng (coi là treo)
+            var oneHourAgo = DateTime.Now.AddHours(-1);
+            var staleOrders = await _context.Orders
+                .Where(o => o.Status != OrderStatus.Completed && 
+                            o.Status != OrderStatus.Failed && 
+                            o.Status != OrderStatus.Cancelled &&
+                            o.CreatedAt <= oneHourAgo)
+                .ToListAsync();
+
+            if (staleOrders.Any())
+            {
+                foreach (var so in staleOrders) 
+                {
+                    so.Status = OrderStatus.Cancelled;
+                    so.CancelledAt = DateTime.Now;
+                    so.Note = (so.Note ?? "") + " [Hệ thống tự động hủy do quá hạn 1h]";
+                }
+                await _context.SaveChangesAsync();
+            }
+
             var startDate = DateTime.UtcNow.AddDays(-days);
             
             var ordersQuery = _context.Orders
@@ -2683,56 +2706,62 @@ var result = new {
             if (user == null) return RedirectToAction("Login", "Account");
 
             List<Order> availableOrders = new List<Order>();
-            if (user.IsActive)
+
+            // Kiểm tra xem shipper đang có đơn gì chưa
+            var hasActiveOrder = await _context.Orders.AnyAsync(o =>
+                o.ShipperId == user.Id &&
+                (o.Status == OrderStatus.Accepted || o.Status == OrderStatus.Preparing || o.Status == OrderStatus.Delivering));
+
+            ViewBag.HasActiveOrder = hasActiveOrder;
+
+            if (user.IsActive && !hasActiveOrder)
             {
-                availableOrders = await _context.Orders
+                // Lấy toàn bộ đơn đang tìm shipper
+                var allOrders = await _context.Orders
                     .Include(o => o.Store)
                     .Include(o => o.User)
                     .Include(o => o.OrderItems).ThenInclude(oi => oi.MenuItem)
                     .Where(o => o.Status == OrderStatus.SearchingShipper)
                     .OrderByDescending(o => o.CreatedAt)
                     .ToListAsync();
+
+                // Lọc theo bán kính 5km tính từ shipper -> nhà hàng
+                double uLat = user.Latitude ?? 0;
+                double uLng = user.Longitude ?? 0;
+                if (uLat != 0 && uLng != 0)
+                {
+                    availableOrders = allOrders.Where(o =>
+                    {
+                        if (o.Store == null || o.Store.Latitude == 0) return true;
+                        double R = 6371;
+                        double dLat = (o.Store.Latitude - uLat) * Math.PI / 180.0;
+                        double dLon = (o.Store.Longitude - uLng) * Math.PI / 180.0;
+                        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                                   Math.Cos(uLat * Math.PI / 180.0) * Math.Cos(o.Store.Latitude * Math.PI / 180.0) *
+                                   Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+                        double dist = R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+                        return dist <= 5.0;
+                    }).ToList();
+                }
+                else
+                {
+                    availableOrders = allOrders; // Nếu chưa có GPS thì hiển tất cả
+                }
             }
 
             ViewBag.ShipperUser = user;
             ViewBag.IsOnline = user.IsActive;
-            ViewData["Title"] = "Đơn mới nổ";
+            ViewData["Title"] = "Đơn mới";
             return View(availableOrders);
         }
 
-        // ===== GOM ĐƠN (BATCH ORDERS) =====
-
+        // BatchOrders disabled — redirect về AvailableOrders
         [Authorize(Roles = "Shipper")]
-        public async Task<IActionResult> BatchOrders()
+        public IActionResult BatchOrders()
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == User.Identity!.Name);
-            if (user == null) return RedirectToAction("Login", "Account");
-
-            List<Order> availableOrders = new List<Order>();
-            if (user.IsActive)
-            {
-                availableOrders = await _context.Orders
-                    .Include(o => o.Store)
-                    .Include(o => o.User)
-                    .Include(o => o.OrderItems).ThenInclude(oi => oi.MenuItem)
-                    .Where(o => o.Status == OrderStatus.SearchingShipper)
-                    .OrderByDescending(o => o.CreatedAt)
-                    .ToListAsync();
-            }
-
-            // Lấy danh sách batch đang active của shipper
-            var activeBatches = await _context.BatchOrders
-                .Include(b => b.Items).ThenInclude(bi => bi.Order).ThenInclude(o => o!.Store)
-                .Where(b => b.ShipperId == user.Id && (b.Status == BatchOrderStatus.Created || b.Status == BatchOrderStatus.InProgress))
-                .OrderByDescending(b => b.CreatedAt)
-                .ToListAsync();
-
-            ViewBag.ShipperUser = user;
-            ViewBag.IsOnline = user.IsActive;
-            ViewBag.ActiveBatches = activeBatches;
-            ViewData["Title"] = "Gom đơn";
-            return View(availableOrders);
+            return RedirectToAction("AvailableOrders");
         }
+
 
         [HttpPost]
         [IgnoreAntiforgeryToken]
@@ -3046,7 +3075,13 @@ var result = new {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == User.Identity!.Name);
             if (user == null) return Json(new { success = false, message = "Unauthorized" });
 
-            user.IsActive = !user.IsActive; // Toggle
+            // Nếu đang có đơn giao dở thì không được tắt
+            if (user.IsActive && user.IsDelivering)
+            {
+                return Json(new { success = false, message = "Bạn đang có đơn vẫn chưa giao xong. Hoàn thành đơn trước khi chuyển sang Chế độ Nghỉ." });
+            }
+
+            user.IsActive = !user.IsActive;
             await _context.SaveChangesAsync();
 
             return Json(new { success = true, isActive = user.IsActive });
@@ -3062,13 +3097,21 @@ var result = new {
             var order = await _context.Orders.FirstOrDefaultAsync(o => o.OrderCode == orderCode);
             if (order == null) return Json(new { success = false, message = "Order not found" });
 
+            // Gi\u1edbi h\u1ea1n 1 \u0111\u01a1n m\u1ed7i l\u1ea7n
+            var hasActiveOrder = await _context.Orders.AnyAsync(o =>
+                o.ShipperId == user.Id &&
+                (o.Status == OrderStatus.Accepted || o.Status == OrderStatus.Preparing || o.Status == OrderStatus.Delivering));
+            if (hasActiveOrder)
+                return Json(new { success = false, message = "B\u1ea1n \u0111ang giao m\u1ed9t \u0111\u01a1n kh\u00e1c. Ho\u00e0n th\u00e0nh tr\u01b0\u1edbc khi nh\u1eadn \u0111\u01a1n m\u1edbi." });
+
             if (order.Status != OrderStatus.SearchingShipper) {
-                return Json(new { success = false, message = "Đơn hàng đã được nhận bởi người khác hoặc bị hủy." });
+                return Json(new { success = false, message = "\u0110\u01a1n h\u00e0ng \u0111\u00e3 \u0111\u01b0\u1ee3c nh\u1eadn b\u1edfi ng\u01b0\u1eddi kh\u00e1c ho\u1eb7c b\u1ecb h\u1ee7y." });
             }
 
             order.ShipperId = user.Id;
             order.Status = OrderStatus.Accepted;
             order.AcceptedAt = DateTime.Now;
+            user.IsDelivering = true;
 
             await _context.SaveChangesAsync();
 
@@ -3160,6 +3203,26 @@ var result = new {
             }
 
             await _context.SaveChangesAsync();
+
+            // Cập nhật Rating thực cho Store
+            if (order.StoreId.HasValue)
+            {
+                var storeId = order.StoreId.Value;
+                var storeRatings = await _context.Reviews
+                    .Where(r => r.Order != null && r.Order.StoreId == storeId && r.RatingMenu > 0)
+                    .Select(r => (double)r.RatingMenu)
+                    .ToListAsync();
+                if (storeRatings.Any())
+                {
+                    var store = await _context.Stores.FindAsync(storeId);
+                    if (store != null)
+                    {
+                        store.Rating = Math.Round(storeRatings.Average(), 1);
+                        store.ReviewCount = storeRatings.Count;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
 
             await _hubContext.Clients.All.SendAsync("OrderStatusUpdated", order.OrderCode, order.Status.ToString(), user.Id, user.FullName ?? "", user.PhoneNumber ?? "");
 

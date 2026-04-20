@@ -1,0 +1,801 @@
+@model IEnumerable<DeliveryHubWeb.Models.Voucher>
+@{
+    ViewData["Title"] = "Quản lý Voucher Khuyến Mãi";
+    Layout = "~/Views/Shared/_PartnerLayout.cshtml";
+}
+
+<!-- GSAP for animations -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+<div class="bg-brand-black min-h-screen text-white p-8">
+    <div class="max-w-[1600px] mx-auto">
+        <!-- Dashboard Header -->
+        <div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex justify-between items-center fade-in relative z-10 backdrop-blur-xl shadow-2xl flex-wrap gap-4">
+            <div class="space-y-1">
+                <h2 class="text-4xl font-black text-white tracking-tighter">Quản lý <span class="text-brand-orange">Voucher</span></h2>
+                <div class="flex items-center gap-3">
+                    <span class="px-2 py-0.5 bg-brand-orange/10 border border-brand-orange/20 rounded text-[10px] font-bold text-brand-orange uppercase tracking-wider">Dashboard</span>
+                    <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1 flex gap-2">
+                        <span>Tổng cộng <span class="text-white font-black">@ViewBag.TotalCount</span> voucher</span>
+                        <span>&bull;</span>
+                        <span><span class="text-green-500 font-black">@ViewBag.ActiveCount</span> Còn sử dụng</span>
+                        <span>&bull;</span>
+                        <span><span class="text-red-500 font-black">@ViewBag.ExpiredCount</span> Đã hết hạn</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <form id="filterForm" method="get" class="flex flex-wrap items-center gap-3">
+                <input type="hidden" name="filter" id="currentFilter" value="@(ViewBag.CurrentFilter as string ?? "all")" />
+
+                <!-- Filter Tabs -->
+                <div class="relative flex items-center bg-white/5 p-1.5 rounded-2xl border border-white/10">
+                    <!-- Sliding Pill -->
+                    <div id="filterPill" class="absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0"></div>
+
+                    <button id="btn-filter-all" type="button" onclick="setFilter('all')" class="filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-500">Tất cả</button>
+                    <button id="btn-filter-active" type="button" onclick="setFilter('active')" class="filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-500">Còn sử dụng</button>
+                    <button id="btn-filter-expired" type="button" onclick="setFilter('expired')" class="filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-500">Đã hết hạn</button>
+                </div>
+
+                <div class="relative group">
+                    <input type="text" name="search" id="searchInput" value="@ViewBag.SearchTerm" placeholder="Tìm tên, mã voucher..." 
+                           class="bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-56 outline-none transition-all pl-11 group-focus-within:w-64" />
+                    <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+                </div>
+
+                <button type="button" onclick="openAddModal()" class="h-12 px-6 bg-brand-orange text-black font-black text-xs rounded-2xl hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-orange/20 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Thêm Voucher
+                </button>
+            </form>
+        </div>
+
+        <div id="vouchersTableContainer">
+            <!-- Main Card -->
+            <div class="bg-brand-dark/50 backdrop-blur-xl rounded-[2rem] border border-white/5 p-8 shadow-2xl relative">
+                <!-- Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-separate border-spacing-y-2">
+                        <thead>
+                            <tr class="text-[10px] text-brand-gray font-black uppercase tracking-widest">
+                                <th class="px-6 py-4 rounded-l-2xl bg-white/[0.02]">Mã Voucher</th>
+                                <th class="px-6 py-4 bg-white/[0.02]">Tên chương trình</th>
+                                <th class="px-6 py-4 bg-white/[0.02]">Chiết khấu</th>
+                                <th class="px-6 py-4 bg-white/[0.02]">Sử dụng</th>
+                                <th class="px-6 py-4 bg-white/[0.02]">Thời hạn</th>
+                                <th class="px-6 py-4 bg-white/[0.02]">Trạng thái</th>
+                                <th class="px-6 py-4 rounded-r-2xl bg-white/[0.02] text-center">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm font-bold">
+                            @foreach (var v in Model)
+                            {
+                                <tr class="bg-white/[0.02] hover:bg-white/[0.04] transition-colors group">
+                                    <td class="px-6 py-4 rounded-l-2xl">
+                                        <span class="border border-brand-orange bg-brand-orange text-black px-3 py-1.5 rounded-lg text-xs font-black tracking-widest shadow-[0_0_10px_rgba(255,107,0,0.3)]">
+                                            @v.Code
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="text-white text-[13px] font-black mb-1">@v.ProgramName</div>
+                                        <div class="text-[11px] text-brand-gray">Đơn tối thiểu: <span class="text-white">@v.MinOrderValue.ToString("N0")đ</span></div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        @{
+                                            string discountText = "";
+                                            string subText = "";
+                                            if (v.AppliesToShipping && v.DiscountValue == 100 && v.IsPercentage) {
+                                                discountText = "Free Ship";
+                                            } else if (v.IsPercentage) {
+                                                discountText = $"{v.DiscountValue.ToString("G29")}%";
+                                            } else {
+                                                discountText = $"{v.DiscountValue.ToString("N0")}đ";
+                                            }
+
+                                            if (v.MaxDiscountValue.HasValue) {
+                                                subText = $"Tối đa {v.MaxDiscountValue.Value.ToString("N0")}đ";
+                                            }
+                                        }
+                                        <div class="text-brand-orange font-black text-sm mb-1">
+                                            @discountText
+                                        </div>
+                                        @if(!string.IsNullOrEmpty(subText)) {
+                                            <div class="text-[11px] text-brand-gray">@subText</div>
+                                        }
+                                    </td>
+                                    <td class="px-6 py-4 w-32">
+                                        <div class="flex justify-between items-end mb-1.5">
+                                            <span class="text-[11px] text-white">@v.UsedCount / @v.MaxUsageCount</span>
+                                        </div>
+                                        <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden">
+                                            @{
+                                                var pct = v.MaxUsageCount > 0 ? (int)((double)v.UsedCount / v.MaxUsageCount * 100) : 0;
+                                            }
+                                            <div class="bg-brand-orange h-full rounded-full" style="width: @pct%"></div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <div class="text-[12px] font-bold text-white mb-0.5">@v.StartDate.ToString("dd/MM/yy")</div>
+                                        <div class="text-[12px] font-bold text-brand-gray">@v.EndDate.ToString("dd/MM/yy")</div>
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        @{
+                                            var isExpiringSoon = v.IsValid && (v.EndDate - DateTime.Now).TotalDays <= 3;
+                                            var isLimitSoon = v.IsValid && (v.MaxUsageCount - v.UsedCount) <= 10;
+                                        }
+                                        @if (!v.IsValid)
+                                        {
+                                            <div class="px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 flex items-center gap-1.5 w-max opacity-80">
+                                                <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                                                <span class="text-[10px] font-black text-red-500 uppercase tracking-wider">Đã hết hạn</span>
+                                            </div>
+                                        }
+                                        else if (isExpiringSoon)
+                                        {
+                                            <div class="px-2.5 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center gap-1.5 w-max">
+                                                <div class="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></div>
+                                                <span class="text-[10px] font-black text-orange-500 uppercase tracking-wider">Sắp hết hạn</span>
+                                            </div>
+                                        }
+                                        else if (isLimitSoon)
+                                        {
+                                            <div class="px-2.5 py-1 rounded-full bg-yellow-400/10 border border-yellow-400/20 flex items-center gap-1.5 w-max">
+                                                <div class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></div>
+                                                <span class="text-[10px] font-black text-yellow-400 uppercase tracking-wider">Sắp hết lượt dùng</span>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="px-2.5 py-1 rounded-full bg-green-500/10 border border-green-500/20 flex items-center gap-1.5 w-max">
+                                                <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                                                <span class="text-[10px] font-black text-green-500 uppercase tracking-wider">Còn sử dụng</span>
+                                            </div>
+                                        }
+                                    </td>
+                                    <td class="px-6 py-4 rounded-r-2xl text-center">
+                                        <div class="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                            <button type="button" class="w-8 h-8 rounded-full bg-[#1e293b] hover:bg-white/10 flex items-center justify-center text-blue-400 transition-colors btn-edit-voucher" data-voucher='@System.Text.Json.JsonSerializer.Serialize(v)' title="Sửa">
+                                                <i class="fa-solid fa-pen text-xs pointer-events-none"></i>
+                                            </button>
+                                            @if (v.IsValid)
+                                            {
+                                                <button onclick="confirmDeleteVoucher(@v.Id, '@v.Code')" class="w-8 h-8 rounded-full bg-[#1e293b] hover:bg-red-500/20 flex items-center justify-center text-red-500 transition-colors" title="Xóa">
+                                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button onclick="confirmRestoreVoucher(@v.Id, '@v.Code')" class="w-8 h-8 rounded-full bg-[#1e293b] hover:bg-green-500/20 flex items-center justify-center text-green-500 transition-colors" title="Khôi phục">
+                                                    <i class="fa-solid fa-check text-xs"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (!Model.Any())
+                {
+                    <div class="text-center py-16 bg-white/[0.02] rounded-2xl mt-4 border border-white/5">
+                        <i class="fa-solid fa-ticket text-4xl text-brand-gray/30 mb-4"></i>
+                        <h3 class="text-lg font-black text-brand-gray">Chưa có voucher nào.</h3>
+                    </div>
+                }
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const searchInput = document.getElementById('searchInput');
+        const currentFilterInput = document.getElementById('currentFilter');
+
+        function debounce(func, wait) {
+            let timeout;
+            return function (...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        const runSmartSearch = () => {
+            const search = searchInput.value;
+            const filter = currentFilterInput.value;
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('search', search);
+            url.searchParams.set('filter', filter);
+            window.history.replaceState(null, '', url);
+
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(res => res.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newContent = doc.getElementById('vouchersTableContainer');
+                    if (newContent) {
+                        document.getElementById('vouchersTableContainer').innerHTML = newContent.innerHTML;
+                    }
+                });
+        };
+
+        window.updateTabStyles = (activeFilter) => {
+            const btnAll = document.getElementById('btn-filter-all');
+            const btnActive = document.getElementById('btn-filter-active');
+            const btnExpired = document.getElementById('btn-filter-expired');
+            const pill = document.getElementById('filterPill');
+            
+            const btnTarget = activeFilter === 'all' ? btnAll : (activeFilter === 'active' ? btnActive : btnExpired);
+            
+            if (pill && btnTarget) {
+                let pillClass = "absolute top-1.5 bottom-1.5 rounded-xl transition-all duration-500 ease-in-out pointer-events-none z-0";
+                if (activeFilter === 'all') {
+                    pillClass += " bg-white/10 shadow-lg shadow-white/5";
+                } else if (activeFilter === 'active') {
+                    pillClass += " bg-green-500/10 border border-green-500/50 shadow-lg shadow-green-500/10";
+                } else if (activeFilter === 'expired') {
+                    pillClass += " bg-red-500/10 border border-red-500/50 shadow-lg shadow-red-500/10";
+                }
+                pill.className = pillClass;
+                pill.style.left = btnTarget.offsetLeft + 'px';
+                pill.style.width = btnTarget.offsetWidth + 'px';
+            }
+            
+            const resetClass = "text-brand-gray hover:text-white";
+            
+            if(btnAll) btnAll.className = `filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'all' ? 'text-white' : resetClass}`;
+            if(btnActive) btnActive.className = `filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'active' ? 'text-green-500' : resetClass}`;
+            if(btnExpired) btnExpired.className = `filter-tab relative z-10 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-500 ${activeFilter === 'expired' ? 'text-red-500' : resetClass}`;
+        };
+
+        if (document.fonts) {
+            document.fonts.ready.then(() => updateTabStyles(currentFilterInput.value || 'all'));
+        } else {
+            window.addEventListener('load', () => updateTabStyles(currentFilterInput.value || 'all'));
+        }
+
+        window.setFilter = (filter) => {
+            if (currentFilterInput.value === filter) return;
+            currentFilterInput.value = filter;
+            updateTabStyles(filter);
+            
+            const tableContainer = document.getElementById('vouchersTableContainer');
+            if (tableContainer) {
+                gsap.to(tableContainer, { opacity: 0.3, duration: 0.2, y: 10 });
+            }
+            runSmartSearch();
+        };
+
+        if (searchInput) {
+            searchInput.addEventListener('input', debounce(() => {
+                runSmartSearch();
+            }, 300));
+        }
+
+        // Add GSAP hook for the ajax refresh
+        const originalFetch = window.fetch;
+        window.fetch = async (...args) => {
+            const response = await originalFetch(...args);
+            if (args[0] && typeof args[0] === 'object' && args[0].pathname === '/Partner/Vouchers') {
+                const tableContainer = document.getElementById('vouchersTableContainer');
+                if (tableContainer) {
+                    setTimeout(() => {
+                        gsap.to(tableContainer, { opacity: 1, duration: 0.3, y: 0, ease: "power2.out" });
+                    }, 50);
+                }
+            }
+            return response;
+        };
+    });
+
+    let documentDeleteVoucherId = 0;
+
+    async function confirmDeleteVoucher(id, code) {
+        if (confirm(`Bạn có chắc muốn vô hiệu hóa Voucher ${code}?`)) {
+            fetch('/Partner/SoftDeleteVoucher/' + id, { method: 'POST' })
+            .then(async r => {
+                if (!r.ok) {
+                    const text = await r.text();
+                    throw new Error("HTTP " + r.status + ": " + text.substring(0, 100));
+                }
+                return r.json();
+            })
+            .then(async res => {
+                if (res && res.success) {
+                    alert("Đã vô hiệu hóa Voucher.");
+                    window.location.reload();
+                } else {
+                    alert("Lỗi: " + JSON.stringify(res));
+                }
+            })
+            .catch(async err => {
+                alert(err.message);
+            });
+        }
+    }
+
+    async function confirmRestoreVoucher(id, code) {
+        if (confirm(`Đồng ý đưa Voucher ${code} trở lại hoạt động?`)) {
+            fetch('/Partner/RestoreVoucher/' + id, { method: 'POST' })
+            .then(async r => {
+                if (!r.ok) {
+                    const text = await r.text();
+                    throw new Error("HTTP " + r.status + ": " + text.substring(0, 100));
+                }
+                return r.json();
+            })
+            .then(async res => {
+                if (res && res.success) {
+                    alert("Đã khôi phục Voucher.");
+                    window.location.reload();
+                } else {
+                    alert("Lỗi: " + JSON.stringify(res));
+                }
+            })
+            .catch(async err => {
+                alert(err.message);
+            });
+        }
+    }
+</script>
+
+<!-- Add Voucher Modal -->
+<div id="addVoucherModal" class="fixed inset-0 z-[200] flex items-center justify-center hidden">
+    <div class="add-backdrop absolute inset-0 bg-brand-black/80 backdrop-blur-md opacity-0 cursor-pointer" onclick="closeAddModal()"></div>
+    
+    <div class="add-content relative bg-brand-dark/95 border border-white/10 rounded-[2.5rem] w-full max-w-4xl mx-4 shadow-[0_0_100px_rgba(0,0,0,0.5)] overflow-hidden scale-90 opacity-0 flex flex-col max-h-[90vh]">
+        <!-- Header -->
+        <div class="p-8 border-b border-white/5 bg-white/[0.02] flex items-center justify-between shrink-0">
+            <h3 class="text-2xl font-black text-white">Tạo Mã Khuyến Mãi (Voucher)</h3>
+            <button onclick="closeAddModal()" class="w-10 h-10 rounded-full bg-white/5 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center">
+                <i class="fa-solid fa-times"></i>
+            </button>
+        </div>
+        
+        <!-- Body -->
+        <div class="p-8 overflow-y-auto custom-scrollbar flex-1">
+            <form id="addVoucherForm" class="space-y-8">
+                <!-- Hidden ID for Editing -->
+                <input type="hidden" id="vId" value="0" />
+                
+                <!-- Section 1 -->
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Mã Code (Bắt buộc) <span class="text-red-500">*</span></label>
+                            <input type="text" id="vCode" required placeholder="VD: TET2026" class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 outline-none transition-all uppercase" />
+                        </div>
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Tên chương trình khuyến mãi <span class="text-red-500">*</span></label>
+                            <input type="text" id="vName" required placeholder="Siêu Sale Tết Âm Lịch..." class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 outline-none transition-all" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Mô tả (Chính sách, điều kiện)</label>
+                        <textarea id="vDesc" rows="2" placeholder="Áp dụng cho mọi đơn hàng..." class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 outline-none transition-all resize-none"></textarea>
+                    </div>
+                </div>
+
+                <hr class="border-white/5" />
+
+                <!-- Section 2 -->
+                <div class="space-y-4">
+                    <h4 class="text-white font-black flex items-center gap-2"><i class="fa-solid fa-gear text-brand-orange"></i> Thiết lập giảm giá</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- Custom Select: Giảm giá -->
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Loại Giảm Giá</label>
+                            <div class="relative custom-dropdown">
+                                <div id="vDiscountTypeDisplay" onclick="toggleDropdown('vDiscountTypeMenu')" class="w-full bg-white/5 border border-white/10 hover:border-brand-orange rounded-2xl px-5 py-3.5 text-sm font-bold text-white cursor-pointer flex justify-between items-center transition-all dropdown-display">
+                                    <span>Giảm tiền đơn hàng</span>
+                                    <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray transition-colors"></i>
+                                </div>
+                                <input type="hidden" id="vDiscountType" value="order" />
+                                
+                                <div id="vDiscountTypeMenu" class="custom-dropdown-menu absolute top-full left-0 w-full mt-2 bg-brand-dark border border-white/10 rounded-2xl shadow-2xl opacity-0 invisible transition-all z-50 pointer-events-none">
+                                    <div class="p-2 flex flex-col">
+                                        <div onclick="selectvDiscountType('order', 'Giảm tiền đơn hàng')" class="px-4 py-3 text-sm font-bold text-white hover:bg-brand-orange hover:text-black rounded-xl cursor-pointer transition-colors">Giảm tiền đơn hàng</div>
+                                        <div onclick="selectvDiscountType('shipping', 'Giảm tiền ship')" class="px-4 py-3 text-sm font-bold text-white hover:bg-brand-orange hover:text-black rounded-xl cursor-pointer transition-colors">Giảm tiền ship</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom Select: Giảm theo -->
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Giảm theo</label>
+                            <div class="relative custom-dropdown">
+                                <div id="vDiscountUnitDisplay" onclick="toggleDropdown('vDiscountUnitMenu')" class="w-full bg-white/5 border border-white/10 hover:border-brand-orange rounded-2xl px-5 py-3.5 text-sm font-bold text-white cursor-pointer flex justify-between items-center transition-all dropdown-display">
+                                    <span>Giảm theo %</span>
+                                    <i class="fa-solid fa-chevron-down text-[10px] text-brand-gray transition-colors"></i>
+                                </div>
+                                <input type="hidden" id="vDiscountUnit" value="percent" />
+                                
+                                <div id="vDiscountUnitMenu" class="custom-dropdown-menu absolute top-full left-0 w-full mt-2 bg-brand-dark border border-white/10 rounded-2xl shadow-2xl opacity-0 invisible transition-all z-50 pointer-events-none">
+                                    <div class="p-2 flex flex-col" id="vDiscountUnitOptions">
+                                        <!-- Rendered by JS -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="vDiscountValueWrapper">
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Mức giảm <span class="text-red-500">*</span></label>
+                            <div class="relative">
+                                <input type="text" id="vDiscountValue" placeholder="Nhập %" class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-black text-brand-orange placeholder-brand-gray/50 focus:border-brand-orange/50 outline-none transition-all pr-12" />
+                                <span id="vDiscountSuffix" class="absolute right-5 top-1/2 -translate-y-1/2 text-sm font-bold text-brand-gray pointer-events-none">%</span>
+                            </div>
+                        </div>
+                        <div id="vMaxDiscountWrapper">
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Giảm tối đa (VNĐ)</label>
+                            <div class="relative">
+                                <input type="text" id="vMaxDiscount" placeholder="Không giới hạn" class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-black text-brand-orange placeholder-brand-gray/50 focus:border-brand-orange/50 outline-none transition-all pr-12" />
+                                <span class="absolute right-5 top-1/2 -translate-y-1/2 text-sm font-bold text-brand-gray pointer-events-none">VNĐ</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="border-white/5" />
+
+                <!-- Section 3 -->
+                <div class="space-y-4">
+                    <h4 class="text-white font-black flex items-center gap-2"><i class="fa-regular fa-calendar-check text-brand-orange"></i> Điều kiện sử dụng</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Từ ngày <span class="text-red-500">*</span></label>
+                            <input type="date" id="vStartDate" required class="w-full bg-white/5 border border-white/10 hover:border-brand-orange rounded-2xl px-5 py-3.5 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all [color-scheme:dark]" />
+                        </div>
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Đến ngày <span class="text-red-500">*</span></label>
+                            <input type="date" id="vEndDate" required class="w-full bg-white/5 border border-white/10 hover:border-brand-orange rounded-2xl px-5 py-3.5 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all [color-scheme:dark]" />
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Đơn tối thiểu (VNĐ)</label>
+                            <div class="relative">
+                                <input type="text" id="vMinOrder" placeholder="0" class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 text-sm font-black text-white focus:border-brand-orange/50 outline-none transition-all pr-12" />
+                                <span class="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-brand-gray pointer-events-none">VNĐ</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Giới hạn số lượng dùng</label>
+                            <input type="text" id="vMaxUsage" placeholder="Không giới hạn" class="w-full bg-white/5 border border-white/10 hover:border-brand-orange rounded-2xl px-5 py-3.5 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all" />
+                        </div>
+                        <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-widest mb-2">Giới hạn trên Người dùng</label>
+                            <input type="text" id="vLimitUser" value="1" placeholder="Mặc định: 1" class="w-full bg-white/5 border border-white/10 hover:border-brand-orange rounded-2xl px-5 py-3.5 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all" />
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Footer -->
+        <div class="p-8 border-t border-white/5 bg-white/[0.02] flex items-center justify-end gap-4 shrink-0 mt-auto">
+            <button type="button" onclick="closeAddModal()" class="px-8 flex items-center justify-center h-12 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all">
+                Đóng
+            </button>
+            <button type="button" id="submitVoucherBtn" class="px-8 flex items-center justify-center h-12 rounded-2xl bg-brand-orange hover:bg-white text-black font-black shadow-lg shadow-brand-orange/20 hover:scale-105 active:scale-95 transition-all">
+                <i class="fa-solid fa-plus mr-2"></i> Tạo Voucher
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- ADD VOUCHER LOGIC ---
+    const addVoucherModal = document.getElementById('addVoucherModal');
+    const discountType = document.getElementById('vDiscountType');
+    const discountUnit = document.getElementById('vDiscountUnit');
+    const discountValueWrapper = document.getElementById('vDiscountValueWrapper');
+    const maxDiscountWrapper = document.getElementById('vMaxDiscountWrapper');
+    const discountValueInput = document.getElementById('vDiscountValue');
+    const discountSuffix = document.getElementById('vDiscountSuffix');
+
+    function formatMoney(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    }
+    
+    function unformatMoney(str) {
+        return parseInt(str.replace(/\./g, '') || 0, 10);
+    }
+    
+    function applyMoneyMask(input) {
+        input.addEventListener('input', function(e) {
+            if (discountUnit.value === 'percent' && input.id === 'vDiscountValue') {
+                let val = parseInt(this.value, 10);
+                if (isNaN(val)) val = "";
+                else if (val < 0) val = 0;
+                else if (val > 100) val = 100;
+                this.value = val;
+                return;
+            }
+            let value = unformatMoney(this.value);
+            if (isNaN(value)) value = 0;
+            this.value = value === 0 ? "" : formatMoney(value);
+        });
+    }
+
+    applyMoneyMask(discountValueInput);
+    applyMoneyMask(document.getElementById('vMaxDiscount'));
+    applyMoneyMask(document.getElementById('vMinOrder'));
+    applyMoneyMask(document.getElementById('vMaxUsage'));
+    applyMoneyMask(document.getElementById('vLimitUser'));
+
+    window.toggleDropdown = function(menuId) {
+        // close all other dropdowns
+        document.querySelectorAll('.custom-dropdown-menu').forEach(menu => {
+            if (menu.id !== menuId) {
+                menu.classList.remove('opacity-100', 'visible', 'pointer-events-auto');
+                menu.classList.add('opacity-0', 'invisible', 'pointer-events-none');
+                
+                // remove focus border from its display
+                const parent = menu.closest('.custom-dropdown');
+                if (parent) {
+                    const display = parent.querySelector('.dropdown-display');
+                    if (display) display.classList.remove('border-brand-orange');
+                }
+            }
+        });
+
+        const menu = document.getElementById(menuId);
+        const parent = menu.closest('.custom-dropdown');
+        const display = parent ? parent.querySelector('.dropdown-display') : null;
+
+        if (menu.classList.contains('opacity-0')) {
+            menu.classList.remove('opacity-0', 'invisible', 'pointer-events-none');
+            menu.classList.add('opacity-100', 'visible', 'pointer-events-auto');
+            if (display) display.classList.add('border-brand-orange');
+        } else {
+            menu.classList.remove('opacity-100', 'visible', 'pointer-events-auto');
+            menu.classList.add('opacity-0', 'invisible', 'pointer-events-none');
+            if (display) display.classList.remove('border-brand-orange');
+        }
+    };
+
+    // Close on click outside
+    document.addEventListener('click', function(event) {
+        if (!event.target.closest('.custom-dropdown')) {
+            document.querySelectorAll('.custom-dropdown-menu').forEach(menu => {
+                 menu.classList.remove('opacity-100', 'visible', 'pointer-events-auto');
+                 menu.classList.add('opacity-0', 'invisible', 'pointer-events-none');
+                 
+                 const parent = menu.closest('.custom-dropdown');
+                 if (parent) {
+                     const display = parent.querySelector('.dropdown-display');
+                     if (display) display.classList.remove('border-brand-orange');
+                 }
+            });
+        }
+    });
+
+    window.selectvDiscountType = function(val, text) {
+        discountType.value = val;
+        document.getElementById('vDiscountTypeDisplay').firstElementChild.innerText = text;
+        toggleDropdown('vDiscountTypeMenu'); // Close it
+        updateLogic();
+    };
+
+    window.selectvDiscountUnit = function(val, text) {
+        discountUnit.value = val;
+        document.getElementById('vDiscountUnitDisplay').firstElementChild.innerText = text;
+        
+        // Remove direct DOM toggle and call toggle logic to cleanly close
+        const menu = document.getElementById('vDiscountUnitMenu');
+        if (menu && menu.classList.contains('opacity-100')) {
+            toggleDropdown('vDiscountUnitMenu');
+        }
+        
+        updateLogic();
+    };
+
+    function updateLogic() {
+        const dType = discountType.value; // 'order' or 'shipping'
+        const currentUnit = discountUnit.value;
+        const optionsContainer = document.getElementById('vDiscountUnitOptions');
+        
+        // Build unit options HTML for custom dropdown
+        let optionsHtml = `
+            <div onclick="selectvDiscountUnit('percent', 'Giảm theo %')" class="px-4 py-3 text-sm font-bold text-white hover:bg-brand-orange hover:text-black rounded-xl cursor-pointer transition-colors">Giảm theo %</div>
+            <div onclick="selectvDiscountUnit('vnd', 'Giảm theo VNĐ')" class="px-4 py-3 text-sm font-bold text-white hover:bg-brand-orange hover:text-black rounded-xl cursor-pointer transition-colors">Giảm theo VNĐ</div>
+        `;
+        if (dType === 'shipping') {
+            optionsHtml += `<div onclick="selectvDiscountUnit('freeship', 'Freeship')" class="px-4 py-3 text-sm font-bold text-white hover:bg-brand-orange hover:text-black rounded-xl cursor-pointer transition-colors">Freeship</div>`;
+        }
+        optionsContainer.innerHTML = optionsHtml;
+        
+        // Preserve selection or set to valid default
+        if (dType === 'order' && currentUnit === 'freeship') {
+            selectvDiscountUnit('percent', 'Giảm theo %'); // implicitly calls updateLogic, but let's prevent infinite loops
+            return;
+        }
+
+        const dUnit = discountUnit.value;
+
+        // Visual logic based on selected Unit
+        if (dUnit === 'freeship') {
+            discountValueWrapper.classList.add('hidden');
+            maxDiscountWrapper.classList.add('hidden');
+        } else if (dUnit === 'percent') {
+            discountValueWrapper.classList.remove('hidden');
+            discountValueInput.placeholder = "Nhập mức %";
+            discountSuffix.innerText = "%";
+            maxDiscountWrapper.classList.remove('hidden');
+            
+            // Re-validate percent input on switch
+            let val = parseInt(discountValueInput.value, 10);
+            if(!isNaN(val)) discountValueInput.value = val > 100 ? 100 : val;
+        } else {
+            discountValueWrapper.classList.remove('hidden');
+            discountValueInput.placeholder = "Nhập số tiền";
+            discountSuffix.innerText = "VNĐ";
+            maxDiscountWrapper.classList.add('hidden');
+            document.getElementById('vMaxDiscount').value = ""; // Clear
+            
+            // Reformat as money
+            let val = unformatMoney(discountValueInput.value);
+            if(val > 100) discountValueInput.value = formatMoney(val); // Ensure it's formatted
+        }
+    }
+
+    window.openAddModal = () => {
+        document.getElementById('vId').value = "0";
+        document.getElementById('addVoucherModal').querySelector('h3').innerText = "Tạo Mã Khuyến Mãi (Voucher)";
+        document.getElementById('submitVoucherBtn').innerHTML = '<i class="fa-solid fa-plus mr-2"></i> Tạo Voucher';
+        
+        // Init today's date for Start
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        document.getElementById('vStartDate').value = now.toISOString().slice(0,10);
+        
+        // Add 1 month for end date
+        const later = new Date();
+        later.setMonth(later.getMonth() + 1);
+        later.setMinutes(later.getMinutes() - later.getTimezoneOffset());
+        document.getElementById('vEndDate').value = later.toISOString().slice(0,10);
+        
+        updateLogic();
+
+        const backdrop = addVoucherModal.querySelector('.add-backdrop');
+        const content = addVoucherModal.querySelector('.add-content');
+        addVoucherModal.classList.remove('hidden');
+        gsap.to(backdrop, { duration: 0.3, opacity: 1 });
+        gsap.fromTo(content, { opacity: 0, scale: 0.8, y: 30 }, { duration: 0.5, scale: 1, opacity: 1, y: 0, ease: "back.out(1.5)" });
+    };
+
+    window.openEditModal = (data) => {
+        document.getElementById('vId').value = data.Id;
+        document.getElementById('addVoucherModal').querySelector('h3').innerText = "Chỉnh sửa Mã Khuyến Mãi";
+        document.getElementById('submitVoucherBtn').innerHTML = '<i class="fa-solid fa-save mr-2"></i> Lưu thay đổi';
+        
+        document.getElementById('vCode').value = data.Code;
+        document.getElementById('vName').value = data.ProgramName;
+        document.getElementById('vDesc').value = data.Description || "";
+        
+        // Setup dropdowns
+        const dType = data.AppliesToShipping ? "shipping" : "order";
+        let dUnit = data.IsPercentage ? "percent" : "vnd";
+        if (dType === "shipping" && data.IsPercentage && data.DiscountValue === 100) dUnit = "freeship";
+        
+        selectvDiscountType(dType, dType === "shipping" ? "Giảm tiền ship" : "Giảm tiền đơn hàng");
+        selectvDiscountUnit(dUnit, dUnit === "freeship" ? "Freeship" : (dUnit === "percent" ? "Giảm theo %" : "Giảm theo VNĐ"));
+        
+        discountValueInput.value = data.DiscountValue > 0 && dUnit !== 'freeship' ? formatMoney(data.DiscountValue) : "";
+        document.getElementById('vMaxDiscount').value = data.MaxDiscountValue > 0 ? formatMoney(data.MaxDiscountValue) : "";
+        document.getElementById('vMinOrder').value = data.MinOrderValue > 0 ? formatMoney(data.MinOrderValue) : "";
+        document.getElementById('vMaxUsage').value = data.MaxUsageCount > 0 ? formatMoney(data.MaxUsageCount) : "";
+        document.getElementById('vLimitUser').value = data.LimitPerUser > 0 ? formatMoney(data.LimitPerUser) : "1";
+        
+        document.getElementById('vStartDate').value = data.StartDate.slice(0,10);
+        document.getElementById('vEndDate').value = data.EndDate.slice(0,10);
+
+        updateLogic();
+
+        const backdrop = addVoucherModal.querySelector('.add-backdrop');
+        const content = addVoucherModal.querySelector('.add-content');
+        addVoucherModal.classList.remove('hidden');
+        gsap.to(backdrop, { duration: 0.3, opacity: 1 });
+        gsap.fromTo(content, { opacity: 0, scale: 0.8, y: 30 }, { duration: 0.5, scale: 1, opacity: 1, y: 0, ease: "back.out(1.5)" });
+    };
+
+    // Bind Edit Buttons
+    document.querySelectorAll('.btn-edit-voucher').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const data = JSON.parse(this.dataset.voucher);
+            openEditModal(data);
+        });
+    });
+
+    window.closeAddModal = () => {
+        const backdrop = addVoucherModal.querySelector('.add-backdrop');
+        const content = addVoucherModal.querySelector('.add-content');
+        gsap.to(content, { duration: 0.3, scale: 0.9, y: 30, opacity: 0, ease: "power2.in" });
+        gsap.to(backdrop, { duration: 0.3, opacity: 0, onComplete: () => {
+            addVoucherModal.classList.add('hidden');
+            document.getElementById('addVoucherForm').reset();
+            updateLogic();
+        }});
+    };
+
+    document.getElementById('submitVoucherBtn').addEventListener('click', () => {
+        const vCode = document.getElementById('vCode').value.trim();
+        const vName = document.getElementById('vName').value.trim();
+        if(!vCode || !vName) {
+            alert("Vui lòng điền đủ Mã Code và Tên chương trình!");
+            return;
+        }
+        
+        if(!document.getElementById('vStartDate').value || !document.getElementById('vEndDate').value) {
+            alert("Vui lòng chọn ngày bắt đầu và kết thúc!");
+            return;
+        }
+
+        const dType = discountType.value;
+        const dUnit = discountUnit.value;
+        let vMinOrder = unformatMoney(document.getElementById('vMinOrder').value || "0");
+        
+        let maxUsageVal = document.getElementById('vMaxUsage').value;
+        let vMaxUsage = maxUsageVal ? unformatMoney(maxUsageVal) : 9999999;
+        
+        let limitUserVal = document.getElementById('vLimitUser').value;
+        let vLimitUser = limitUserVal ? unformatMoney(limitUserVal) : 1;
+        
+        let vMaxDiscount = unformatMoney(document.getElementById('vMaxDiscount').value || "0");
+        let vDiscountValue = unformatMoney(discountValueInput.value);
+
+        if (dUnit !== 'freeship' && vDiscountValue <= 0) {
+            alert("Vui lòng nhập Mức giảm lớn hơn 0!");
+            return;
+        }
+
+        const voucher = {
+            Id: parseInt(document.getElementById('vId').value, 10) || 0,
+            Code: vCode,
+            ProgramName: vName,
+            Description: document.getElementById('vDesc').value.trim(),
+            AppliesToShipping: dType === 'shipping',
+            IsPercentage: dUnit === 'percent' || dUnit === 'freeship',
+            DiscountValue: dUnit === 'freeship' ? 100 : vDiscountValue,
+            MaxDiscountValue: dUnit === 'percent' && vMaxDiscount > 0 ? vMaxDiscount : null,
+            MinOrderValue: vMinOrder,
+            MaxUsageCount: vMaxUsage,
+            LimitPerUser: vLimitUser,
+            StartDate: document.getElementById('vStartDate').value,
+            EndDate: document.getElementById('vEndDate').value
+        };
+
+        const btn = document.getElementById('submitVoucherBtn');
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        btn.style.pointerEvents = 'none';
+
+        fetch('/Partner/CreateVoucher', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(voucher)
+        })
+        .then(r => r.json())
+        .then(res => {
+            if(res.success) {
+                closeAddModal();
+                setTimeout(() => window.location.reload(), 300);
+            } else {
+                alert('Lỗi: ' + res.message);
+            }
+        })
+        .catch(err => {
+            alert("Đã xảy ra lỗi kết nối: " + err.message);
+        })
+        .finally(() => {
+            btn.innerHTML = originalHtml;
+            btn.style.pointerEvents = 'auto';
+        });
+    });
+</script>

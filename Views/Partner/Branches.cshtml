@@ -63,8 +63,13 @@
                         </div>
                     }
 
-                    <div class="absolute top-4 right-4 bg-brand-orange text-black font-black text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-lg">
-                        @store.Rating.ToString("0.0") <i class="fa-solid fa-star text-[10px]"></i>
+                    <div class="absolute top-4 right-4 flex gap-2">
+                        <div class="bg-brand-orange text-black font-black text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-lg">
+                            @store.Rating.ToString("0.0") <i class="fa-solid fa-star text-[10px]"></i>
+                        </div>
+                        <button onclick="handleDeleteBranch(event, @store.Id, '@store.Name')" class="w-8 h-8 rounded-lg bg-red-500/80 backdrop-blur text-white flex items-center justify-center hover:bg-red-600 transition-all shadow-lg" title="Xóa chi nhánh">
+                            <i class="fa-solid fa-trash-can text-[10px]"></i>
+                        </button>
                     </div>
                 </div>
                 <div class="p-6 flex-1 flex flex-col">
@@ -140,6 +145,14 @@
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Mô tả giới thiệu</label>
                 <textarea name="description" id="branchDesc" rows="2" placeholder="Chi nhánh mới với không gian sang trọng..." class="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all resize-none"></textarea>
+            </div>
+
+            <div class="space-y-2">
+                <label class="text-[10px] font-black text-brand-gray uppercase tracking-widest">Danh mục chính <span class="text-red-500">*</span></label>
+                <select name="storeCategory" required class="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all appearance-none cursor-pointer">
+                    <option value="Món ăn" class="bg-brand-dark text-white">Món ăn</option>
+                    <option value="Đồ uống" class="bg-brand-dark text-white">Đồ uống</option>
+                </select>
             </div>
 
             <div class="space-y-2">
@@ -224,6 +237,23 @@
             setTimeout(() => {
                 gsap.to(toast, { y: 20, opacity: 0, duration: 0.3, ease: "power2.in", onComplete: () => toast.remove() });
             }, 3000);
+        }
+        async function handleDeleteBranch(event, id, name) {
+            event.preventDefault();
+            event.stopPropagation();
+            if(confirm(`Bạn có chắc chắn muốn xóa chi nhánh "${name}" không?`)) {
+                try {
+                    const response = await fetch('/Partner/DeleteBranch/' + id, { method: 'POST' });
+                    const result = await response.json();
+                    if(result.success) {
+                        location.reload();
+                    } else {
+                        alert(result.message);
+                    }
+                } catch(e) {
+                    alert('Lỗi: ' + e.message);
+                }
+            }
         }
     </script>
 }

@@ -36,6 +36,9 @@ namespace DeliveryHubWeb.Models
         [ForeignKey("ShipperId")]
         public virtual ApplicationUser? Shipper { get; set; }
 
+        public string? CurrentShipperOfferedId { get; set; }
+        public DateTime? OfferExpiresAt { get; set; }
+
         [Required]
         public OrderStatus Status { get; set; } = OrderStatus.Pending;
 

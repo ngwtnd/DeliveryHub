@@ -165,81 +165,92 @@ namespace DeliveryHubWeb.Controllers
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Json(new { success = false, message = "Bạn chưa đăng nhập." });
 
-            if (req == null || !req.Items.Any() || req.StoreId <= 0)
-                return Json(new { success = false, message = "Giỏ hàng trống hoặc thiếu thông tin cửa hàng." });
+            if (req == null || !req.Items.Any())
+                return Json(new { success = false, message = "Giỏ hàng trống." });
 
-            var store = await _context.Stores.FindAsync(req.StoreId);
-            if (store == null || !store.IsOpen)
-                return Json(new { success = false, message = "Nhà hàng hiện đang đóng cửa." });
-
-            // Mock delivery coords
             var rnd = new Random();
-            double dLat = 10.762622 + (rnd.NextDouble() - 0.5) * 0.1;
-            double dLon = 106.660172 + (rnd.NextDouble() - 0.5) * 0.1;
-
-            double dist = _mapService.CalculateDistance(store.Latitude, store.Longitude, dLat, dLon);
-            dist = Math.Round(dist, 1);
-
             var standardService = await _context.DeliveryServices.FirstOrDefaultAsync(s => s.Name == "Tiêu chuẩn");
             decimal baseFee = standardService?.BaseFee ?? 15000m;
             decimal feePerKm = standardService?.FeePerKm ?? 5000m;
-            decimal shippingFee = baseFee + ((decimal)dist * feePerKm);
-            shippingFee = Math.Round(shippingFee / 1000) * 1000;
 
-            var config = ShipperIncomeConfig.Load();
-            decimal extraFee = (decimal)Math.Ceiling(Math.Max(dist - config.BaseDistance, 0.0)) * config.ExtraFeePerKm;
-            decimal shipperIncome = config.BaseIncome + extraFee;
+            var config = Models.ShipperIncomeConfig.Load();
 
-            decimal totalItemsPrice = 0;
-            var orderItems = new List<OrderItem>();
+            // Nh\u00f3m m\u00f3n \u0103n theo StoreId
+            var itemsByStore = req.Items.GroupBy(i => i.StoreId).ToList();
+            var createdOrderIds = new List<int>();
 
-            foreach (var item in req.Items)
+            foreach (var storeGroup in itemsByStore)
             {
-                var menuItem = await _context.MenuItems.FindAsync(item.MenuItemId);
-                if (menuItem != null && menuItem.IsAvailable)
+                var store = await _context.Stores.FindAsync(storeGroup.Key);
+                if (store == null || !store.IsOpen) continue;
+
+                // Mock delivery coords (th\u1ef1c t\u1ebf s\u1ebd l\u1ea5y t\u1eeb req.DeliveryAddress geocoding)
+                double dLat = 10.762622 + (rnd.NextDouble() - 0.5) * 0.1;
+                double dLon = 106.660172 + (rnd.NextDouble() - 0.5) * 0.1;
+                double dist = _mapService.CalculateDistance(store.Latitude, store.Longitude, dLat, dLon);
+                dist = Math.Round(dist, 1);
+
+                decimal shippingFee = baseFee + (decimal)dist * feePerKm;
+                shippingFee = Math.Round(shippingFee / 1000) * 1000;
+
+                decimal extraFee = (decimal)Math.Ceiling(Math.Max(dist - config.BaseDistance, 0.0)) * config.ExtraFeePerKm;
+                decimal shipperIncome = config.BaseIncome + extraFee;
+
+                decimal totalItemsPrice = 0;
+                var orderItems = new List<OrderItem>();
+
+                foreach (var item in storeGroup)
                 {
-                    totalItemsPrice += menuItem.Price * item.Quantity;
-                    orderItems.Add(new OrderItem
+                    var menuItem = await _context.MenuItems.FindAsync(item.MenuItemId);
+                    if (menuItem != null && menuItem.IsAvailable && menuItem.StoreId == storeGroup.Key)
                     {
-                        MenuItemId = menuItem.Id,
-                        Quantity = item.Quantity,
-                        Price = menuItem.Price
-                    });
+                        totalItemsPrice += menuItem.Price * item.Quantity;
+                        orderItems.Add(new OrderItem
+                        {
+                            MenuItemId = menuItem.Id,
+                            Quantity = item.Quantity,
+                            Price = menuItem.Price
+                        });
+                    }
                 }
+
+                if (!orderItems.Any()) continue;
+
+                var order = new Order
+                {
+                    OrderCode = $"DH-{DateTime.Now:yyyyMMdd}-{rnd.Next(1000, 9999)}",
+                    UserId = user.Id,
+                    StoreId = store.Id,
+                    ServiceId = standardService?.Id,
+                    Status = OrderStatus.SearchingShipper,
+                    TotalPrice = totalItemsPrice,
+                    ShippingFee = shippingFee,
+                    ShipperIncome = shipperIncome,
+                    PickupAddress = store.Address ?? "TP. HCM",
+                    DeliveryAddress = req.DeliveryAddress,
+                    PickupLatitude = store.Latitude,
+                    PickupLongitude = store.Longitude,
+                    DeliveryLatitude = dLat,
+                    DeliveryLongitude = dLon,
+                    Distance = dist,
+                    Note = req.Note,
+                    CreatedAt = DateTime.Now,
+                    OrderItems = orderItems
+                };
+
+                _context.Orders.Add(order);
+                await _context.SaveChangesAsync();
+                createdOrderIds.Add(order.Id);
+
+                // Notify shippers via SignalR
+                await _hubContext.Clients.All.SendAsync("NewOrderAvailable", order.OrderCode, order.PickupLatitude, order.PickupLongitude);
             }
 
-            if (!orderItems.Any())
-                return Json(new { success = false, message = "Các món ăn trong giỏ đã hết hàng hoặc không tồn tại." });
+            if (!createdOrderIds.Any())
+                return Json(new { success = false, message = "Không tạo được đơn hàng. Các cửa hàng có thể đã đóng cửa." });
 
-            var order = new Order
-            {
-                OrderCode = $"DH-{DateTime.Now:yyyyMMdd}-{rnd.Next(1000, 9999)}",
-                UserId = user.Id,
-                StoreId = store.Id,
-                ServiceId = standardService?.Id,
-                Status = OrderStatus.SearchingShipper,
-                TotalPrice = totalItemsPrice,
-                ShippingFee = shippingFee,
-                ShipperIncome = shipperIncome,
-                PickupAddress = store.Address ?? "TP. HCM",
-                DeliveryAddress = req.DeliveryAddress,
-                PickupLatitude = store.Latitude,
-                PickupLongitude = store.Longitude,
-                DeliveryLatitude = dLat,
-                DeliveryLongitude = dLon,
-                Distance = dist,
-                Note = req.Note,
-                CreatedAt = DateTime.Now,
-                OrderItems = orderItems
-            };
-
-            _context.Orders.Add(order);
-            await _context.SaveChangesAsync();
-
-            // Notify shippers via SignalR
-            await _hubContext.Clients.All.SendAsync("NewOrderAvailable", order.OrderCode, order.PickupLatitude, order.PickupLongitude);
-
-            return Json(new { success = true, orderId = order.Id });
+            // Tr\u1ea3 v\u1ec1 orderId \u0111\u1ea7u ti\u00ean \u0111\u1ec3 redirect tracking
+            return Json(new { success = true, orderId = createdOrderIds.First(), orderCount = createdOrderIds.Count });
         }
     }
 
@@ -251,7 +262,6 @@ namespace DeliveryHubWeb.Controllers
 
     public class ProcessCheckoutRequest
     {
-        public int StoreId { get; set; }
         public string DeliveryAddress { get; set; } = string.Empty;
         public string Note { get; set; } = string.Empty;
         public List<CheckoutItemRequest> Items { get; set; } = new List<CheckoutItemRequest>();
@@ -260,6 +270,7 @@ namespace DeliveryHubWeb.Controllers
     public class CheckoutItemRequest
     {
         public int MenuItemId { get; set; }
+        public int StoreId { get; set; }  // mỗi item biết nó thuộc store nào
         public int Quantity { get; set; }
         public decimal Price { get; set; }
     }

@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DeliveryHubWeb.Models
 {
-    public enum StoreActivityState { Active, Inactive, LockedByBranch, LockedByPartner }
+    public enum StoreActivityState { Active, Inactive, LockedByBranch, LockedByPartner, PendingApproval }
 
     public class Store
     {
@@ -41,6 +41,9 @@ namespace DeliveryHubWeb.Models
         public int ReviewCount { get; set; } = 0;
         public bool HasOneStarReview { get; set; } = false;
         public string CustomCategories { get; set; } = string.Empty;
+
+        [Required, MaxLength(50)]
+        public string StoreCategory { get; set; } = "Món ăn";
     }
 
     public class MenuItem

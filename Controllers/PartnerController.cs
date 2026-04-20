@@ -123,10 +123,14 @@ namespace DeliveryHubWeb.Controllers
             return View(stores);
         }
 
-        public async Task<IActionResult> Orders(int? storeId, string timeRange = "all", string search = "")
+        public async Task<IActionResult> Orders(int? storeId, OrderStatus? status, string timeRange = "all", string search = "")
         {
             var user = await GetCurrentUser();
             if (user == null) return NotFound();
+
+            var stores = await _context.Stores.Where(s => s.OwnerId == user.Id).ToListAsync();
+            ViewBag.Stores = stores;
+            ViewBag.CurrentStatus = status;
 
             ViewBag.StoreId = storeId;
             if (storeId.HasValue && storeId > 0)
@@ -148,15 +152,59 @@ namespace DeliveryHubWeb.Controllers
                 query = query.Where(o => o.StoreId == storeId.Value);
             }
 
+            if (status.HasValue)
+            {
+                query = query.Where(o => o.Status == status.Value);
+            }
+
             if (!string.IsNullOrEmpty(search))
             {
                 query = query.Where(o => (o.OrderCode != null && o.OrderCode.Contains(search)) || (o.User != null && o.User.FullName != null && o.User.FullName.Contains(search)));
             }
 
             var orders = await query.OrderByDescending(o => o.CreatedAt).ToListAsync();
+            
+            // Recalculate ratings
+            foreach (var s in stores)
+            {
+                await RecalculateStoreRating(s.Id);
+            }
+
             return View(orders);
         }
 
+        private async Task RecalculateStoreRating(int storeId)
+        {
+            var store = await _context.Stores.FindAsync(storeId);
+            if (store == null) return;
+
+            var reviews = await _context.Reviews
+                .Where(r => r.Order != null && r.Order.StoreId == storeId && r.RatingMenu > 0)
+                .ToListAsync();
+
+            if (reviews.Any())
+            {
+                store.Rating = Math.Round(reviews.Average(r => (double)r.RatingMenu), 1);
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> DeleteBranch(int id)
+        {
+            var user = await GetCurrentUser();
+            if (user == null) return Json(new { success = false, message = "Auth failed" });
+
+            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user.Id);
+            if (store == null) return Json(new { success = false, message = "Không tìm thấy chi nhánh" });
+
+            // Soft delete: Chuyển trạng thái sang Inactive
+            store.ActivityState = StoreActivityState.Inactive;
+            store.IsOpen = false;
+            await _context.SaveChangesAsync();
+
+            return Json(new { success = true, message = "Đã xóa chi nhánh thành công." });
+        }
         public async Task<IActionResult> StoreDetail(int id)
         {
             var user = await GetCurrentUser();
@@ -200,9 +248,10 @@ namespace DeliveryHubWeb.Controllers
 
             model.OwnerId = user.Id;
             model.CreatedAt = DateTime.UtcNow;
-            model.ActivityState = StoreActivityState.Active;
+            model.ActivityState = StoreActivityState.PendingApproval;
             model.IsOpen = true;
             model.Rating = 5.0;
+            if (string.IsNullOrEmpty(model.StoreCategory)) model.StoreCategory = "Món ăn";
 
             _context.Stores.Add(model);
             await _context.SaveChangesAsync();
@@ -257,25 +306,13 @@ namespace DeliveryHubWeb.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> LockStoreByPartner(int id)
+        public async Task<IActionResult> DeleteStore(int id)
         {
             var user = await GetCurrentUser();
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user!.Id);
-            if (store == null) return Json(new { success = false });
+            if (store == null) return Json(new { success = false, message = "Store not found" });
 
-            store.ActivityState = StoreActivityState.LockedByPartner;
-            await _context.SaveChangesAsync();
-            return Json(new { success = true });
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> UnlockStoreByPartner(int id)
-        {
-            var user = await GetCurrentUser();
-            var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == id && s.OwnerId == user!.Id);
-            if (store == null) return Json(new { success = false });
-
-            store.ActivityState = StoreActivityState.Active;
+            store.ActivityState = StoreActivityState.Inactive; // Soft delete / ẩn chi nhánh
             await _context.SaveChangesAsync();
             return Json(new { success = true });
         }
@@ -284,6 +321,7 @@ namespace DeliveryHubWeb.Controllers
         public async Task<IActionResult> SaveMenuItem([FromForm] MenuItem model, int storeId)
         {
             var user = await GetCurrentUser();
+            if (user == null) return Json(new { success = false, message = "Auth failed" });
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == storeId && s.OwnerId == user.Id);
             if (store == null) return Json(new { success = false, message = "Access denied" });
 
@@ -306,6 +344,115 @@ namespace DeliveryHubWeb.Controllers
                 }
             }
 
+            await _context.SaveChangesAsync();
+            return Json(new { success = true });
+        }
+
+        // --- VOUCHERS logic ---
+        public async Task<IActionResult> Vouchers(string filter = "all", string search = "")
+        {
+            var user = await GetCurrentUser();
+            if (user == null) return NotFound();
+
+            var query = _context.Vouchers.Where(v => v.OwnerId == user.Id);
+
+            if (!string.IsNullOrEmpty(search))
+            {
+                query = query.Where(v => v.Code.Contains(search) || v.ProgramName.Contains(search));
+            }
+
+            if (filter == "active") query = query.Where(v => v.IsActive && v.EndDate >= DateTime.Now && v.UsedCount < v.MaxUsageCount);
+            else if (filter == "expired") query = query.Where(v => !v.IsActive || v.EndDate < DateTime.Now || v.UsedCount >= v.MaxUsageCount);
+
+            var vouchers = await query.OrderByDescending(v => v.Id).ToListAsync();
+
+            var statsQuery = _context.Vouchers.Where(v => v.OwnerId == user.Id);
+            ViewBag.TotalCount = await statsQuery.CountAsync();
+            
+            var now = DateTime.Now;
+            ViewBag.ActiveCount = await statsQuery.CountAsync(v => v.IsActive && v.EndDate >= now && v.UsedCount < v.MaxUsageCount);
+            ViewBag.ExpiredCount = await statsQuery.CountAsync(v => !v.IsActive || v.EndDate < now || v.UsedCount >= v.MaxUsageCount);
+            
+            ViewBag.CurrentFilter = filter;
+            ViewBag.SearchTerm = search;
+
+            return View(vouchers);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateVoucher([FromBody] Voucher model)
+        {
+            try
+            {
+                var user = await GetCurrentUser();
+                if (user == null) return Json(new { success = false, message = "Lỗi xác thực" });
+
+                if (model.Id == 0)
+                {
+                    model.OwnerId = user.Id;
+                    // Auto upper case code
+                    model.Code = model.Code.ToUpperInvariant();
+                    // Validate if code exists
+                    if (await _context.Vouchers.AnyAsync(v => v.Code == model.Code && v.OwnerId == user.Id))
+                        return Json(new { success = false, message = "Mã Voucher đã tồn tại." });
+
+                    _context.Vouchers.Add(model);
+                }
+                else
+                {
+                    var existing = await _context.Vouchers.FirstOrDefaultAsync(v => v.Id == model.Id && v.OwnerId == user.Id);
+                    if (existing == null) return Json(new { success = false, message = "Không tìm thấy Voucher" });
+
+                    if (existing.Code != model.Code.ToUpperInvariant() && await _context.Vouchers.AnyAsync(v => v.Code == model.Code.ToUpperInvariant() && v.OwnerId == user.Id))
+                        return Json(new { success = false, message = "Mã Voucher đã tồn tại." });
+
+                    existing.Code = model.Code.ToUpperInvariant();
+                    existing.ProgramName = model.ProgramName;
+                    existing.Description = model.Description;
+                    existing.AppliesToShipping = model.AppliesToShipping;
+                    existing.IsPercentage = model.IsPercentage;
+                    existing.DiscountValue = model.DiscountValue;
+                    existing.MaxDiscountValue = model.MaxDiscountValue;
+                    existing.MinOrderValue = model.MinOrderValue;
+                    existing.MaxUsageCount = model.MaxUsageCount;
+                    existing.LimitPerUser = model.LimitPerUser;
+                    existing.StartDate = model.StartDate;
+                    existing.EndDate = model.EndDate;
+                }
+
+                await _context.SaveChangesAsync();
+                return Json(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SoftDeleteVoucher(int id)
+        {
+            var user = await GetCurrentUser();
+            if (user == null) return Json(new { success = false, message = "Auth failed" });
+
+            var voucher = await _context.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == user.Id);
+            if (voucher == null) return Json(new { success = false, message = "Không tìm thấy voucher" });
+
+            voucher.IsActive = false;
+            await _context.SaveChangesAsync();
+            return Json(new { success = true });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> RestoreVoucher(int id)
+        {
+            var user = await GetCurrentUser();
+            if (user == null) return Json(new { success = false, message = "Auth failed" });
+
+            var voucher = await _context.Vouchers.FirstOrDefaultAsync(v => v.Id == id && v.OwnerId == user.Id);
+            if (voucher == null) return Json(new { success = false, message = "Không tìm thấy voucher" });
+
+            voucher.IsActive = true;
             await _context.SaveChangesAsync();
             return Json(new { success = true });
         }

@@ -184,13 +184,19 @@ public class HomeController : Controller
         return View(store);
     }
 
-    public async Task<IActionResult> Menu(string search, string filter, int page = 1)
+    public async Task<IActionResult> Menu(string search, string filter, string category = "all", int page = 1)
     {
         int pageSize = 25;
 
         var query = _context.MenuItems
             .Include(m => m.Store)
             .Where(m => m.IsAvailable && m.Store != null && m.Store.ActivityState == StoreActivityState.Active);
+
+        // L\u1ecdc theo danh m\u1ee5c c\u1eeda h\u00e0ng (M\u00f3n \u0103n / \u0110\u1ed3 u\u1ed1ng)
+        if (!string.IsNullOrEmpty(category) && category != "all")
+        {
+            query = query.Where(m => m.Store != null && m.Store.StoreCategory == category);
+        }
 
         var allItems = await query.ToListAsync();
 
@@ -238,7 +244,8 @@ public class HomeController : Controller
         var pagedItems = menuItemsWithStats.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         ViewBag.CurrentSearch = search;
-        ViewBag.CurrentFilter = filter;
+        ViewBag.CurrentFilter = filter ?? "top-sales";
+        ViewBag.CurrentCategory = category;
         ViewBag.CurrentPage = page;
         ViewBag.TotalPages = totalPages;
 

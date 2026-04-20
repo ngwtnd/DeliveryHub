@@ -1,9 +1,10 @@
 @model IEnumerable<Order>
 @{
     Layout = "~/Views/Shared/_ShipperLayout.cshtml";
-    ViewData["Title"] = "Đơn mới nổ";
+    ViewData["Title"] = "Đơn mới";
     var shipperUser = ViewBag.ShipperUser as ApplicationUser;
     bool isOnline = (bool)(ViewBag.IsOnline ?? false);
+    bool hasActiveOrder = (bool)(ViewBag.HasActiveOrder ?? false);
 }
 
 <style>
@@ -121,6 +122,19 @@
                     </div>
                     <h4 style="font-size:1rem; font-weight:900; color:white; margin:0 0 0.5rem;">Bạn đang ngoại tuyến</h4>
                     <p style="font-size:0.75rem; color:#64748b;">Chưa thể tìm đơn hàng xung quanh. Vui lòng bật trạng thái trực tuyến.</p>
+                </div>
+            }
+            else if (hasActiveOrder)
+            {
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; padding:3rem 1rem; text-align:center;">
+                    <div style="width:5rem; height:5rem; border-radius:50%; background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.25); display:flex; align-items:center; justify-content:center; margin-bottom:1rem;">
+                        <i class="fa-solid fa-truck-fast" style="font-size:1.75rem; color:#3b82f6;"></i>
+                    </div>
+                    <h4 style="font-size:1rem; font-weight:900; color:white; margin:0 0 0.5rem;">Đạng trong quá trình giao hàng</h4>
+                    <p style="font-size:0.75rem; color:#64748b; margin-bottom:1.5rem;">Hoàn thành đơn hiện tại trước khi nhận đơn mới.</p>
+                    <a href="/Shipper" style="padding:0.75rem 1.5rem; background:#3b82f6; border:none; border-radius:0.875rem; color:white; font-size:0.8rem; font-weight:900; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:0.5rem; box-shadow:0 4px 15px rgba(59,130,246,0.35);">
+                        <i class="fa-solid fa-arrow-left"></i> Về Dashboard
+                    </a>
                 </div>
             }
             else if (Model.Any())

@@ -86,15 +86,9 @@
                     }
                 </div>
             </div>
-            @if(Model.ActivityState == DeliveryHubWeb.Models.StoreActivityState.LockedByPartner) {
-                <button onclick="unlockBranchByPartner()" class="bg-green-500 text-white font-black px-6 py-4 rounded-2xl hover:bg-green-400 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(34,197,94,0.4)] flex items-center">
-                    <i class="fa-solid fa-lock-open mr-2"></i> Mở khóa
-                </button>
-            } else {
-                <button onclick="lockBranchByPartner()" class="bg-red-500 text-white font-black px-6 py-4 rounded-2xl hover:bg-red-400 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center">
-                    <i class="fa-solid fa-lock mr-2"></i> Khóa CN
-                </button>
-            }
+            <button onclick="deleteBranch()" class="bg-red-500 text-white font-black px-6 py-4 rounded-2xl hover:bg-red-400 hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(239,68,68,0.4)] flex items-center">
+                <i class="fa-solid fa-trash-can mr-2"></i> Xóa CN
+            </button>
             <button onclick="openEditModal()" class="bg-brand-orange text-black font-black px-6 py-4 rounded-2xl hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,107,0,0.4)] flex items-center relative group">
                 <i class="fa-solid fa-pen-to-square mr-2"></i>
                 <span class="hidden md:inline">Chỉnh sửa</span>
@@ -461,6 +455,14 @@
                 <input type="text" name="address" value="@Model.Address" required class="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-bold focus:border-brand-orange outline-none transition-all" />
             </div>
 
+            <div class="space-y-2">
+                <label class="text-xs font-black text-brand-gray uppercase tracking-widest">Danh mục kinh doanh</label>
+                <select name="storeCategory" class="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold text-white focus:border-brand-orange outline-none transition-all appearance-none cursor-pointer">
+                    <option value="Món ăn" selected="@(Model.StoreCategory == "Món ăn")" class="bg-brand-dark">Món ăn</option>
+                    <option value="Đồ uống" selected="@(Model.StoreCategory == "Đồ uống")" class="bg-brand-dark">Đồ uống</option>
+                </select>
+            </div>
+
             <div class="space-y-4">
                 <label class="text-xs font-black text-brand-gray uppercase tracking-widest block">Hình ảnh chi nhánh</label>
                 
@@ -660,28 +662,14 @@
             } catch (err) { showNotification("Lỗi kết nối server.", "error"); }
         }
 
-        async function lockBranchByPartner() {
-            if(!confirm("Bạn có chắc chắn muốn khóa chi nhánh này?")) return;
+        async function deleteBranch() {
+            if(!confirm("Bạn có chắc chắn muốn xóa chi nhánh này? Hành động này không thể hoàn tác nhưng dữ liệu cũ vẫn được lưu trữ.")) return;
             try {
-                const response = await fetch('/Partner/LockStoreByPartner/@Model.Id', { method: 'POST' });
+                const response = await fetch('/Partner/DeleteBranch/@Model.Id', { method: 'POST' });
                 const result = await response.json();
                 if (result.success) {
-                    showNotification("Đã khóa chi nhánh thành công!", "success");
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    showNotification(result.message, "error");
-                }
-            } catch (err) { showNotification("Lỗi kết nối server.", "error"); }
-        }
-
-        async function unlockBranchByPartner() {
-            if(!confirm("Bạn có chắc chắn muốn mở khóa chi nhánh này?")) return;
-            try {
-                const response = await fetch('/Partner/UnlockStoreByPartner/@Model.Id', { method: 'POST' });
-                const result = await response.json();
-                if (result.success) {
-                    showNotification("Mở khóa thành công!", "success");
-                    setTimeout(() => location.reload(), 1000);
+                    showNotification("Đã xóa chi nhánh thành công!", "success");
+                    setTimeout(() => window.location.href = '/Partner/Branches', 1000);
                 } else {
                     showNotification(result.message, "error");
                 }

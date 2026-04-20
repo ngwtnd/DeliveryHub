@@ -46,13 +46,47 @@
         </p>
     </div>
 
-    <div class="flex items-center gap-4">
-        <div class="relative group">
-            <input type="text" id="tableSearch" placeholder="Tìm kiếm nhanh..." 
-                   class="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-64 outline-none transition-all pl-12" />
+    <form method="get" action="/Partner/Orders" class="flex flex-col md:flex-row items-center gap-4">
+        <select name="storeId" class="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs font-bold text-white outline-none focus:border-brand-orange/50 transition-all appearance-none cursor-pointer">
+            <option value="" class="bg-brand-dark">Tất cả chi nhánh</option>
+            @if(ViewBag.Stores != null)
+            {
+                foreach(var s in ViewBag.Stores)
+                {
+                    if(storeId == s.Id) {
+                        <option value="@s.Id" class="bg-brand-dark" selected>@s.Name</option>
+                    } else {
+                        <option value="@s.Id" class="bg-brand-dark">@s.Name</option>
+                    }
+                }
+            }
+        </select>
+
+        <select name="status" class="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-xs font-bold text-white outline-none focus:border-brand-orange/50 transition-all appearance-none cursor-pointer">
+            <option value="" class="bg-brand-dark">Tất cả trạng thái</option>
+            @{
+                var statuses = Enum.GetValues(typeof(DeliveryHubWeb.Models.OrderStatus)).Cast<DeliveryHubWeb.Models.OrderStatus>();
+                var currentStatus = ViewBag.CurrentStatus as DeliveryHubWeb.Models.OrderStatus?;
+                foreach(var st in statuses) {
+                    if(currentStatus.HasValue && currentStatus.Value == st) {
+                        <option value="@st" class="bg-brand-dark" selected>@GetStatusLabel(st)</option>
+                    } else {
+                        <option value="@st" class="bg-brand-dark">@GetStatusLabel(st)</option>
+                    }
+                }
+            }
+        </select>
+        
+        <button type="submit" class="bg-brand-orange text-black font-extrabold px-6 py-3 rounded-2xl shadow-[0_0_15px_rgba(255,107,0,0.2)] hover:bg-white transition-all text-xs">
+            Lọc
+        </button>
+
+        <div class="relative group ml-4">
+            <input type="text" id="tableSearch" placeholder="Tìm tên/mã đơn..." 
+                   class="bg-white/5 border border-white/10 rounded-2xl px-6 py-3 text-xs font-bold text-white placeholder-brand-gray/50 focus:border-brand-orange/50 w-48 outline-none transition-all pl-12" />
             <i class="fa-solid fa-search absolute left-5 top-1/2 -translate-y-1/2 text-[12px] text-brand-gray group-focus-within:text-brand-orange"></i>
         </div>
-    </div>
+    </form>
 </div>
 
 <div class="bg-brand-dark/50 backdrop-blur-xl rounded-[3rem] border border-white/5 overflow-hidden shadow-2xl fade-in" style="animation-delay: 0.2s">

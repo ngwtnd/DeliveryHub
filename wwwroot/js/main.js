@@ -268,18 +268,7 @@ window.addToCart = function (productId) {
         return;
     }
 
-    // Single Store Enforcement
-    if (cart.length > 0 && product.storeId) {
-        const currentStoreId = cart[0].storeId;
-        if (currentStoreId && currentStoreId !== product.storeId) {
-            const confirmReset = confirm(`Bạn chỉ có thể đặt món ăn từ một cửa hàng trong cùng một đơn hàng. Bạn có muốn xóa giỏ hàng hiện tại (chứa món của ${cart[0].storeName}) để bắt đầu đặt đơn từ nhà hàng này không?`);
-            if (confirmReset) {
-                cart = []; // Clear current cart
-            } else {
-                return; // Do nothing
-            }
-        }
-    }
+    // Cart now supports multiple stores with automatic order splitting on backend
 
     const existing = cart.find(c => c.id === productId);
 

@@ -34,6 +34,9 @@ namespace DeliveryHubWeb.Models
         [Required, Range(1, 5)]
         public int RatingShipper { get; set; }
 
+        [Required, Range(1, 5)]
+        public int RatingStoreByShipper { get; set; } = 5;
+
         public string? Comment { get; set; }
         public string? CommentForShipper { get; set; }
         public ReviewType Type { get; set; } = ReviewType.Customer;
