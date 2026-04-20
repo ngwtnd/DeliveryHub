@@ -179,13 +179,21 @@ namespace DeliveryHubWeb.Controllers
             if (store == null) return;
 
             var reviews = await _context.Reviews
-                .Where(r => r.Order != null && r.Order.StoreId == storeId && r.RatingMenu > 0)
+                .Where(r => r.StoreId == storeId)
                 .ToListAsync();
 
             if (reviews.Any())
             {
-                store.Rating = Math.Round(reviews.Average(r => (double)r.RatingMenu), 1);
-                await _context.SaveChangesAsync();
+                var validRatings = reviews.Select(r => 
+                    r.Type == ReviewType.Customer ? (double)r.RatingMenu : (double)r.RatingStoreByShipper
+                ).Where(v => v > 0).ToList();
+
+                if (validRatings.Any())
+                {
+                    store.Rating = Math.Round(validRatings.Average(), 1);
+                    store.ReviewCount = validRatings.Count;
+                    await _context.SaveChangesAsync();
+                }
             }
         }
 
@@ -318,12 +326,18 @@ namespace DeliveryHubWeb.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> SaveMenuItem([FromForm] MenuItem model, int storeId)
+        public async Task<IActionResult> SaveMenuItem([FromForm] MenuItem model, int storeId, string? storeCategory)
         {
             var user = await GetCurrentUser();
             if (user == null) return Json(new { success = false, message = "Auth failed" });
             var store = await _context.Stores.FirstOrDefaultAsync(s => s.Id == storeId && s.OwnerId == user.Id);
             if (store == null) return Json(new { success = false, message = "Access denied" });
+
+            // Cập nhật loại hình chi nhánh nếu có gửi lên
+            if (!string.IsNullOrEmpty(storeCategory))
+            {
+                store.StoreCategory = storeCategory;
+            }
 
             if (model.Id == 0)
             {

@@ -74,6 +74,7 @@
                     <th class="py-5 px-4">Email</th>
                     <th class="py-5 px-4">Số điện thoại</th>
                     <th class="py-5 px-4 text-center">Chi nhánh</th>
+                    <th class="py-5 px-4 text-right">Số dư ví</th>
                     <th class="py-5 px-4">Trạng thái</th>
                     <th class="py-5 px-6 text-center">Tùy chọn</th>
                 </tr>
@@ -114,6 +115,11 @@
                                 @(branchCounts.ContainsKey(store.OwnerId) ? branchCounts[store.OwnerId] : 1)
                             </span>
                         </td>
+                        <td class="py-5 px-4 text-right">
+                            <span class="text-xs font-black text-white @(store.Owner?.Balance > 0 ? "text-green-400" : "text-brand-gray")">
+                                @string.Format("{0:N0}", store.Owner?.Balance ?? 0)đ
+                            </span>
+                        </td>
                         <td class="py-5 px-4">
                             <div class="flex items-center gap-2 px-3 py-1.5 rounded-full w-fit @GetStatusClass(isOwnerActive)">
                                 <span class="w-1.5 h-1.5 rounded-full @(isOwnerActive ? "bg-green-500" : "bg-red-500")"></span>
@@ -126,10 +132,17 @@
                                         class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-brand-orange hover:text-black transition-all hover:scale-110 shadow-lg" title="Xem chi tiết">
                                     <i class="fa-solid fa-eye text-sm"></i>
                                 </button>
+                                <button onclick="openTopUpModal('@store.OwnerId', '@store.Owner?.FullName', '@(store.Owner?.Balance ?? 0)')" 
+                                        class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-yellow-500 hover:text-black transition-all hover:scale-110 shadow-lg" title="Nạp tiền vào ví">
+                                    <i class="fa-solid fa-wallet text-sm"></i>
+                                </button>
                                 @if (isOwnerActive)
                                 {
-                                    <button onclick="openSuspendModal('@store.OwnerId', '@store.Owner?.FullName')" class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group hover:bg-red-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Cảnh báo ngưng hợp tác">
-                                        <i class="fa-solid fa-triangle-exclamation text-sm text-red-500 group-hover:text-white"></i>
+                                    <button onclick="openSuspendModal('@store.OwnerId', '@store.Owner?.FullName')" class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group hover:bg-neutral-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="Cảnh báo ngưng hợp tác">
+                                        <i class="fa-solid fa-triangle-exclamation text-sm text-yellow-500 group-hover:text-white"></i>
+                                    </button>
+                                    <button onclick="openTerminateModal('@store.OwnerId', '@store.Owner?.FullName')" class="w-9 h-9 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center group hover:bg-red-500 hover:text-white transition-all hover:scale-110 shadow-lg" title="CHẤM DỨT HỢP TÁC">
+                                        <i class="fa-solid fa-user-slash text-sm text-red-500 group-hover:text-white"></i>
                                     </button>
                                 }
                                 else
@@ -664,6 +677,75 @@
                     const result = await fetch('/Admin/RestoreStore/' + id, { method: 'POST' }).then(r => r.json());
                     if (result.success) {
                         await window.showAdminAlert("Thành công", "Đã mở khóa chi nhánh.", "success");
+                        location.reload();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+
+        window.openTerminateModal = async (id, name) => {
+            const { value: reason } = await Swal.fire({
+                title: 'CHẤM DỨT HỢP TÁC',
+                text: `Bạn có chắc chắn muốn chấm dứt hợp tác vĩnh viễn với đối tác ${name}? Hành động này sẽ khóa toàn bộ chi nhánh và tài khoản của đối tác.`,
+                icon: 'warning',
+                input: 'textarea',
+                inputLabel: 'Lý do chấm dứt (không bắt buộc)',
+                inputPlaceholder: 'Nhập lý do chấm dứt hợp tác...',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Xác nhận CHẤM DỨT',
+                cancelButtonText: 'Hủy'
+            });
+
+            if (reason !== undefined) {
+                try {
+                    const result = await fetch('/Admin/TerminatePartner', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `ownerId=${id}&reason=${encodeURIComponent(reason)}`
+                    }).then(r => r.json());
+
+                    if (result.success) {
+                        await window.showAdminAlert("Đã chấm dứt", result.message, "success");
+                        location.reload();
+                    } else {
+                        await window.showAdminAlert("Lỗi", result.message, "error");
+                    }
+                } catch(e) { await window.showAdminAlert("Lỗi", e.message, "error"); }
+            }
+        };
+
+        window.openTopUpModal = async (id, name, balance) => {
+            const adminBalance = @(ViewBag.AdminBalance);
+            const { value: amount } = await Swal.fire({
+                title: 'NẠP TIỀN VÀO VÍ',
+                html: `Nạp tiền cho đối tác: <b>${name}</b><br/>Số dư hiện tại: <b class="text-green-500">${new Number(balance).toLocaleString()}đ</b><br/><br/>Số dư ví Admin hiện có: <b class="text-yellow-500">${adminBalance.toLocaleString()}đ</b>`,
+                input: 'number',
+                inputLabel: 'Nhập số tiền muốn nạp (VND)',
+                inputPlaceholder: 'Ví dụ: 500000',
+                inputAttributes: { step: 1000, min: 1000 },
+                showCancelButton: true,
+                confirmButtonText: 'Nạp tiền ngay',
+                cancelButtonText: 'Hủy',
+                inputValidator: (value) => {
+                    if (!value || isNaN(value) || value <= 0) return 'Vui lòng nhập số tiền hợp lệ (> 0)';
+                    if (value > adminBalance) return 'Số dư ví Admin không đủ để nạp số tiền này';
+                }
+            });
+
+            if (amount) {
+                try {
+                    const result = await fetch('/Admin/TopUpPartnerWallet', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: `partnerId=${id}&amount=${amount}`
+                    }).then(r => r.json());
+
+                    if (result.success) {
+                        await window.showAdminAlert("Thành công", result.message, "success");
                         location.reload();
                     } else {
                         await window.showAdminAlert("Lỗi", result.message, "error");

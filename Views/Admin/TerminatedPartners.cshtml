@@ -1,0 +1,112 @@
+@model IEnumerable<DeliveryHubWeb.Models.ApplicationUser>
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Đối tác đã chấm dứt hợp tác";
+}
+
+<div class="mb-12 mt-4 p-8 bg-white/[0.03] border border-white/5 rounded-[40px] flex justify-between items-center fade-in backdrop-blur-xl shadow-2xl">
+    <div class="space-y-1">
+        <h2 class="text-4xl font-black text-white tracking-tighter">Đối tác <span class="text-red-500">Chấm dứt</span></h2>
+        <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-[10px] font-bold text-red-500 uppercase tracking-wider">Hồ sơ lưu trữ</span>
+            <p class="text-brand-gray text-[10px] font-bold uppercase tracking-widest mt-1">Danh sách đối tác đã kết thúc hợp tác với <span class="text-white font-black">DeliveryHub</span></p>
+        </div>
+    </div>
+    
+    <a href="@Url.Action("Index", "Admin")" class="h-12 px-6 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white font-bold hover:bg-white/10 transition-all gap-2">
+        <i class="fa-solid fa-arrow-left text-xs"></i> Quay lại Dashboard
+    </a>
+</div>
+
+<div class="bg-brand-dark rounded-[2.5rem] border border-white/5 overflow-hidden fade-in shadow-2xl">
+    <div class="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+        <div class="flex items-center gap-4">
+            <h4 class="text-xl font-bold">Danh sách lưu trữ</h4>
+            <span class="px-3 py-1 bg-red-500/10 text-red-500 rounded-full text-[10px] font-black uppercase tracking-widest">@Model.Count() Đối tác</span>
+        </div>
+        
+        <form method="get" class="relative group">
+            <i class="fa-solid fa-magnifying-glass absolute left-5 top-1/2 -translate-y-1/2 text-brand-gray group-focus-within:text-brand-orange transition-colors"></i>
+            <input type="text" name="search" value="@ViewBag.Search" placeholder="Tìm tên, email..." 
+                   class="bg-white/5 border border-white/10 rounded-2xl pl-12 pr-6 py-3 text-sm text-white focus:border-brand-orange outline-none transition-all w-80 shadow-inner" />
+        </form>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-white/5 text-[10px] font-extrabold text-brand-gray uppercase tracking-widest">
+                    <th class="py-5 px-8">Đối tác</th>
+                    <th class="py-5 px-4 text-center">Mã đối tác</th>
+                    <th class="py-5 px-4">Ngày chấm dứt</th>
+                    <th class="py-5 px-6">Lý do chấm dứt</th>
+                    <th class="py-5 px-8 text-right">Tùy chọn</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5">
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="5" class="py-20 text-center">
+                            <div class="flex flex-col items-center gap-4 opacity-30">
+                                <i class="fa-solid fa-folder-open text-6xl"></i>
+                                <p class="text-sm font-bold uppercase tracking-widest">Không có dữ liệu lưu trữ</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @foreach (var partner in Model)
+                {
+                    <tr class="hover:bg-white/[0.02] transition-all group">
+                        <td class="py-6 px-8">
+                            <div class="flex items-center gap-4">
+                                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-red-900/20 flex items-center justify-center font-black text-red-500 border border-red-500/10">
+                                    @(partner.FullName?.Substring(0, 1) ?? "P")
+                                </div>
+                                <div>
+                                    <p class="font-black text-white text-base">@partner.FullName</p>
+                                    <p class="text-xs text-brand-gray font-bold">@partner.Email</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-6 px-4 text-center">
+                            <span class="px-3 py-1.5 bg-white/5 rounded-lg text-[10px] font-black text-brand-gray border border-white/5 uppercase tracking-wider">
+                                @(partner.PartnerCode ?? "--")
+                            </span>
+                        </td>
+                        <td class="py-6 px-4">
+                            <div class="flex flex-col">
+                                <span class="text-sm font-bold text-white">@partner.TerminatedAt?.ToString("dd/MM/yyyy")</span>
+                                <span class="text-[10px] text-brand-gray font-bold uppercase">@partner.TerminatedAt?.ToString("HH:mm")</span>
+                            </div>
+                        </td>
+                        <td class="py-6 px-6">
+                            <p class="text-sm text-brand-gray leading-relaxed max-w-xs italic">
+                                "@(partner.TerminationReason ?? "Kết thúc hợp đồng theo thỏa thuận")"
+                            </p>
+                        </td>
+                        <td class="py-6 px-8 text-right">
+                            <button onclick="alert('Tính năng xem hồ sơ chi tiết đối tác đã hủy đang được phát triển.')" 
+                                    class="h-10 px-5 rounded-xl bg-white/5 text-white text-xs font-bold hover:bg-white/10 transition-all">
+                                <i class="fa-solid fa-file-invoice mr-2"></i> Hồ sơ
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (ViewBag.TotalPages > 1)
+    {
+        <div class="p-8 border-t border-white/5 flex justify-center gap-2 bg-white/[0.01]">
+            @for (int i = 1; i <= ViewBag.TotalPages; i++)
+            {
+                <a href="@Url.Action("TerminatedPartners", new { page = i, search = ViewBag.Search })" 
+                   class="w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-all @(ViewBag.CurrentPage == i ? "bg-red-500 text-white shadow-lg shadow-red-500/20" : "bg-white/5 text-brand-gray hover:bg-white/10")">
+                    @i
+                </a>
+            }
+        </div>
+    }
+</div>

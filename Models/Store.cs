@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace DeliveryHubWeb.Models
 {
-    public enum StoreActivityState { Active, Inactive, LockedByBranch, LockedByPartner, PendingApproval }
+    public enum StoreActivityState { Active, Inactive, LockedByBranch, LockedByPartner, PendingApproval, Terminated }
 
     public class Store
     {

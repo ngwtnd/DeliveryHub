@@ -287,7 +287,7 @@ public class HomeController : Controller
         return View(order);
     }
 
-    [Authorize(Roles = "User")]
+    [Authorize]
     [HttpPost]
     [IgnoreAntiforgeryToken]
     public async Task<IActionResult> SubmitReview([FromBody] SubmitReviewRequest request)
@@ -296,30 +296,38 @@ public class HomeController : Controller
         if (userId == null) return Json(new { success = false, message = "Chưa đăng nhập." });
 
         var order = await _context.Orders
-            .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.UserId == userId && o.Status == OrderStatus.Completed);
+            .FirstOrDefaultAsync(o => o.Id == request.OrderId && o.Status == OrderStatus.Completed);
         if (order == null) return Json(new { success = false, message = "Đơn hàng không hợp lệ." });
 
-        // Check duplicate
-        if (await _context.Reviews.AnyAsync(r => r.OrderId == request.OrderId))
-            return Json(new { success = false, message = "Đã đánh giá đơn này." });
+        // Phân quyền đánh giá
+        if (request.Type == ReviewType.Customer) {
+            if (order.UserId != userId) return Json(new { success = false, message = "Bạn không có quyền đánh giá đơn hàng này." });
+        } else {
+            if (order.ShipperId != userId) return Json(new { success = false, message = "Bạn không có quyền đánh giá đơn hàng này." });
+        }
+
+        // Check duplicate cho loại đánh giá này
+        if (await _context.Reviews.AnyAsync(r => r.OrderId == request.OrderId && r.Type == request.Type))
+            return Json(new { success = false, message = "Bạn đã gửi đánh giá cho đơn hàng này rồi." });
 
         var review = new Review
         {
             OrderId = request.OrderId,
             ShipperId = order.ShipperId,
             StoreId = order.StoreId,
-            RatingMenu = Math.Clamp(request.RatingMenu, 1, 5),
-            RatingShipper = Math.Clamp(request.RatingShipper, 1, 5),
+            RatingMenu = request.Type == ReviewType.Customer ? Math.Clamp(request.RatingMenu, 1, 5) : 5,
+            RatingShipper = request.Type == ReviewType.Customer ? Math.Clamp(request.RatingShipper, 1, 5) : 5,
+            RatingStoreByShipper = request.Type == ReviewType.Shipper ? Math.Clamp(request.RatingStoreByShipper, 1, 5) : 5,
             Comment = request.Comment,
             CommentForShipper = request.CommentForShipper,
-            Type = ReviewType.Customer,
+            Type = request.Type,
             CreatedAt = DateTime.Now
         };
 
         _context.Reviews.Add(review);
 
-        // Flag 1 sao cho shipper → HasOneStarReview + thông báo Admin
-        if (review.RatingShipper == 1 && order.ShipperId != null)
+        // Logic cũ cho Customer đánh giá Shipper 1 sao
+        if (review.Type == ReviewType.Customer && review.RatingShipper == 1 && order.ShipperId != null)
         {
             var shipper = await _context.Users.FindAsync(order.ShipperId);
             if (shipper != null)
@@ -359,6 +367,37 @@ public class HomeController : Controller
         }
 
         await _context.SaveChangesAsync();
+
+        // --- Cập nhật rating trung bình của quán (Đánh giá thật) ---
+        if (order.StoreId.HasValue)
+        {
+            var storeId = order.StoreId.Value;
+            var allReviews = await _context.Reviews
+                .Where(r => r.StoreId == storeId)
+                .ToListAsync();
+
+            if (allReviews.Any())
+            {
+                var store = await _context.Stores.FindAsync(storeId);
+                if (store != null)
+                {
+                    // Tính trung bình cộng của:
+                    // 1. RatingMenu (từ Khách hàng)
+                    // 2. RatingStoreByShipper (từ Shipper)
+                    var validRatings = allReviews.Select(r => 
+                        r.Type == ReviewType.Customer ? (double)r.RatingMenu : (double)r.RatingStoreByShipper
+                    ).Where(v => v > 0).ToList();
+
+                    if (validRatings.Any())
+                    {
+                        store.Rating = Math.Round(validRatings.Average(), 1);
+                        store.ReviewCount = validRatings.Count;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
+        }
+
         return Json(new { success = true, message = "Cảm ơn bạn đã đánh giá!" });
     }
 
@@ -445,8 +484,10 @@ public class SubmitReviewRequest
     public int OrderId { get; set; }
     public int RatingMenu { get; set; }
     public int RatingShipper { get; set; }
+    public int RatingStoreByShipper { get; set; }
     public string? Comment { get; set; }
     public string? CommentForShipper { get; set; }
+    public ReviewType Type { get; set; }
 }
 
 public class ShippingFeeRequest

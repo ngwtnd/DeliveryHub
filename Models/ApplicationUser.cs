@@ -60,8 +60,12 @@ namespace DeliveryHubWeb.Models
         public string UserTier { get; set; } = "Đồng"; // Đồng, Bạc, Vàng, Kim Cương
         public int LastVoucherMonth { get; set; } = 0;
 
-        // --- NEW FIELDS FOR LOCKING LOGIC ---
+        // --- NEW FIELDS FOR LOCKING & TERMINATION LOGIC ---
         public bool IsLocked { get; set; } = false;
         public bool PendingLock { get; set; } = false;
+
+        public bool IsTerminated { get; set; } = false;
+        public DateTime? TerminatedAt { get; set; }
+        public string? TerminationReason { get; set; }
     }
 }

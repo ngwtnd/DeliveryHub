@@ -449,6 +449,7 @@ namespace DeliveryHubWeb.Controllers
             var totalUsers = await _context.Users.CountAsync();
             var totalStores = await _context.Stores.CountAsync();
             var activeShippers = await _context.Users.CountAsync(u => u.Role == UserRole.Shipper && u.IsActive);
+            var terminatedPartnerCount = await _context.Users.CountAsync(u => u.Role == UserRole.Partner && u.IsTerminated);
             
             var completedOrders = ordersList.Where(o => o.Status == OrderStatus.Completed).ToList();
             
@@ -516,10 +517,12 @@ namespace DeliveryHubWeb.Controllers
                 TotalUsers = totalUsers,
                 TotalStores = totalStores,
                 ActiveShippers = activeShippers,
+                TerminatedPartnerCount = terminatedPartnerCount,
                 SelectedDays = days,
                 SelectedStoreId = storeId
             };
 
+            ViewBag.AdminBalance = (await GetCurrentUser())?.Balance ?? 0m;
             ViewBag.Stores = await _context.Stores.OrderBy(s => s.Name).ToListAsync();
 
             var recentOrders = ordersList
@@ -1136,6 +1139,70 @@ namespace DeliveryHubWeb.Controllers
             
             await _context.SaveChangesAsync();
             return Json(new { success = true, message = "Đã khôi phục đối tác và mở khóa các chi nhánh thành công!" });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> TerminatePartner(string ownerId, string reason)
+        {
+            var user = await _context.Users.FindAsync(ownerId);
+            if (user == null) return Json(new { success = false, message = "Không tìm thấy đối tác." });
+            
+            user.IsTerminated = true;
+            user.TerminatedAt = DateTime.Now;
+            user.TerminationReason = reason ?? "Không rõ lý do";
+            user.IsActive = false;
+            
+            var stores = await _context.Stores.Where(s => s.OwnerId == ownerId).ToListAsync();
+            foreach(var s in stores) {
+                s.ActivityState = StoreActivityState.Terminated;
+                s.IsOpen = false;
+            }
+            
+            await _context.SaveChangesAsync();
+            return Json(new { success = true, message = "Đã chấm dứt hợp tác với đối tác thành công." });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> TopUpPartnerWallet(string partnerId, decimal amount)
+        {
+            if (amount <= 0) return Json(new { success = false, message = "Số tiền nạp phải là số dương." });
+            
+            var admin = await GetCurrentUser();
+            if (admin == null) return Json(new { success = false, message = "Lỗi xác thực Admin." });
+            if (admin.Balance < amount) return Json(new { success = false, message = "Ví Admin không đủ số dư để nạp tiền (" + admin.Balance.ToString("N0") + "đ)." });
+
+            var partner = await _context.Users.FindAsync(partnerId);
+            if (partner == null) return Json(new { success = false, message = "Không tìm thấy đối tác." });
+
+            admin.Balance -= amount;
+            partner.Balance += amount;
+
+            await _context.SaveChangesAsync();
+            return Json(new { success = true, message = $"Đã nạp {amount:N0}đ vào ví đối tác thành công." });
+        }
+
+        public async Task<IActionResult> TerminatedPartners(string search, int page = 1)
+        {
+            var query = _context.Users.Where(u => u.Role == UserRole.Partner && u.IsTerminated);
+            
+            if (!string.IsNullOrEmpty(search))
+            {
+                search = search.ToLower();
+                query = query.Where(u => (u.FullName != null && u.FullName.ToLower().Contains(search)) || (u.Email != null && u.Email.ToLower().Contains(search)));
+            }
+
+            int pageSize = 10;
+            var total = await query.CountAsync();
+            var list = await query.OrderByDescending(u => u.TerminatedAt)
+                                  .Skip((page - 1) * pageSize)
+                                  .Take(pageSize)
+                                  .ToListAsync();
+
+            ViewBag.Search = search;
+            ViewBag.CurrentPage = page;
+            ViewBag.TotalPages = (int)Math.Ceiling((double)total / pageSize);
+
+            return View(list);
         }
 
         [HttpPost("Admin/ToggleLock/{id}")]

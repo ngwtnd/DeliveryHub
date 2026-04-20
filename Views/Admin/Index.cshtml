@@ -107,7 +107,22 @@
 </div>
 
 <!-- Stats Dashboard -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+    <!-- Admin Balance -->
+    <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.05s">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="fa-solid fa-wallet text-6xl text-brand-orange"></i>
+        </div>
+        <div class="relative z-10">
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Ví Hệ thống (Admin)</p>
+            <h3 class="text-3xl font-extrabold mb-2 text-yellow-400">@string.Format("{0:N0} VND", ViewBag.AdminBalance)</h3>
+            <div class="flex items-center gap-2 text-[10px] text-brand-gray font-bold">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>Dùng để nạp tiền cho đối tác</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Total Orders -->
     <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.1s">
         <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -115,33 +130,27 @@
         </div>
         <div class="relative z-10">
             <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Tổng đơn hàng</p>
-            <h3 class="text-4xl font-extrabold mb-2">@stats.TotalOrders</h3>
+            <h3 class="text-3xl font-extrabold mb-2">@stats.TotalOrders</h3>
             @if (stats.SelectedDays > 0)
             {
                 double tr = stats.CountTrend;
-                <div class="flex items-center gap-2 text-xs @(tr >= 0 ? "text-green-500" : "text-red-500") font-bold">
+                <div class="flex items-center gap-2 text-[10px] @(tr >= 0 ? "text-green-500" : "text-red-500") font-bold">
                     <i class="fa-solid @(tr >= 0 ? "fa-caret-up" : "fa-caret-down")"></i>
-                    <span>@(tr > 0 ? "+" : "")@tr.ToString("F1")% so với @previousPeriodLabel</span>
+                    <span>@(tr > 0 ? "+" : "")@tr.ToString("F1")%</span>
                 </div>
             }
         </div>
     </div>
 
-    <!-- Revenue -->
+    <!-- Total Stores -->
     <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.2s">
         <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <i class="fa-solid fa-money-bill-trend-up text-6xl text-brand-orange"></i>
+            <i class="fa-solid fa-shop text-6xl text-brand-orange"></i>
         </div>
-        <div class="relative z-10 hidden-toggle" id="revenueContainer">
-            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2" id="revenueTitle">Tổng doanh thu (VND)</p>
-            <h3 class="text-3xl font-extrabold mb-2 transition-colors" id="revenueValue">@string.Format("{0:N0} VND", stats.TotalRevenue)</h3>
-            @if (stats.SelectedDays > 0)
-            {
-                <div class="flex items-center gap-2 text-xs font-bold" id="revenueTrendDiv">
-                    <i class="fa-solid" id="revenueTrendIcon"></i>
-                    <span id="revenueTrendText"></span>
-                </div>
-            }
+        <div class="relative z-10">
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Tổng Nhà hàng</p>
+            <h3 class="text-3xl font-extrabold mb-2">@stats.TotalStores</h3>
+            <p class="text-[10px] text-brand-gray font-bold">@stats.TotalStores cửa hàng đối tác</p>
         </div>
     </div>
 
@@ -152,23 +161,23 @@
         </div>
         <div class="relative z-10">
             <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Shipper Hoạt động</p>
-            <h3 class="text-4xl font-extrabold mb-2">@stats.ActiveShippers</h3>
-            <div class="flex items-center gap-2 text-xs text-brand-orange font-bold">
+            <h3 class="text-3xl font-extrabold mb-2">@stats.ActiveShippers</h3>
+            <div class="flex items-center gap-2 text-[10px] text-brand-orange font-bold">
                 <span class="w-1.5 h-1.5 rounded-full bg-brand-orange animate-pulse"></span>
-                <span>Đang trực tuyến</span>
+                <span>Trực tuyến</span>
             </div>
         </div>
     </div>
 
-    <!-- Merchants -->
+    <!-- Terminated -->
     <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.4s">
         <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <i class="fa-solid fa-shop text-6xl text-brand-orange"></i>
+            <i class="fa-solid fa-user-slash text-6xl text-red-500"></i>
         </div>
         <div class="relative z-10">
-            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Tổng số Nhà hàng</p>
-            <h3 class="text-4xl font-extrabold mb-2">@stats.TotalStores</h3>
-            <p class="text-xs text-brand-gray font-bold">@stats.TotalStores cửa hàng đối tác</p>
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Đối tác đã hủy</p>
+            <h3 class="text-3xl font-extrabold mb-2 text-red-400">@stats.TerminatedPartnerCount</h3>
+            <a href="@Url.Action("TerminatedPartners", "Admin")" class="text-[10px] text-red-500 font-bold hover:underline">Xem danh sách <i class="fa-solid fa-arrow-right ml-1"></i></a>
         </div>
     </div>
 </div>

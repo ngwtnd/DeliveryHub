@@ -104,6 +104,23 @@ namespace DeliveryHubWeb.Data
             var partner6 = await EnsureUser("partner.banhmi@deliveryhub.vn", "Huỳnh Tiến Bánh", UserRole.Partner, "0987654321", partnerCode: "DT-006");
             var partner7 = await EnsureUser("partner.gogi@deliveryhub.vn", "Trương Hàn Quốc", UserRole.Partner, "0911223344", partnerCode: "DT-007");
             var partner8 = await EnsureUser("partner.bobay@deliveryhub.vn", "Đặng Thị Bò", UserRole.Partner, "0933445566", partnerCode: "DT-008");
+            
+            // --- TERMINATED PARTNERS ---
+            var TP1 = await EnsureUser("tp1@deliveryhub.vn", "Nguyễn Văn Nghỉ", UserRole.Partner, "0988000111", partnerCode: "DT-OFF-01");
+            TP1.IsTerminated = true; TP1.TerminationReason = "Vi phạm quy định phí hoa hồng"; TP1.TerminatedAt = DateTime.UtcNow.AddDays(-10);
+            await userManager.UpdateAsync(TP1);
+
+            var TP2 = await EnsureUser("tp2@deliveryhub.vn", "Trần Thị Ngừng", UserRole.Partner, "0988000222", partnerCode: "DT-OFF-02");
+            TP2.IsTerminated = true; TP2.TerminationReason = "Đóng cửa kinh doanh"; TP2.TerminatedAt = DateTime.UtcNow.AddDays(-5);
+            await userManager.UpdateAsync(TP2);
+
+            var TP3 = await EnsureUser("tp3@deliveryhub.vn", "Lê Văn Hủy", UserRole.Partner, "0988000333", partnerCode: "DT-OFF-03");
+            TP3.IsTerminated = true; TP3.TerminationReason = "Chuyển đổi mô hình kinh doanh"; TP3.TerminatedAt = DateTime.UtcNow.AddDays(-2);
+            await userManager.UpdateAsync(TP3);
+
+            var TP4 = await EnsureUser("tp4@deliveryhub.vn", "Phạm Văn Out", UserRole.Partner, "0988000444", partnerCode: "DT-OFF-04");
+            TP4.IsTerminated = true; TP4.TerminationReason = "Chất lượng sản phẩm không đạt chuẩn"; TP4.TerminatedAt = DateTime.UtcNow.AddDays(-1);
+            await userManager.UpdateAsync(TP4);
 
             await context.SaveChangesAsync();
 
@@ -149,6 +166,12 @@ namespace DeliveryHubWeb.Data
             var s11 = await EnsureStore("GoGi House", "Hàn Quốc BBQ - Quận 1", "31 Lê Duẩn, Bến Nghé, Quận 1", 10.78180, 106.69930, partner7.Id, "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=300&fit=crop", true, 4.5, 342);
 
             var s12 = await EnsureStore("Bò Bảy Món Á Đông", "Quận 10", "246 Lý Thái Tổ, P.1, Quận 10", 10.76940, 106.67260, partner8.Id, "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&h=300&fit=crop", true, 4.4, 189);
+
+            // Stores for Terminated Partners
+            await EnsureStore("Quán Cũ Nghỉ Bán", "Chi nhánh đã đóng", "123 Đường Vắng", 10.7, 106.6, TP1.Id, null, true, 2.1, 5);
+            await EnsureStore("Tiệm Bánh Ngừng Nghỉ", "Ngừng hoạt động", "456 Đường Lặng", 10.8, 106.7, TP2.Id, null, true, 3.5, 12);
+            await EnsureStore("Cửa Hàng Hủy Hợp Đồng", "Hủy hợp tác", "789 Đường Buồn", 10.9, 106.8, TP3.Id, null, true, 1.0, 1);
+            await EnsureStore("Phở Out", "Hết chuẩn", "101 Đường Ra", 11.0, 106.9, TP4.Id, null, true, 2.5, 8);
 
             // ==========================================
             // 4. SHIPPERS (20 shippers thực tế)
