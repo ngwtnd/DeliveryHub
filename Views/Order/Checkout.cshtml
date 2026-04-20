@@ -5,6 +5,18 @@
     Layout = "~/Views/Shared/_Layout.cshtml"; 
 }
 
+@section Styles {
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        #delivery-map {
+            width: 100%;
+            height: 300px;
+            border-radius: 0.75rem;
+            z-index: 1;
+        }
+    </style>
+}
+
 <section class="pt-32 pb-16 px-6 md:px-12 bg-brand-black min-h-screen">
     <div class="max-w-[1000px] mx-auto">
         <h1 class="text-3xl md:text-5xl font-black text-white mb-8 border-b border-gray-800 pb-4">Xác nhận <span class="text-brand-orange">Đơn hàng</span></h1>
@@ -25,9 +37,16 @@
                             <input type="text" id="customerPhone" value="@Model.PhoneNumber" class="w-full bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" readonly>
                         </div>
                         <div>
+                            <label class="block text-brand-gray text-xs font-bold uppercase tracking-wider mb-2">Tìm kiếm địa chỉ / Chọn trên bản đồ</label>
+                            <div class="flex gap-2 mb-3">
+                                <input type="text" id="searchAddress" class="flex-1 bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" placeholder="Tìm kiếm địa chỉ...">
+                                <button type="button" id="btn-search-address" class="px-4 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-colors"><i class="fa-solid fa-search"></i> Tìm</button>
+                            </div>
+                            <div id="delivery-map" class="mb-4 border border-gray-800"></div>
+
                             <label class="block text-brand-gray text-xs font-bold uppercase tracking-wider mb-2">Địa chỉ nhận hàng chi tiết</label>
-                            <textarea id="deliveryAddress" rows="3" class="w-full bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" placeholder="Ví dụ: Tầng 3, Tòa nhà ABC, 123 Đường XYZ">@Model.Address</textarea>
-                            <p class="text-xs text-brand-orange mt-2"><i class="fa-solid fa-circle-exclamation"></i> Vui lòng kiểm tra lại chính xác địa chỉ để shipper tìm được bạn dễ nhất.</p>
+                            <textarea id="deliveryAddress" rows="2" class="w-full bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" placeholder="Ví dụ: Tầng 3, Tòa nhà ABC, 123 Đường XYZ">@Model.Address</textarea>
+                            <p class="text-xs text-brand-orange mt-2"><i class="fa-solid fa-circle-exclamation"></i> Kéo thả ghim trên bản đồ để chọn chính xác vị trí nhận hàng.</p>
                         </div>
                     </div>
                 </div>
@@ -87,6 +106,7 @@
 </section>
 
 @section Scripts {
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const checkoutCart = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -127,9 +147,87 @@
             let shippingFee = 0;
             let finalTotal = 0;
             
-            // Lấy thông tin tọa độ của Store và tính phí ship
-            // Do cần Google Maps API hoặc Backend, ta sẽ gọi API backend để tính
-            
+            let deliveryLat = 10.762622;
+            let deliveryLng = 106.660172;
+
+            // ===== Bản đồ Leaflet ======
+            const map = L.map('delivery-map').setView([deliveryLat, deliveryLng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(map);
+
+            const marker = L.marker([deliveryLat, deliveryLng], { draggable: true }).addTo(map);
+
+            const customIcon = L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png', 
+                iconSize: [38, 38],
+                iconAnchor: [19, 38],
+            });
+            marker.setIcon(customIcon);
+
+            // Mặc định lấy vị trí user nếu được cấp quyền
+            let firstLocationSet = false;
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    if(!firstLocationSet) {
+                        deliveryLat = pos.coords.latitude;
+                        deliveryLng = pos.coords.longitude;
+                        map.setView([deliveryLat, deliveryLng], 15);
+                        marker.setLatLng([deliveryLat, deliveryLng]);
+                        reverseGeocode(deliveryLat, deliveryLng);
+                        calculateShipping();
+                    }
+                }, () => {}, { timeout: 5000 });
+            }
+
+            marker.on('dragend', function (e) {
+                const pos = marker.getLatLng();
+                deliveryLat = pos.lat;
+                deliveryLng = pos.lng;
+                firstLocationSet = true;
+                reverseGeocode(deliveryLat, deliveryLng);
+                calculateShipping();
+            });
+
+            async function reverseGeocode(lat, lng) {
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=vi`);
+                    const data = await res.json();
+                    if (data && data.display_name) {
+                        document.getElementById('deliveryAddress').value = data.display_name;
+                    }
+                } catch(e) { console.error(e); }
+            }
+
+            document.getElementById('btn-search-address').addEventListener('click', async () => {
+                const query = document.getElementById('searchAddress').value;
+                if (!query) return;
+                
+                const btn = document.getElementById('btn-search-address');
+                const oldContent = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                btn.disabled = true;
+
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=vn&accept-language=vi`);
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        deliveryLat = parseFloat(data[0].lat);
+                        deliveryLng = parseFloat(data[0].lon);
+                        map.setView([deliveryLat, deliveryLng], 15);
+                        marker.setLatLng([deliveryLat, deliveryLng]);
+                        document.getElementById('deliveryAddress').value = data[0].display_name;
+                        firstLocationSet = true;
+                        calculateShipping();
+                    } else {
+                        alert('Không tìm thấy địa chỉ này!');
+                    }
+                } catch(e) { console.error(e); }
+
+                btn.innerHTML = oldContent;
+                btn.disabled = false;
+            });
+
             async function calculateShipping() {
                 const deliveryAddress = document.getElementById('deliveryAddress').value;
                 if (!deliveryAddress) {
@@ -144,7 +242,12 @@
                     const res = await fetch('/Order/CalculateShippingFeeByAddress', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ storeId: currentStoreId, deliveryAddress: deliveryAddress })
+                        body: JSON.stringify({ 
+                            storeId: currentStoreId, 
+                            deliveryAddress: deliveryAddress,
+                            lat: deliveryLat,
+                            lng: deliveryLng
+                        })
                     });
                     
                     const data = await res.json();
@@ -191,6 +294,8 @@
                 const orderData = {
                     StoreId: currentStoreId,
                     DeliveryAddress: deliveryAddress,
+                    Lat: deliveryLat,
+                    Lng: deliveryLng,
                     Note: note,
                     Items: checkoutCart.map(i => ({ MenuItemId: i.id, Quantity: i.quantity, Price: i.price }))
                 };

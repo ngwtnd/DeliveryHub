@@ -135,11 +135,16 @@ namespace DeliveryHubWeb.Controllers
             if (store == null || !store.IsOpen)
                 return Json(new { success = false, message = "Nhà hàng không tồn tại hoặc đã đóng cửa." });
 
-            // Giả lập tính tọa độ từ địa chỉ. Trong thực tế cần dùng Google Maps Geocoding API.
-            // Ở đây ta random một tọa độ gần hồ chí minh cho Delivery.
-            var rnd = new Random();
-            double dLat = 10.762622 + (rnd.NextDouble() - 0.5) * 0.1;
-            double dLon = 106.660172 + (rnd.NextDouble() - 0.5) * 0.1;
+            // Sử dụng tọa độ từ request được gửi lên (qua bản đồ/geocoding)
+            double dLat = req.Lat;
+            double dLon = req.Lng;
+
+            // Nếu tọa độ không hợp lệ, set mặc định là trung tâm HCM
+            if (dLat == 0 && dLon == 0)
+            {
+                dLat = 10.762622;
+                dLon = 106.660172;
+            }
 
             double pLat = store.Latitude;
             double pLon = store.Longitude;
@@ -184,9 +189,14 @@ namespace DeliveryHubWeb.Controllers
                 var store = await _context.Stores.FindAsync(storeGroup.Key);
                 if (store == null || !store.IsOpen) continue;
 
-                // Mock delivery coords (th\u1ef1c t\u1ebf s\u1ebd l\u1ea5y t\u1eeb req.DeliveryAddress geocoding)
-                double dLat = 10.762622 + (rnd.NextDouble() - 0.5) * 0.1;
-                double dLon = 106.660172 + (rnd.NextDouble() - 0.5) * 0.1;
+                // Sử dụng tọa độ từ request
+                double dLat = req.Lat;
+                double dLon = req.Lng;
+                if (dLat == 0 && dLon == 0)
+                {
+                    dLat = 10.762622;
+                    dLon = 106.660172;
+                }
                 double dist = _mapService.CalculateDistance(store.Latitude, store.Longitude, dLat, dLon);
                 dist = Math.Round(dist, 1);
 
@@ -258,11 +268,15 @@ namespace DeliveryHubWeb.Controllers
     {
         public int StoreId { get; set; }
         public string DeliveryAddress { get; set; } = string.Empty;
+        public double Lat { get; set; }
+        public double Lng { get; set; }
     }
 
     public class ProcessCheckoutRequest
     {
         public string DeliveryAddress { get; set; } = string.Empty;
+        public double Lat { get; set; }
+        public double Lng { get; set; }
         public string Note { get; set; } = string.Empty;
         public List<CheckoutItemRequest> Items { get; set; } = new List<CheckoutItemRequest>();
     }
