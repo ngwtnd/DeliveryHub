@@ -136,7 +136,15 @@
             itemsContainer.innerHTML = '';
             let subtotal = 0;
             let totalItems = 0;
-            let currentStoreId = checkoutCart[0].storeId || 1; // Default to 1 if cart items are old layout
+            let uniqueStoreIdsList = [...new Set(checkoutCart.map(i => i.storeId || 1))];
+            let currentStoreId = uniqueStoreIdsList[0];
+
+            if (uniqueStoreIdsList.length > 1) {
+                const batchNotice = document.createElement('div');
+                batchNotice.className = 'bg-brand-orange/10 border border-brand-orange text-brand-orange p-3 rounded-lg text-sm mb-4 flex items-center gap-2';
+                batchNotice.innerHTML = `<i class="fa-solid fa-layer-group"></i> <b>Bật mí:</b> Bạn đang gom đơn từ ${uniqueStoreIdsList.length} nhà hàng. Hệ thống đã tối ưu lộ trình để tiết kiệm tối đa phí giao hàng!`;
+                itemsContainer.appendChild(batchNotice);
+            }
 
             checkoutCart.forEach(item => {
                 subtotal += item.price * item.quantity;
@@ -275,6 +283,7 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
                             storeId: currentStoreId, 
+                            storeIds: uniqueStoreIdsList,
                             deliveryAddress: deliveryAddress,
                             lat: deliveryLat,
                             lng: deliveryLng
@@ -329,7 +338,7 @@
                     Lat: deliveryLat,
                     Lng: deliveryLng,
                     Note: note,
-                    Items: checkoutCart.map(i => ({ MenuItemId: i.id, Quantity: i.quantity, Price: i.price }))
+                    Items: checkoutCart.map(i => ({ MenuItemId: i.id, StoreId: i.storeId || 1, Quantity: i.quantity, Price: i.price }))
                 };
 
                 try {
@@ -343,7 +352,11 @@
                     if (data.success) {
                         // Xóa giỏ hàng
                         localStorage.removeItem('cart');
-                        window.location.href = '/Order/Tracking/' + data.orderId;
+                        if (data.batchId) {
+                            window.location.href = '/Order/BatchTracking/' + data.batchId;
+                        } else {
+                            window.location.href = '/Order/Tracking/' + data.orderId;
+                        }
                     } else {
                         alert(data.message || 'Có lỗi xảy ra khi tạo đơn hàng.');
                         document.getElementById('btn-place-order').disabled = false;

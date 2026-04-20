@@ -1,0 +1,334 @@
+@using DeliveryHubWeb.Models
+@model DeliveryHubWeb.Models.BatchOrder
+
+@{
+    ViewData["Title"] = "Theo dõi Gom Đơn";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    var orderedItems = Model.Items.OrderBy(i => i.Sequence).ToList();
+    decimal totalFood = orderedItems.Sum(i => i.Order?.TotalPrice ?? 0);
+    decimal totalShip = orderedItems.Sum(i => i.Order?.ShippingFee ?? 0);
+}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<section class="pt-32 pb-16 px-6 md:px-12 bg-brand-black min-h-screen">
+    <div class="max-w-[1280px] mx-auto">
+
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-gray-800 pb-4 gap-4">
+            <div>
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 bg-brand-orange rounded-xl flex items-center justify-center">
+                        <i class="fa-solid fa-layer-group text-black"></i>
+                    </div>
+                    <h1 class="text-3xl md:text-4xl font-black text-white">Gom đơn <span class="text-brand-orange">@Model.BatchCode</span></h1>
+                </div>
+                <p class="text-brand-gray text-sm">
+                    <i class="fa-solid fa-boxes-stacked text-brand-orange"></i>
+                    @orderedItems.Count nhà hàng &bull;
+                    <i class="fa-solid fa-route text-brand-orange ml-2"></i> @Model.TotalDistance km tối ưu &bull;
+                    <i class="fa-solid fa-clock text-brand-orange ml-2"></i> ~@((int)Model.EstimatedMinutes) phút
+                </p>
+            </div>
+            <div id="batch-status-badge" class="px-6 py-2 rounded-full font-black text-sm uppercase tracking-widest bg-yellow-500/20 text-yellow-500 border border-yellow-500/30">
+                @(Model.Status == BatchOrderStatus.Created ? "Đang Tìm Tài Xế" :
+                  Model.Status == BatchOrderStatus.InProgress ? "Đang Gom Đơn" :
+                  Model.Status == BatchOrderStatus.Completed ? "Hoàn Thành" : "Đã Hủy")
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- LEFT: Map -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-2 relative">
+                    <div id="batchMap" class="w-full h-[450px] rounded-xl z-10 relative"></div>
+                    <div id="map-loader" class="absolute inset-0 bg-gray-900/80 z-20 flex flex-col items-center justify-center rounded-2xl backdrop-blur-sm gap-3">
+                        <i class="fa-solid fa-spinner fa-spin text-4xl text-brand-orange"></i>
+                        <p class="text-brand-gray text-sm">Đang tải lộ trình tối ưu...</p>
+                    </div>
+                </div>
+
+                <!-- Shipper info -->
+                <div id="shipper-card" class="bg-gray-900 border border-gray-800 rounded-2xl p-6 @(Model.ShipperId == null ? "hidden" : "")">
+                    <h2 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-motorcycle text-brand-orange"></i> Tài xế Gom Đơn
+                    </h2>
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-brand-orange text-black flex items-center justify-center text-xl font-black">
+                            <i class="fa-solid fa-user-astronaut"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white" id="shipper-name">@(Model.Shipper?.FullName ?? "Đang tìm...")</h3>
+                            <p class="text-brand-gray text-sm"><i class="fa-solid fa-phone text-brand-orange"></i> <span id="shipper-phone">@(Model.Shipper?.PhoneNumber ?? "---")</span></p>
+                            <p class="text-xs text-brand-gray mt-1"><i class="fa-solid fa-motorcycle text-brand-orange"></i> <span id="shipper-vehicle">@(Model.Shipper?.Vehicle ?? "---")</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Per-store orders detail -->
+                <div class="space-y-4">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-brand-orange"></i> Chi tiết các đơn gom
+                    </h2>
+                    @foreach (var batchItem in orderedItems)
+                    {
+                        var ord = batchItem.Order;
+                        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-brand-orange text-black font-black text-sm flex items-center justify-center">
+                                        @batchItem.Sequence
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-white text-sm">@(ord?.Store?.Name ?? "Nhà hàng")</h3>
+                                        <p class="text-xs text-brand-gray">@(ord?.PickupAddress ?? "")</p>
+                                    </div>
+                                </div>
+                                <span class="text-xs px-3 py-1 rounded-full @(batchItem.IsPickedUp ? "bg-green-500/20 text-green-400 border border-green-500/30" : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30")">
+                                    @(batchItem.IsPickedUp ? "✓ Đã lấy" : "⏳ Chờ lấy")
+                                </span>
+                            </div>
+                            @if (ord?.OrderItems != null && ord.OrderItems.Any())
+                            {
+                                <ul class="space-y-1 mt-2">
+                                    @foreach (var oi in ord.OrderItems)
+                                    {
+                                        <li class="flex justify-between text-xs text-brand-gray">
+                                            <span><span class="text-white font-medium">@oi.Quantity×</span> @(oi.MenuItem?.Name ?? "Món ăn")</span>
+                                            <span class="text-white">@oi.Price.ToString("N0")đ</span>
+                                        </li>
+                                    }
+                                </ul>
+                                <div class="mt-2 pt-2 border-t border-gray-800 flex justify-between text-xs">
+                                    <span class="text-brand-gray">Ship: <span class="text-white">@ord.ShippingFee.ToString("N0")đ</span></span>
+                                    <span class="text-brand-gray">Khoảng cách: <span class="text-brand-orange">@ord.Distance km</span></span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- RIGHT: Summary -->
+            <div class="lg:col-span-1">
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 sticky top-28 space-y-6">
+
+                    <!-- Progress Timeline -->
+                    <div>
+                        <h2 class="text-lg font-bold text-white mb-4"><i class="fa-solid fa-bars-progress text-brand-orange"></i> Tiến trình</h2>
+                        <div class="relative pl-6 space-y-5 before:content-[''] before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-800">
+                            <div class="relative">
+                                <div class="absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= BatchOrderStatus.Created ? "bg-brand-orange" : "bg-gray-700")"></div>
+                                <h4 class="font-bold text-sm @(Model.Status >= BatchOrderStatus.Created ? "text-white" : "text-brand-gray")">Đã tạo gom đơn</h4>
+                                <p class="text-[10px] text-brand-gray">Hệ thống đang tìm tài xế phù hợp.</p>
+                            </div>
+                            <div class="relative">
+                                <div class="absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status >= BatchOrderStatus.InProgress ? "bg-brand-orange" : "bg-gray-700")"></div>
+                                <h4 class="font-bold text-sm @(Model.Status >= BatchOrderStatus.InProgress ? "text-white" : "text-brand-gray")">Tài xế đang gom đơn</h4>
+                                <p class="text-[10px] text-brand-gray">Tài xế đang di chuyển theo lộ trình tối ưu.</p>
+                            </div>
+                            <div class="relative">
+                                <div class="absolute -left-[29px] top-1 w-4 h-4 rounded-full border-4 border-gray-900 @(Model.Status == BatchOrderStatus.Completed ? "bg-green-500" : "bg-gray-700")"></div>
+                                <h4 class="font-bold text-sm @(Model.Status == BatchOrderStatus.Completed ? "text-green-500" : "text-brand-gray")">Hoàn thành tất cả</h4>
+                                <p class="text-[10px] text-brand-gray">Tất cả đơn đã được giao thành công.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bill Summary -->
+                    <div class="pt-4 border-t border-gray-800 space-y-3">
+                        <h2 class="text-sm font-bold text-white uppercase tracking-wider">Tóm tắt thanh toán</h2>
+                        @foreach (var bi in orderedItems)
+                        {
+                            <div class="flex justify-between text-xs">
+                                <span class="text-brand-gray">@(bi.Order?.Store?.Name ?? "Đơn " + bi.Sequence)</span>
+                                <span class="text-white">@(bi.Order?.TotalPrice.ToString("N0"))đ</span>
+                            </div>
+                        }
+                        <div class="flex justify-between text-xs pt-2 border-t border-gray-800">
+                            <span class="text-brand-gray">Phí giao hàng (tổng)</span>
+                            <span class="text-white">@totalShip.ToString("N0")đ</span>
+                        </div>
+                        <div class="flex justify-between items-end pt-3 border-t border-gray-800">
+                            <span class="text-white font-bold">Tổng cộng</span>
+                            <span class="text-2xl font-black text-brand-orange">@((totalFood + totalShip).ToString("N0")) đ</span>
+                        </div>
+                    </div>
+
+                    <!-- Route info badge -->
+                    <div class="bg-brand-orange/10 border border-brand-orange/30 rounded-xl p-4 text-center">
+                        <i class="fa-solid fa-route text-brand-orange text-2xl mb-2"></i>
+                        <p class="text-white font-bold">Lộ trình tối ưu</p>
+                        <p class="text-brand-orange text-xl font-black">@Model.TotalDistance km</p>
+                        <p class="text-brand-gray text-xs mt-1">Hệ thống đã tính toán đường đi ngắn nhất qua @orderedItems.Count trạm</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const batchId = @Model.Id;
+            const batchCode = '@Model.BatchCode';
+
+            // Waypoint data from server
+            const waypoints = [
+                @foreach (var bi in orderedItems)
+                {
+                    if (bi.Order?.Store != null)
+                    {
+                        <text>
+                        {
+                            seq: @bi.Sequence,
+                            name: '@Html.Raw(bi.Order.Store.Name?.Replace("'","\'"))',
+                            lat: @bi.Order.Store.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            lng: @bi.Order.Store.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                            pickedUp: @(bi.IsPickedUp ? "true" : "false")
+                        },
+                        </text>
+                    }
+                }
+            ];
+
+            const deliveryLat = @Model.DeliveryLatitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            const deliveryLng = @Model.DeliveryLongitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            // Init map
+            const map = L.map('batchMap', { attributionControl: false }).setView([deliveryLat, deliveryLng], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            // Icons
+            const storeIcon = (seq, pickedUp) => L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div class='w-10 h-10 ${pickedUp ? "bg-green-500" : "bg-brand-orange"} rounded-full flex items-center justify-center font-black text-black shadow-[0_0_15px_rgba(255,107,0,0.5)] text-sm border-2 border-black'>${seq}</div>`,
+                iconSize: [40, 40], iconAnchor: [20, 20]
+            });
+
+            const homeIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div class='w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(255,255,255,0.4)] border-2 border-brand-orange'><i class='fa-solid fa-house text-brand-orange text-lg'></i></div>`,
+                iconSize: [48, 48], iconAnchor: [24, 24]
+            });
+
+            const markers = [];
+
+            // Add store markers
+            waypoints.forEach(wp => {
+                const m = L.marker([wp.lat, wp.lng], { icon: storeIcon(wp.seq, wp.pickedUp) })
+                    .bindPopup(`<b>${wp.seq}. ${wp.name}</b><br>${wp.pickedUp ? '✅ Đã lấy' : '⏳ Chờ lấy'}`)
+                    .addTo(map);
+                markers.push(m);
+            });
+
+            // Add delivery marker
+            const deliveryMarker = L.marker([deliveryLat, deliveryLng], { icon: homeIcon })
+                .bindPopup(`<b>🏠 Điểm giao hàng</b><br>@Html.Raw(Model.DeliveryAddress?.Length > 50 ? Model.DeliveryAddress.Substring(0,50) + "..." : Model.DeliveryAddress ?? "Địa chỉ của bạn")`)
+                .addTo(map);
+            markers.push(deliveryMarker);
+
+            // Fit all markers
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds(), { padding: [60, 60] });
+            }
+
+            // Draw optimized route through all waypoints
+            async function drawOptimizedRoute() {
+                if (waypoints.length === 0) {
+                    document.getElementById('map-loader').classList.add('hidden');
+                    return;
+                }
+
+                // Build OSRM trip coordinates: stores + delivery point
+                const coords = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';') + `;${deliveryLng},${deliveryLat}`;
+                try {
+                    const res = await fetch(`https://router.project-osrm.org/trip/v1/driving/${coords}?source=first&destination=last&roundtrip=false&overview=full&geometries=geojson`);
+                    const data = await res.json();
+
+                    if (data.code === 'Ok' && data.trips && data.trips.length > 0) {
+                        const routeCoords = data.trips[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+                        // Animated dashed route
+                        L.polyline(routeCoords, {
+                            color: '#FF6B00',
+                            weight: 5,
+                            opacity: 0.8,
+                            dashArray: '12, 8'
+                        }).addTo(map);
+
+                        // Glowing underline
+                        L.polyline(routeCoords, {
+                            color: '#FF6B00',
+                            weight: 12,
+                            opacity: 0.1
+                        }).addTo(map);
+                    } else {
+                        // Fallback: draw straight lines between points
+                        const pts = waypoints.map(wp => [wp.lat, wp.lng]);
+                        pts.push([deliveryLat, deliveryLng]);
+                        L.polyline(pts, { color: '#FF6B00', weight: 3, dashArray: '8,8', opacity: 0.6 }).addTo(map);
+                    }
+                } catch (e) {
+                    console.error('Route error:', e);
+                    // Fallback straight lines
+                    const pts = waypoints.map(wp => [wp.lat, wp.lng]);
+                    pts.push([deliveryLat, deliveryLng]);
+                    L.polyline(pts, { color: '#FF6B00', weight: 3, dashArray: '8,8', opacity: 0.6 }).addTo(map);
+                }
+
+                document.getElementById('map-loader').classList.add('hidden');
+            }
+
+            drawOptimizedRoute();
+
+            // SignalR - realtime shipper tracking
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl('/orderHub')
+                .withAutomaticReconnect()
+                .build();
+
+            let shipperMarker = null;
+            const shipperIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div class='w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center border-4 border-black shadow-[0_0_20px_rgba(255,200,0,0.6)]'><i class='fa-solid fa-motorcycle text-black text-xl'></i></div>`,
+                iconSize: [48, 48], iconAnchor: [24, 24]
+            });
+
+            connection.on('BatchStatusUpdated', (updatedBatchCode, status, shipperName, shipperPhone, sLat, sLng) => {
+                if (updatedBatchCode !== batchCode) return;
+
+                const badge = document.getElementById('batch-status-badge');
+                const statusMap = {
+                    'Created': 'Đang Tìm Tài Xế',
+                    'InProgress': 'Đang Gom Đơn',
+                    'Completed': 'Hoàn Thành',
+                    'Cancelled': 'Đã Hủy'
+                };
+                badge.innerText = statusMap[status] || status;
+
+                if (shipperName) {
+                    document.getElementById('shipper-card').classList.remove('hidden');
+                    document.getElementById('shipper-name').innerText = shipperName;
+                    document.getElementById('shipper-phone').innerText = shipperPhone;
+                }
+
+                if (sLat && sLng) {
+                    if (!shipperMarker) {
+                        shipperMarker = L.marker([sLat, sLng], { icon: shipperIcon, zIndexOffset: 1000 }).addTo(map);
+                    } else {
+                        shipperMarker.setLatLng([sLat, sLng]);
+                    }
+                }
+            });
+
+            connection.start().catch(err => console.error('SignalR error:', err));
+        });
+    </script>
+}

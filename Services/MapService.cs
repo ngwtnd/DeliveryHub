@@ -6,6 +6,7 @@ namespace DeliveryHubWeb.Services
     {
         double CalculateDistance(double lat1, double lon1, double lat2, double lon2);
         decimal CalculateShippingFee(double distanceKm);
+        double CalculateMergedDistance(double userLat, double userLon, List<(double lat, double lon)> storeLocations);
     }
 
     public class MapService : IMapService

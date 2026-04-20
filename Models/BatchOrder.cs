@@ -19,11 +19,16 @@ namespace DeliveryHubWeb.Models
         [Required, MaxLength(50)]
         public string BatchCode { get; set; } = string.Empty;
 
-        [Required]
-        public string ShipperId { get; set; } = string.Empty;
+        public string? ShipperId { get; set; }
 
         [ForeignKey("ShipperId")]
         public virtual ApplicationUser? Shipper { get; set; }
+
+        // Optional User ID to track who created the multi-store batch order
+        public string? UserId { get; set; }
+        
+        [ForeignKey("UserId")]
+        public virtual ApplicationUser? User { get; set; }
 
         public BatchOrderStatus Status { get; set; } = BatchOrderStatus.Created;
 

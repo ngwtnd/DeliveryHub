@@ -98,6 +98,24 @@ namespace DeliveryHubWeb.Controllers
             return View(order);
         }
 
+        [HttpGet]
+        public async Task<IActionResult> BatchTracking(int id)
+        {
+            var batch = await _context.BatchOrders
+                .Include(b => b.Shipper)
+                .Include(b => b.Items)
+                    .ThenInclude(i => i.Order)
+                        .ThenInclude(o => o!.Store)
+                .Include(b => b.Items)
+                    .ThenInclude(i => i.Order)
+                        .ThenInclude(o => o!.OrderItems)
+                            .ThenInclude(oi => oi.MenuItem)
+                .FirstOrDefaultAsync(b => b.Id == id);
+
+            if (batch == null) return NotFound();
+            return View(batch);
+        }
+
         [HttpPost]
         public async Task<IActionResult> SubmitReview(int orderId, int ratingMenu, int ratingShipper, string comment)
         {
@@ -128,16 +146,24 @@ namespace DeliveryHubWeb.Controllers
         [HttpPost]
         public async Task<IActionResult> CalculateShippingFeeByAddress([FromBody] CalculateShippingRequest req)
         {
-            if (req == null || string.IsNullOrEmpty(req.DeliveryAddress) || req.StoreId <= 0)
+            var storeIds = req.StoreIds;
+            if (storeIds == null || storeIds.Count == 0)
+            {
+                if (req.StoreId > 0) storeIds = new List<int> { req.StoreId };
+            }
+
+            if (req == null || string.IsNullOrEmpty(req.DeliveryAddress) || storeIds == null || storeIds.Count == 0)
                 return Json(new { success = false, message = "Dữ liệu không hợp lệ." });
 
-            var store = await _context.Stores.FindAsync(req.StoreId);
-            if (store == null || !store.IsOpen)
+            var stores = await _context.Stores.Where(s => storeIds.Contains(s.Id) && s.IsOpen).ToListAsync();
+            
+            if (stores.Count == 0)
             {
                 // Fallback dành cho dữ liệu mock (khi cart từ localstorage không có StoreId đúng)
-                store = await _context.Stores.FirstOrDefaultAsync(s => s.IsOpen);
+                var store = await _context.Stores.FirstOrDefaultAsync(s => s.IsOpen);
                 if (store == null)
                     return Json(new { success = false, message = "Hệ thống tạm ngưng. Không có nhà hàng nào mở cửa." });
+                stores.Add(store);
             }
 
             // Sử dụng tọa độ từ request được gửi lên (qua bản đồ/geocoding)
@@ -151,11 +177,16 @@ namespace DeliveryHubWeb.Controllers
                 dLon = 106.660172;
             }
 
-            double pLat = store.Latitude;
-            double pLon = store.Longitude;
-
-            // Dùng MapService hoặc Haversine để ước tính.
-            var dist = _mapService.CalculateDistance(pLat, pLon, dLat, dLon);
+            double dist = 0;
+            if (stores.Count == 1) 
+            {
+                dist = _mapService.CalculateDistance(stores[0].Latitude, stores[0].Longitude, dLat, dLon);
+            }
+            else 
+            {
+                var locations = stores.Select(s => (s.Latitude, s.Longitude)).ToList();
+                dist = _mapService.CalculateMergedDistance(dLat, dLon, locations);
+            }
             dist = Math.Round(dist, 1);
 
             // Bảng giá chung
@@ -180,80 +211,57 @@ namespace DeliveryHubWeb.Controllers
 
             var rnd = new Random();
             var standardService = await _context.DeliveryServices.FirstOrDefaultAsync(s => s.Name == "Tiêu chuẩn");
-            decimal baseFee = standardService?.BaseFee ?? 15000m;
-            decimal feePerKm = standardService?.FeePerKm ?? 5000m;
-
-            var config = Models.ShipperIncomeConfig.Load();
-
-            // Nh\u00f3m m\u00f3n \u0103n theo StoreId
             var itemsByStore = req.Items.GroupBy(i => i.StoreId).ToList();
             var createdOrderIds = new List<int>();
+
+            BatchOrder? batchOrder = null;
+            if (itemsByStore.Count > 1) 
+            {
+                batchOrder = new BatchOrder
+                {
+                    BatchCode = $"BATCH-{DateTime.Now:yyyyMMdd}-{rnd.Next(1000, 9999)}",
+                    UserId = user.Id,
+                    Status = BatchOrderStatus.Created,
+                    DeliveryAddress = req.DeliveryAddress,
+                    DeliveryLatitude = req.Lat != 0 ? req.Lat : 10.762622,
+                    DeliveryLongitude = req.Lng != 0 ? req.Lng : 106.660172,
+                    CreatedAt = DateTime.Now
+                };
+                _context.BatchOrders.Add(batchOrder);
+                await _context.SaveChangesAsync();
+            }
+
+            var storeLocations = new List<(double lat, double lon)>();
+            int seq = 1;
 
             foreach (var storeGroup in itemsByStore)
             {
                 var store = await _context.Stores.FindAsync(storeGroup.Key);
-                if (store == null || !store.IsOpen)
-                {
-                    store = await _context.Stores.FirstOrDefaultAsync(s => s.IsOpen);
-                    if (store == null) continue;
-                }
+                if (store == null || !store.IsOpen) continue;
 
-                // Sử dụng tọa độ từ request
-                double dLat = req.Lat;
-                double dLon = req.Lng;
-                if (dLat == 0 && dLon == 0)
-                {
-                    dLat = 10.762622;
-                    dLon = 106.660172;
-                }
-                double dist = _mapService.CalculateDistance(store.Latitude, store.Longitude, dLat, dLon);
-                dist = Math.Round(dist, 1);
-
-                decimal shippingFee = baseFee + (decimal)dist * feePerKm;
-                shippingFee = Math.Round(shippingFee / 1000) * 1000;
-
-                decimal extraFee = (decimal)Math.Ceiling(Math.Max(dist - config.BaseDistance, 0.0)) * config.ExtraFeePerKm;
-                decimal shipperIncome = config.BaseIncome + extraFee;
+                double dLat = req.Lat != 0 ? req.Lat : 10.762622;
+                double dLon = req.Lng != 0 ? req.Lng : 106.660172;
+                
+                storeLocations.Add((store.Latitude, store.Longitude));
+                
+                double dist = Math.Round(_mapService.CalculateDistance(store.Latitude, store.Longitude, dLat, dLon), 1);
+                decimal shippingFee = Math.Round((15000m + (decimal)dist * 5000m) / 1000) * 1000;
+                decimal shipperIncome = 20000m + (decimal)Math.Ceiling(Math.Max(dist - 2.0, 0.0)) * 5000m;
 
                 decimal totalItemsPrice = 0;
                 var orderItems = new List<OrderItem>();
 
-                var firstValidMenuItemId = await _context.MenuItems.Select(m => m.Id).FirstOrDefaultAsync();
-
                 foreach (var item in storeGroup)
                 {
-                    var menuItem = await _context.MenuItems.FindAsync(item.MenuItemId);
-                    if (menuItem != null && menuItem.IsAvailable)
-                    {
-                        totalItemsPrice += menuItem.Price * item.Quantity;
-                        orderItems.Add(new OrderItem
-                        {
-                            MenuItemId = menuItem.Id,
-                            Quantity = item.Quantity,
-                            Price = menuItem.Price
-                        });
-                    }
-                    else
-                    {
-                        // Fallback cho fake data từ trang chủ
-                        totalItemsPrice += item.Price * item.Quantity;
-                        orderItems.Add(new OrderItem
-                        {
-                            MenuItemId = firstValidMenuItemId > 0 ? firstValidMenuItemId : 1, // Avoid FK error if possible
-                            Quantity = item.Quantity,
-                            Price = item.Price
-                        });
-                    }
+                    totalItemsPrice += item.Price * item.Quantity;
+                    orderItems.Add(new OrderItem { MenuItemId = item.MenuItemId, Quantity = item.Quantity, Price = item.Price });
                 }
-
-                if (!orderItems.Any()) continue;
 
                 var order = new Order
                 {
                     OrderCode = $"DH-{DateTime.Now:yyyyMMdd}-{rnd.Next(1000, 9999)}",
                     UserId = user.Id,
                     StoreId = store.Id,
-                    ServiceId = standardService?.Id,
                     Status = OrderStatus.SearchingShipper,
                     TotalPrice = totalItemsPrice,
                     ShippingFee = shippingFee,
@@ -274,14 +282,30 @@ namespace DeliveryHubWeb.Controllers
                 await _context.SaveChangesAsync();
                 createdOrderIds.Add(order.Id);
 
-                // Notify shippers via SignalR
-                await _hubContext.Clients.All.SendAsync("NewOrderAvailable", order.OrderCode, order.PickupLatitude, order.PickupLongitude);
+                if (batchOrder != null) 
+                {
+                    _context.BatchOrderItems.Add(new BatchOrderItem { BatchOrderId = batchOrder.Id, OrderId = order.Id, Sequence = seq++ });
+                }
+                else 
+                {
+                    await _hubContext.Clients.All.SendAsync("NewOrderAvailable", order.OrderCode, order.PickupLatitude, order.PickupLongitude);
+                }
             }
 
             if (!createdOrderIds.Any())
-                return Json(new { success = false, message = "Không tạo được đơn hàng. Các cửa hàng có thể đã đóng cửa." });
+                return Json(new { success = false, message = "Không tạo được đơn hàng." });
 
-            // Tr\u1ea3 v\u1ec1 orderId \u0111\u1ea7u ti\u00ean \u0111\u1ec3 redirect tracking
+            if (batchOrder != null)
+            {
+                double dLat = req.Lat != 0 ? req.Lat : 10.762622;
+                double dLon = req.Lng != 0 ? req.Lng : 106.660172;
+                batchOrder.TotalDistance = Math.Round(_mapService.CalculateMergedDistance(dLat, dLon, storeLocations), 1);
+                batchOrder.EstimatedMinutes = batchOrder.TotalDistance * 4;
+                await _context.SaveChangesAsync();
+                await _hubContext.Clients.All.SendAsync("NewBatchAvailable", batchOrder.BatchCode);
+                return Json(new { success = true, batchId = batchOrder.Id, orderCount = createdOrderIds.Count, orderId = createdOrderIds.First() });
+            }
+
             return Json(new { success = true, orderId = createdOrderIds.First(), orderCount = createdOrderIds.Count });
         }
     }
@@ -289,6 +313,7 @@ namespace DeliveryHubWeb.Controllers
     public class CalculateShippingRequest
     {
         public int StoreId { get; set; }
+        public List<int>? StoreIds { get; set; }
         public string DeliveryAddress { get; set; } = string.Empty;
         public double Lat { get; set; }
         public double Lng { get; set; }

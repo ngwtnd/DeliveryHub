@@ -545,10 +545,13 @@ namespace DeliveryHubWeb.Data
                     context.Orders.Add(order);
                     await context.SaveChangesAsync();
                     
-                    var mi = storeItems[rng.Next(storeItems.Count)];
-                    context.OrderItems.Add(new OrderItem { OrderId = order.Id, MenuItemId = mi.Id, Quantity = 1, Price = mi.Price });
-                    order.TotalPrice = mi.Price;
-                    await context.SaveChangesAsync();
+                    if (storeItems.Any())
+                    {
+                        var mi = storeItems[rng.Next(storeItems.Count)];
+                        context.OrderItems.Add(new OrderItem { OrderId = order.Id, MenuItemId = mi.Id, Quantity = 1, Price = mi.Price });
+                        order.TotalPrice = mi.Price;
+                        await context.SaveChangesAsync();
+                    }
                 }
             }
 
