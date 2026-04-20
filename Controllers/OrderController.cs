@@ -129,7 +129,7 @@ namespace DeliveryHubWeb.Controllers
         public async Task<IActionResult> CalculateShippingFeeByAddress([FromBody] CalculateShippingRequest req)
         {
             if (req == null || string.IsNullOrEmpty(req.DeliveryAddress) || req.StoreId <= 0)
-                return BadRequest("Dữ liệu không hợp lệ.");
+                return Json(new { success = false, message = "Dữ liệu không hợp lệ." });
 
             var store = await _context.Stores.FindAsync(req.StoreId);
             if (store == null || !store.IsOpen)

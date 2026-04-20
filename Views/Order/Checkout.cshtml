@@ -38,9 +38,22 @@
                         </div>
                         <div>
                             <label class="block text-brand-gray text-xs font-bold uppercase tracking-wider mb-2">Tìm kiếm địa chỉ / Chọn trên bản đồ</label>
-                            <div class="flex gap-2 mb-3">
-                                <input type="text" id="searchAddress" class="flex-1 bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" placeholder="Tìm kiếm địa chỉ...">
-                                <button type="button" id="btn-search-address" class="px-4 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-colors"><i class="fa-solid fa-search"></i> Tìm</button>
+                            
+                            <div class="flex flex-col md:flex-row gap-2 mb-3">
+                                <select id="provinceSelect" class="bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all min-w-[150px]">
+                                    <option value="">-- Tỉnh / Thành --</option>
+                                    <option value="Hồ Chí Minh, Việt Nam">Hồ Chí Minh</option>
+                                    <option value="Hà Nội, Việt Nam">Hà Nội</option>
+                                    <option value="Đà Nẵng, Việt Nam">Đà Nẵng</option>
+                                    <option value="Cần Thơ, Việt Nam">Cần Thơ</option>
+                                    <option value="Hải Phòng, Việt Nam">Hải Phòng</option>
+                                    <option value="Đồng Nai, Việt Nam">Đồng Nai</option>
+                                    <option value="Bình Dương, Việt Nam">Bình Dương</option>
+                                </select>
+                                <div class="flex flex-1 gap-2">
+                                    <input type="text" id="searchAddress" class="flex-1 bg-brand-black border border-gray-800 rounded-xl px-4 py-3 text-white outline-none focus:border-brand-orange transition-all" placeholder="Nhập địa chỉ của bạn...">
+                                    <button type="button" id="btn-search-address" class="px-4 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-colors whitespace-nowrap"><i class="fa-solid fa-search"></i> Tìm</button>
+                                </div>
                             </div>
                             <div id="delivery-map" class="mb-4 border border-gray-800"></div>
 
@@ -123,7 +136,7 @@
             itemsContainer.innerHTML = '';
             let subtotal = 0;
             let totalItems = 0;
-            let currentStoreId = checkoutCart[0].storeId;
+            let currentStoreId = checkoutCart[0].storeId || 1; // Default to 1 if cart items are old layout
 
             checkoutCart.forEach(item => {
                 subtotal += item.price * item.quantity;
@@ -228,6 +241,24 @@
                 btn.disabled = false;
             });
 
+            // Khi người dùng chọn Tỉnh/Thành
+            document.getElementById('provinceSelect').addEventListener('change', async (e) => {
+                const query = e.target.value;
+                if (!query) return;
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=vn&accept-language=vi`);
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        deliveryLat = parseFloat(data[0].lat);
+                        deliveryLng = parseFloat(data[0].lon);
+                        map.setView([deliveryLat, deliveryLng], 13);
+                        marker.setLatLng([deliveryLat, deliveryLng]);
+                        // Không điền tỉnh vào ô địa chỉ chi tiết vì quá to, chỉ move map tới đó thôi
+                        firstLocationSet = true;
+                    }
+                } catch(e) { console.error(e); }
+            });
+
             async function calculateShipping() {
                 const deliveryAddress = document.getElementById('deliveryAddress').value;
                 if (!deliveryAddress) {
@@ -261,10 +292,11 @@
                         document.getElementById('summary-total').innerText = formatPrice(finalTotal);
                         document.getElementById('btn-place-order').disabled = false;
                     } else {
-                        document.getElementById('summary-shipping').innerText = 'Lỗi tính phí';
-                        alert(data.message || 'Lỗi khi tính phí giao hàng. Vui lòng kiểm tra lại địa chỉ.');
+                        document.getElementById('summary-shipping').innerText = 'Lỗi tính tiền';
+                        console.error('Lỗi backend:', data.message);
                     }
                 } catch (e) {
+                    console.error('Fetch error:', e);
                     document.getElementById('summary-shipping').innerText = 'Lỗi kết nối';
                 }
             }
