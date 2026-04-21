@@ -245,6 +245,103 @@
     <script src="~/js/main.js" asp-append-version="true"></script>
     
     @await RenderSectionAsync("Scripts", required: false)
+    <!-- AI Chatbot UI -->
+    <div class="ai-chat-btn" id="ai-chat-btn">
+        <i class="fa-solid fa-robot"></i>
+    </div>
+
+    <div class="ai-chat-window" id="ai-chat-window">
+        <div class="ai-chat-header">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-brand-orange/20 rounded-full flex items-center justify-center border border-brand-orange/30">
+                    <i class="fa-solid fa-robot text-brand-orange"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-white text-sm">DeliveryHub AI Assistant</h3>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
+                        <span class="text-[10px] text-brand-gray uppercase tracking-widest font-bold">Trực tuyến</span>
+                    </div>
+                </div>
+            </div>
+            <button id="close-ai-chat" class="text-gray-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-minus text-lg"></i>
+            </button>
+        </div>
+        
+        <div class="ai-chat-body custom-scrollbar" id="ai-chat-body">
+            <div class="ai-message bot">
+                Xin chào! Tôi là trợ lý ảo của DeliveryHub. Tôi có thể giúp gì cho bạn hôm nay?
+            </div>
+        </div>
+
+        <div class="ai-chat-footer">
+            <input type="text" id="ai-chat-input" class="ai-chat-input" placeholder="Nhập tin nhắn...">
+            <button id="ai-send-btn" class="ai-send-btn">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatBtn = document.getElementById('ai-chat-btn');
+            const chatWindow = document.getElementById('ai-chat-window');
+            const closeBtn = document.getElementById('close-ai-chat');
+            const chatInput = document.getElementById('ai-chat-input');
+            const sendBtn = document.getElementById('ai-send-btn');
+            const chatBody = document.getElementById('ai-chat-body');
+
+            // Toggle Chat Window
+            chatBtn.addEventListener('click', () => {
+                chatWindow.classList.toggle('active');
+                if (chatWindow.classList.contains('active')) {
+                    chatInput.focus();
+                }
+            });
+
+            closeBtn.addEventListener('click', () => {
+                chatWindow.classList.remove('active');
+            });
+
+            // Send Message Function
+            function sendMessage() {
+                const message = chatInput.value.trim();
+                if (message) {
+                    // Add User Message
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'ai-message user';
+                    userDiv.textContent = message;
+                    chatBody.appendChild(userDiv);
+                    
+                    chatInput.value = '';
+                    chatBody.scrollTop = chatBody.scrollHeight;
+
+                    // Mock Bot Response
+                    setTimeout(() => {
+                        const botDiv = document.createElement('div');
+                        botDiv.className = 'ai-message bot';
+                        botDiv.textContent = 'Cảm ơn bạn đã nhắn tin! Tôi đang được tích hợp thêm các tính năng thông minh. Tôi sẽ sớm phản hồi bạn tốt hơn.';
+                        chatBody.appendChild(botDiv);
+                        chatBody.scrollTop = chatBody.scrollHeight;
+                    }, 800);
+                }
+            }
+
+            sendBtn.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') sendMessage();
+            });
+
+            // Close on escape
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && chatWindow.classList.contains('active')) {
+                    chatWindow.classList.remove('active');
+                }
+            });
+        });
+    </script>
 </body>
+
 
 </html>
