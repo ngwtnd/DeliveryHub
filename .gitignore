@@ -1,0 +1,52 @@
+## Core build artifacts
+bin/
+obj/
+
+## Sensitive settings
+appsettings.json
+appsettings.Development.json
+
+## IDE and user-specific files
+.vs/
+.idea/
+*.user
+*.userosscache
+*.sln.docstates
+
+## Log files and temporary files found in root
+*.log
+build_err.txt
+build_error.txt
+build_errors.log
+build_errors.txt
+build_errors_2.txt
+build_errors_cmd.txt
+build_errors_v2.log
+build_final.log
+build_final_2.log
+build_final_3.log
+build_fix.log
+build_output.txt
+build_output_2.txt
+build_pg.log
+build_quick.txt
+build_results.txt
+curl_log.txt
+ef_log.txt
+err.txt
+errors.log
+errors.txt
+full_build_output.txt
+out.txt
+output.txt
+run_errors.txt
+run_output.txt
+temp.txt
+temp2.txt
+temp3.txt
+temp4.txt
+temp_cols.txt
+
+## OS generated files
+.DS_Store
+Thumbs.db
