@@ -55,10 +55,24 @@ namespace DeliveryHubWeb.Controllers
                 baseQuery = baseQuery.Where(o => o.StoreId == storeId);
             }
 
+            var days = timeRange switch {
+                "today" => 1,
+                "7days" => 7,
+                "30days" => 30,
+                "all" => 0,
+                _ => 7
+            };
+
+            if (days > 0) {
+                var startDate = DateTime.UtcNow.Date.AddDays(-days + 1);
+                baseQuery = baseQuery.Where(o => o.CreatedAt >= startDate);
+            }
+
             var orders = await baseQuery.OrderByDescending(o => o.CreatedAt).ToListAsync();
 
             ViewBag.TotalOrders = orders.Count;
-            ViewBag.TotalRevenue = orders.Where(o => o.Status == OrderStatus.Completed).Sum(o => o.TotalPrice);
+            ViewBag.TotalRevenue = orders.Where(o => o.Status == OrderStatus.Completed).Sum(o => o.TotalPrice + o.ShippingFee);
+            ViewBag.TotalProfit = orders.Where(o => o.Status == OrderStatus.Completed).Sum(o => o.TotalPrice * 0.8m); // Doanh thu thực nhận sau 20% CK
             
             // Chart Data
             var groupedOrders = orders.GroupBy(o => o.CreatedAt.Date).Select(g => new {

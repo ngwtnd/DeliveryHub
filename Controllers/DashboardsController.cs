@@ -416,10 +416,20 @@ namespace DeliveryHubWeb.Controllers
             ViewBag.ShipperCodes = shipperCodes;
         }
 
-        public async Task<IActionResult> Index(int days = 7, int? storeId = null)
+        public async Task<IActionResult> Index(int? daysParam = 7, int? storeId = null)
         {
             await EnsureDatabaseSchemaAndNotifications();
             await LoadShipperCodes();
+            
+            var days = daysParam ?? 7;
+            var startDate = DateTime.UtcNow.AddDays(-days);
+            var previousStartDate = startDate.AddDays(-days);
+            ViewBag.PreviousPeriodLabel = days switch {
+                1 => "hôm qua",
+                7 => "7 ngày trước",
+                30 => "tháng trước",
+                _ => $"{days} ngày trước"
+            };
 
             // --- AUTO CLEANUP LOGIC ---
             // 1. Hủy các đơn "Tìm shipper" sau 1 tiếng
@@ -443,8 +453,6 @@ namespace DeliveryHubWeb.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            var startDate = DateTime.UtcNow.AddDays(-days);
-            
             var ordersQuery = _context.Orders
                 .Include(o => o.User)
                 .Include(o => o.OrderItems)
@@ -456,9 +464,7 @@ namespace DeliveryHubWeb.Controllers
                 ordersQuery = ordersQuery.Where(o => o.OrderItems.Any(oi => oi.MenuItem != null && oi.MenuItem.StoreId == storeId.Value));
             }
             if (days > 0) {
-                ordersQuery = startDate.Kind == DateTimeKind.Unspecified 
-                    ? ordersQuery.Where(o => o.CreatedAt >= startDate) 
-                    : ordersQuery.Where(o => o.CreatedAt >= startDate);
+                ordersQuery = ordersQuery.Where(o => o.CreatedAt >= startDate);
             }
 
             var ordersList = await ordersQuery.ToListAsync();
@@ -583,10 +589,18 @@ namespace DeliveryHubWeb.Controllers
             return View(recentOrders);
         }
 
-        public async Task<IActionResult> DashboardOrders(int days = 7, int? storeId = null, int page = 1)
+        public async Task<IActionResult> DashboardOrders(int? daysParam = 7, int? storeId = null, int page = 1)
         {
             await LoadShipperCodes();
+            var days = daysParam ?? 7;
             var startDate = DateTime.UtcNow.AddDays(-days);
+            var previousStartDate = startDate.AddDays(-days);
+            ViewBag.PreviousPeriodLabel = days switch {
+                1 => "hôm qua",
+                7 => "7 ngày trước",
+                30 => "tháng trước",
+                _ => $"{days} ngày trước"
+            };
 
             var query = _context.Orders
                 .Include(o => o.User)

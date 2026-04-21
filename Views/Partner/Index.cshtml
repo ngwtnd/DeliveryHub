@@ -13,7 +13,11 @@
     var chartData = ViewBag.ChartData as IEnumerable<dynamic>;
 
     var totalRevenue = (decimal)(ViewBag.TotalRevenue ?? 0m)!;
+    var totalProfit = (decimal)(ViewBag.TotalProfit ?? 0m)!;
     var totalOrders = (int)(ViewBag.TotalOrders ?? 0)!;
+
+    var chartDataJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.ChartData);
+    var statusStatsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.StatusStats);
 
     // Helpers
     string GetStatusLabel(DeliveryHubWeb.Models.OrderStatus status) => status switch {
@@ -147,12 +151,46 @@
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 fade-in" style="animation-delay: 0.1s;">
     <!-- Orders Card -->
     <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-blue-500/10 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-[10px] font-bold uppercase tracking-widest">Tổng đơn hàng</h3>
+            <i class="fa-solid fa-box text-blue-500/20 text-4xl mt-1"></i>
+        </div>
+        <h4 class="text-4xl font-black text-white">@totalOrders</h4>
+    </div>
+
+    <!-- Revenue Card -->
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
         <div class="absolute top-0 right-0 w-32 h-32 bg-brand-orange/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-brand-orange/20 transition-all duration-500"></div>
         <div class="flex justify-between items-start mb-4">
-            <h3 class="text-brand-gray text-xs font-bold uppercase tracking-widest">Tổng đơn hàng</h3>
-            <i class="fa-solid fa-box text-brand-orange/20 text-4xl mt-1"></i>
+            <h3 class="text-brand-gray text-[10px] font-bold uppercase tracking-widest">Doanh thu (Sales)</h3>
+            <i class="fa-solid fa-money-bill-wave text-brand-orange/20 text-4xl mt-1"></i>
         </div>
-        <div class="text-4xl font-black text-white mb-2">@totalOrders</div>
+        <h4 class="text-4xl font-black text-brand-orange">@totalRevenue.ToString("N0")<span class="text-xs ml-1 text-brand-gray tracking-tighter transition-all group-hover:text-brand-orange">VND</span></h4>
+    </div>
+
+    <!-- Profit Card -->
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-green-500/10 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-[10px] font-bold uppercase tracking-widest">Thực nhận (80%)</h3>
+            <i class="fa-solid fa-hand-holding-dollar text-green-500/20 text-4xl mt-1"></i>
+        </div>
+        <h4 class="text-4xl font-black text-green-500">@totalProfit.ToString("N0")<span class="text-xs ml-1 text-brand-gray tracking-tighter">VND</span></h4>
+    </div>
+
+    <!-- Success Rate Card -->
+    <div class="bg-brand-dark backdrop-blur-md rounded-[2rem] p-6 border border-white/5 shadow-xl relative overflow-hidden group">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-purple-500/20 transition-all duration-500"></div>
+        <div class="flex justify-between items-start mb-4">
+            <h3 class="text-brand-gray text-[10px] font-bold uppercase tracking-widest">Tỉ lệ thành công</h3>
+            <i class="fa-solid fa-percent text-purple-500/20 text-4xl mt-1"></i>
+        </div>
+        @{
+            var successOrders = Model.Count(o => o.Status == DeliveryHubWeb.Models.OrderStatus.Completed);
+            var rate = totalOrders > 0 ? (double)successOrders / totalOrders * 100 : 0;
+        }
+        <h4 class="text-4xl font-black text-purple-400">@rate.ToString("F1")%</h4>
     </div>
     
     <!-- Revenue Card -->
@@ -361,10 +399,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script>
         // Prepare Chart Data
-        const rawChartData = @Html.Raw(JsonSerializer.Serialize(chartData));
-        const labels = rawChartData.map(d => new Date(d.Date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }));
-        const revenueData = rawChartData.map(d => d.Revenue);
-        const orderData = rawChartData.map(d => d.Count);
+        const rawChartData = @Html.Raw(chartDataJson);
+        const labels = rawChartData ? rawChartData.map(d => new Date(d.Date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })) : [];
+        const revenueData = rawChartData ? rawChartData.map(d => d.Revenue) : [];
+        const orderData = rawChartData ? rawChartData.map(d => d.Count) : [];
+        const rawStatusData = @Html.Raw(statusStatsJson);
 
         // Chart.js defaults
         Chart.defaults.color = '#94a3b8';
@@ -486,29 +525,27 @@
             }
         });
 
-        // Status Doughnut Chart (No longer grouping manually here, using exact C# helpers)
-        const rawStatusData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(statusStats));
-        
+        // Status Doughnut Chart
         const aggregatedData = {};
-        rawStatusData.forEach(d => {
-            // Using literal status maps or direct matching C# logic
-            const statusMap = {
-                "Pending": { label: "Mới tạo", color: "#22D3EE" },
-                "SearchingShipper": { label: "Tìm shipper", color: "#A855F7" },
-                "Accepted": { label: "Nhận đơn", color: "#ec4899" },
-                "Preparing": { label: "Đang làm món", color: "#eab308" },
-                "Delivering": { label: "Đang giao", color: "#FF6B00" },
-                "Completed": { label: "Thành công", color: "#4ade80" },
-                "Failed": { label: "Thất bại", color: "#ef4444" },
-                "Cancelled": { label: "Đã hủy", color: "#60a5fa" }
-            };
-            const vnLabel = statusMap[d.Status] ? statusMap[d.Status].label : d.Status;
-            
-            if(!aggregatedData[vnLabel]) {
-                aggregatedData[vnLabel] = { count: 0, color: statusMap[d.Status] ? statusMap[d.Status].color : "#ffffff" };
-            }
-            aggregatedData[vnLabel].count += parseInt(d.Count);
-        });
+        if (rawStatusData) {
+            rawStatusData.forEach(d => {
+                const statusMap = {
+                    "Pending": { label: "Mới tạo", color: "#22D3EE" },
+                    "SearchingShipper": { label: "Tìm shipper", color: "#A855F7" },
+                    "Accepted": { label: "Nhận đơn", color: "#ec4899" },
+                    "Preparing": { label: "Đang làm món", color: "#eab308" },
+                    "Delivering": { label: "Đang giao", color: "#FF6B00" },
+                    "Completed": { label: "Thành công", color: "#22c55e" },
+                    "Failed": { label: "Thất bại", color: "#ef4444" },
+                    "Cancelled": { label: "Đã hủy", color: "#3b82f6" }
+                };
+                const info = statusMap[d.Status] || { label: d.Status, color: "#ffffff" };
+                if (!aggregatedData[info.label]) {
+                    aggregatedData[info.label] = { count: 0, color: info.color };
+                }
+                aggregatedData[info.label].count += d.Count;
+            });
+        }
 
         const statusLabels = Object.keys(aggregatedData);
         const statusCounts = Object.values(aggregatedData).map(x => x.count);

@@ -108,25 +108,48 @@
 
 <!-- Stats Dashboard -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-    <!-- Admin Balance -->
+    <!-- Total Revenue -->
     <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.05s">
         <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <i class="fa-solid fa-wallet text-6xl text-brand-orange"></i>
+            <i class="fa-solid fa-money-bill-trend-up text-6xl text-green-500"></i>
         </div>
         <div class="relative z-10">
-            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Ví Hệ thống (Admin)</p>
-            <h3 class="text-3xl font-extrabold mb-2 text-yellow-400">@string.Format("{0:N0} VND", ViewBag.AdminBalance)</h3>
-            <div class="flex items-center gap-2 text-[10px] text-brand-gray font-bold">
-                <i class="fa-solid fa-circle-info"></i>
-                <span>Dùng để nạp tiền cho đối tác</span>
-            </div>
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Tổng Doanh thu (Sales)</p>
+            <h3 class="text-3xl font-extrabold mb-2 text-green-400">@string.Format("{0:N0} VND", stats.TotalRevenue)</h3>
+            @if (stats.SelectedDays > 0)
+            {
+                double tr = stats.RevenueTrend;
+                <div class="flex items-center gap-2 text-[10px] @(tr >= 0 ? "text-green-500" : "text-red-500") font-bold">
+                    <i class="fa-solid @(tr >= 0 ? "fa-caret-up" : "fa-caret-down")"></i>
+                    <span>@(tr > 0 ? "+" : "")@tr.ToString("F1")%</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Admin Income -->
+    <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.1s">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <i class="fa-solid fa-hand-holding-dollar text-6xl text-brand-orange"></i>
+        </div>
+        <div class="relative z-10">
+            <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Thu nhập Admin (Net)</p>
+            <h3 class="text-3xl font-extrabold mb-2 text-brand-orange">@string.Format("{0:N0} VND", stats.AdminIncome)</h3>
+            @if (stats.SelectedDays > 0)
+            {
+                double tr = stats.AdminIncomeTrend;
+                <div class="flex items-center gap-2 text-[10px] @(tr >= 0 ? "text-green-500" : "text-red-500") font-bold">
+                    <i class="fa-solid @(tr >= 0 ? "fa-caret-up" : "fa-caret-down")"></i>
+                    <span>@(tr > 0 ? "+" : "")@tr.ToString("F1")%</span>
+                </div>
+            }
         </div>
     </div>
 
     <!-- Total Orders -->
-    <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.1s">
+    <div class="bg-brand-dark p-6 rounded-[2rem] border border-white/5 relative overflow-hidden group fade-in" style="animation-delay: 0.15s">
         <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <i class="fa-solid fa-box text-6xl text-brand-orange"></i>
+            <i class="fa-solid fa-box text-6xl text-blue-500"></i>
         </div>
         <div class="relative z-10">
             <p class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-2">Tổng đơn hàng</p>
@@ -191,6 +214,18 @@
                 <i class="fa-solid fa-chart-line text-brand-orange"></i>
                 Thống kê đơn hàng & Doanh thu
             </h4>
+            
+            <div id="revenueContainer" class="flex flex-col items-end">
+                <span id="revenueTitle" class="text-[10px] font-bold text-brand-gray uppercase tracking-widest mb-1">Tổng doanh thu (VND)</span>
+                <div class="flex items-center gap-3">
+                    <h3 id="revenueValue" class="text-2xl font-black text-yellow-400">@string.Format("{0:N0}", stats.TotalRevenue)</h3>
+                    <div id="revenueTrendDiv" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 text-green-500 text-[10px] font-bold animate-pulse">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                        <span id="revenueTrendText">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
             <div class="flex gap-2">
                 <span class="flex items-center gap-2 text-[10px] font-bold text-brand-gray uppercase tracking-wider">
                     <span class="w-2 h-2 rounded-full bg-brand-orange transition-colors" id="legendColor1"></span> <span id="legendText1">Doanh thu</span>
@@ -464,15 +499,33 @@
             }
             
             if (hasTrends) {
-                const trDiv = document.getElementById('revenueTrendDiv');
-                const tIcon = document.getElementById('revenueTrendIcon');
+                const tPill = document.getElementById('revenueTrendDiv');
                 const tText = document.getElementById('revenueTrendText');
                 
                 let curTrend = showAdminIncome ? incTrendVal : revTrendVal;
                 
-                trDiv.className = "flex items-center gap-2 text-xs font-bold " + (curTrend >= 0 ? "text-green-500" : "text-red-500");
-                tIcon.className = "fa-solid " + (curTrend >= 0 ? "fa-caret-up" : "fa-caret-down");
-                tText.innerText = (curTrend > 0 ? "+" : "") + curTrend.toFixed(1) + "% so với @Html.Raw(previousPeriodLabel)";
+                if (tPill && tText) {
+                    const tIcon = tPill.querySelector('i');
+                    tPill.classList.remove('hidden');
+                    tPill.classList.add('flex');
+                    
+                    if (curTrend >= 0) {
+                        tPill.classList.remove('bg-red-500/10', 'text-red-500');
+                        tPill.classList.add('bg-green-500/10', 'text-green-500');
+                        if (tIcon) {
+                            tIcon.classList.remove('fa-arrow-trend-down');
+                            tIcon.classList.add('fa-arrow-trend-up');
+                        }
+                    } else {
+                        tPill.classList.remove('bg-green-500/10', 'text-green-500');
+                        tPill.classList.add('bg-red-500/10', 'text-red-500');
+                        if (tIcon) {
+                            tIcon.classList.remove('fa-arrow-trend-up');
+                            tIcon.classList.add('fa-arrow-trend-down');
+                        }
+                    }
+                    tText.innerText = (curTrend > 0 ? "+" : "") + curTrend.toFixed(1) + "% so với @Html.Raw(previousPeriodLabel)";
+                }
             }
             
             updateChartData();
