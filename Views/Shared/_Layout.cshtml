@@ -305,7 +305,7 @@
             });
 
             // Send Message Function
-            function sendMessage() {
+            async function sendMessage() {
                 const message = chatInput.value.trim();
                 if (message) {
                     // Add User Message
@@ -317,14 +317,44 @@
                     chatInput.value = '';
                     chatBody.scrollTop = chatBody.scrollHeight;
 
-                    // Mock Bot Response
-                    setTimeout(() => {
+                    // Add Typing Indicator
+                    const typingDiv = document.createElement('div');
+                    typingDiv.className = 'ai-message bot opacity-60 italic flex items-center gap-2';
+                    typingDiv.id = 'ai-typing';
+                    typingDiv.innerHTML = '<span class="w-1.5 h-1.5 bg-brand-orange rounded-full animate-bounce"></span><span class="w-1.5 h-1.5 bg-brand-orange rounded-full animate-bounce [animation-delay:0.2s]"></span><span class="w-1.5 h-1.5 bg-brand-orange rounded-full animate-bounce [animation-delay:0.4s]"></span>';
+                    chatBody.appendChild(typingDiv);
+                    chatBody.scrollTop = chatBody.scrollHeight;
+
+                    try {
+                        const response = await fetch('/Ai/Chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: message })
+                        });
+
+                        const data = await response.json();
+                        
+                        // Remove Typing Indicator
+                        if (document.getElementById('ai-typing')) {
+                            document.getElementById('ai-typing').remove();
+                        }
+
+                        // Add Bot Response
                         const botDiv = document.createElement('div');
                         botDiv.className = 'ai-message bot';
-                        botDiv.textContent = 'Cảm ơn bạn đã nhắn tin! Tôi đang được tích hợp thêm các tính năng thông minh. Tôi sẽ sớm phản hồi bạn tốt hơn.';
+                        botDiv.textContent = data.response || "Xin lỗi, tôi không nhận được phản hồi.";
                         chatBody.appendChild(botDiv);
                         chatBody.scrollTop = chatBody.scrollHeight;
-                    }, 800);
+                    } catch (error) {
+                        console.error('Error:', error);
+                        if (document.getElementById('ai-typing')) document.getElementById('ai-typing').remove();
+                        
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'ai-message bot text-red-400';
+                        errorDiv.textContent = "Đã có lỗi xảy ra khi kết nối với AI. Vui lòng thử lại sau.";
+                        chatBody.appendChild(errorDiv);
+                        chatBody.scrollTop = chatBody.scrollHeight;
+                    }
                 }
             }
 

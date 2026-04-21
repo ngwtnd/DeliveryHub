@@ -44,6 +44,7 @@ builder.Services.AddSignalR();
 // 3. MVC & Services
 builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<DeliveryHubWeb.Services.IMapService, DeliveryHubWeb.Services.MapService>();
+builder.Services.AddHttpClient<DeliveryHubWeb.Services.IAiService, DeliveryHubWeb.Services.AiService>();
 builder.Services.AddHttpClient<DeliveryHubWeb.Services.IRouteOptimizationService, DeliveryHubWeb.Services.RouteOptimizationService>();
 builder.Services.AddHostedService<DeliveryHubWeb.Services.PlatformBackgroundService>();
 
