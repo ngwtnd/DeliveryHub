@@ -146,13 +146,14 @@ namespace DeliveryHubWeb.Controllers
         [HttpPost]
         public async Task<IActionResult> CalculateShippingFeeByAddress([FromBody] CalculateShippingRequest req)
         {
-            var storeIds = req.StoreIds;
+            var storeIds = req.StoreIds?.Where(id => id > 0).ToList();
             if (storeIds == null || storeIds.Count == 0)
             {
                 if (req.StoreId > 0) storeIds = new List<int> { req.StoreId };
+                else storeIds = new List<int>(); // Sẽ dùng fallback bên dưới
             }
 
-            if (req == null || string.IsNullOrEmpty(req.DeliveryAddress) || storeIds == null || storeIds.Count == 0)
+            if (req == null || string.IsNullOrEmpty(req.DeliveryAddress))
                 return Json(new { success = false, message = "Dữ liệu không hợp lệ." });
 
             var stores = await _context.Stores.Where(s => storeIds.Contains(s.Id) && s.IsOpen).ToListAsync();
@@ -237,8 +238,35 @@ namespace DeliveryHubWeb.Controllers
 
             foreach (var storeGroup in itemsByStore)
             {
-                var store = await _context.Stores.FindAsync(storeGroup.Key);
-                if (store == null || !store.IsOpen) continue;
+                Store? store = null;
+
+                // 1. Tìm store theo StoreId được gửi lên
+                if (storeGroup.Key > 0)
+                    store = await _context.Stores.FindAsync(storeGroup.Key);
+
+                // 2. Nếu storeId không hợp lệ, thử lấy store từ MenuItem đầu tiên trong nhóm
+                if (store == null)
+                {
+                    var firstItem = storeGroup.First();
+                    var menuItem = await _context.MenuItems
+                        .Include(m => m.Store)
+                        .FirstOrDefaultAsync(m => m.Id == firstItem.MenuItemId);
+                    if (menuItem?.Store != null)
+                        store = menuItem.Store;
+                }
+
+                // 3. Fallback cuối cùng: lấy bất kỳ store nào đang mở
+                if (store == null)
+                    store = await _context.Stores.FirstOrDefaultAsync(s => s.IsOpen && s.ActivityState == StoreActivityState.Active);
+
+                // Vẫn không tìm được store hợp lệ → bỏ qua nhóm này
+                if (store == null) continue;
+
+                // Store đang đóng cửa → báo lỗi rõ ràng
+                if (!store.IsOpen || store.ActivityState != StoreActivityState.Active)
+                {
+                    return Json(new { success = false, message = $"Nhà hàng '{store.Name}' hiện đang đóng cửa. Vui lòng thử lại sau." });
+                }
 
                 double dLat = req.Lat != 0 ? req.Lat : 10.762622;
                 double dLon = req.Lng != 0 ? req.Lng : 106.660172;
@@ -295,7 +323,7 @@ namespace DeliveryHubWeb.Controllers
             }
 
             if (!createdOrderIds.Any())
-                return Json(new { success = false, message = "Không tạo được đơn hàng." });
+                return Json(new { success = false, message = "Không tạo được đơn hàng. Vui lòng kiểm tra lại giỏ hàng hoặc thử chọn nhà hàng khác." });
 
             if (batchOrder != null)
             {

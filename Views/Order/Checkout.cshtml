@@ -136,8 +136,9 @@
             itemsContainer.innerHTML = '';
             let subtotal = 0;
             let totalItems = 0;
-            let uniqueStoreIdsList = [...new Set(checkoutCart.map(i => i.storeId || 1))];
-            let currentStoreId = uniqueStoreIdsList[0];
+            let uniqueStoreIdsList = [...new Set(checkoutCart.map(i => i.storeId || 0))].filter(id => id > 0);
+            // Nếu không có storeId hợp lệ nào, để server tự resolve từ MenuItemId
+            let currentStoreId = uniqueStoreIdsList.length > 0 ? uniqueStoreIdsList[0] : 0;
 
             if (uniqueStoreIdsList.length > 1) {
                 const batchNotice = document.createElement('div');
@@ -338,7 +339,7 @@
                     Lat: deliveryLat,
                     Lng: deliveryLng,
                     Note: note,
-                    Items: checkoutCart.map(i => ({ MenuItemId: i.id, StoreId: i.storeId || 1, Quantity: i.quantity, Price: i.price }))
+                    Items: checkoutCart.map(i => ({ MenuItemId: i.id, StoreId: i.storeId || 0, Quantity: i.quantity, Price: i.price }))
                 };
 
                 try {
